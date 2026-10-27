@@ -27,6 +27,7 @@ export { storeKey }
 
 export const KEYS = {
   // 보유 · 스냅샷 · 원장 · 설정 · 관심 · 시나리오는 사람마다 이름이 갈린다 → who.ts storeKey(). 여기엔 두지 않는다.
+  // recent · holdSync · scope(와 quotes.ts 시세 캐시)도 사람마다 갈린다 — 쓰는 곳은 이 이름을 storeKey() 로 감싸 쓴다(마스터는 이 이름 그대로).
   recent: 'econSearchRecentV1', theme: 'econNextTheme_v1',
   holdSync: 'econHoldSync_v1',   // 보유 동기화 기록(sync.ts) — 지문·시각만, 보유 값 없음
   hk: 'econAlertsHk_v1',         // 알림 자동 정리 기록(housekeeping.ts) — 조건 id · 시각만
@@ -120,23 +121,22 @@ export function writeMyData(d: Partial<MyData>): boolean {
 
 // ── 최근 본 것(검색 · 오른쪽 패널) ─────────────────────────
 export type { Recent }
-export const readRecent = (): Recent[] => recentList(read<unknown>(KEYS.recent, []))
+export const readRecent = (): Recent[] => recentList(read<unknown>(storeKey(KEYS.recent), []))
 export function pushRecent(r: Recent) {
-  write(KEYS.recent, addRecent(readRecent(), r))
+  write(storeKey(KEYS.recent), addRecent(readRecent(), r))
 }
 /** 상세(/i/<id>)를 열 때 한 번 — 지표 · 종목 모두. 이름은 모르므로 id 를 적고, 전에 적힌 이름이 있으면 남긴다(보이는 이름은 읽는 쪽이 사전 · 묶음에서 찾는다). */
 export function noteRecent(id: string) {
-  if (id) write(KEYS.recent, addRecent(readRecent(), { label: id, to: `/i/${id}`, kind: watchKind(id) === 'stock' ? '종목' : '지표' }, true))
+  if (id) write(storeKey(KEYS.recent), addRecent(readRecent(), { label: id, to: `/i/${id}`, kind: watchKind(id) === 'stock' ? '종목' : '지표' }, true))
 }
 
 /**
  * 이 기기 데이터 지우기 대상. 잠금 PIN 은 남긴다(설정 화면이 그렇다고 적는다 — PIN 잊음에서 지울 때는 PinGate 가 따로 지운다).
  * 현행 화면(js/app2.js)의 동기화 키 해시 · 보유 암호(pfSyncKey* · pfHoldingsPass)도 지운다 — 예전 판은 localStorage 에, 지금 판은 이 탭 sessionStorage 에 둔다.
- * econHoldQuotes_v1 = 보유 종목 시세 캐시(quotes.ts, sessionStorage) — 종목 목록이 드러나므로 같이 지운다.
+ * 최근 본 것 · 보유 동기화 기록 · 연결 범위 · 보유 시세 캐시(quotes.ts, sessionStorage — 종목 목록이 드러난다)는 사람별 이름이라 scopedWipeNames 에 든다.
  */
-export const wipeKeys = () => [...scopedWipeNames(), KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
-  KEYS.holdKey, KEYS.scope, KEYS.rail,
-  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econAlertsSeen_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1', 'econ_home_cache_v1']
+export const wipeKeys = () => [...scopedWipeNames(), KEYS.theme, KEYS.hk, KEYS.holdKey, KEYS.rail,
+  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econAlertsSeen_v1', 'econ_fold_v1', 'econ_usage_v1', 'econ_home_cache_v1']
 /** PIN 잊음 전용: 잠금 PIN 은 이 기기 모든 사람의 자료를 지켰으므로 모든 사람 것을 지운다(scoped.wipeAllPeople). 설정의 「이 기기 데이터 지우기」는 그대로 wipeDevice(지금 사람만). */
 export async function wipeDeviceAll(getKeyHash: GetKeyHash): Promise<boolean> {
   await unsubscribePush(getKeyHash).catch(() => {})

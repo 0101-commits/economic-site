@@ -28,6 +28,7 @@ export default function Members() {
   const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
   const [hasBackup, setHasBackup] = useState(false)
+  const [askBackup, setAskBackup] = useState(false)   // 예비 키 만들기 확인(서버는 이미 있는지 알려 주지 않으므로 늘 묻는다)
 
   const owner = me?.role === 'owner'
   const load = useCallback(async () => {
@@ -37,7 +38,9 @@ export default function Members() {
   }, [hash])
   useEffect(() => { if (owner) void load() }, [owner, load])
 
-  if (me && !owner) return <p className="m-0 text-14 text-ink-2">마스터만 쓸 수 있는 화면입니다</p>
+  if (!owner) {
+    return <p className="m-0 text-14 text-ink-2">{me ? '마스터만 쓸 수 있는 화면입니다' : '들어온 사람을 아직 확인하지 못했습니다. 마스터 입장 키로 들어온 뒤 다시 여세요.'}</p>
+  }
 
   /** 한 가지 일을 하고: 성공이면 then(r), 실패면 그 자리(uid)에 짧은 글. 404 는 목록을 다시 받는다. */
   const run = async (uid: string, job: () => Promise<MemberReply>, then: (r: MemberReply) => void) => {
@@ -74,7 +77,7 @@ export default function Members() {
   const backup = () => void run('', () => adminBackupKey(hash!), r => {
     const key = r.doc?.key
     if (typeof key !== 'string') { setErr({ uid: '', text: '서버 답에 키가 없습니다.' }); return }
-    setIssued({ title: '마스터 예비 키', key, note: '마스터 키를 잃었을 때 이 키로 들어와 새 키를 만듭니다. 따로 적어 두세요.', kakao: false }); setHasBackup(true)
+    setIssued({ title: '마스터 예비 키', key, note: '마스터 키를 잃었을 때 이 키로 들어와 새 키를 만듭니다. 따로 적어 두세요.', kakao: false }); setHasBackup(true); setAskBackup(false)
   })
 
   const today = kstDay()
@@ -158,7 +161,17 @@ export default function Members() {
       <Card title="마스터 예비 키">
         <div className="flex flex-col gap-2">
           <p className="m-0 text-12 text-ink-2">마스터 키를 잃었을 때 들어올 수 있는 두 번째 키입니다. 만들면 따로 적어 두세요.</p>
-          <div><button type="button" disabled={busy} className={BTN2} onClick={backup}>{hasBackup ? '다시 만들기' : '마스터 예비 키 만들기'}</button></div>
+          {!askBackup ? (
+            <div><button type="button" disabled={busy} className={BTN2} onClick={() => { setAskBackup(true); setErr(null) }}>{hasBackup ? '다시 만들기' : '마스터 예비 키 만들기'}</button></div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p role="alert" className="m-0 text-12 text-ink-2">새 예비 키를 만들면 적어 둔 예비 키는 바로 막힙니다. 계속할까요?</p>
+              <div className="flex gap-2">
+                <button type="button" disabled={busy} className={BTN} onClick={backup}>{busy ? '만드는 중' : '만들기'}</button>
+                <button type="button" disabled={busy} className={BTN2} onClick={() => setAskBackup(false)}>취소</button>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </div>

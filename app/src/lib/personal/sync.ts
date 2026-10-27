@@ -26,7 +26,7 @@
 import { useSyncExternalStore } from 'react'
 import { mdHm } from '../format'
 import { samePin } from '../pin'
-import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../push'
+import { dropLocalPush, pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../push'
 import { clearMe, markPaused } from './account'
 import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, storeKey, writePortfolio, writePrefs } from './store'
 import { blankLocal, defaultSet, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, type Local, type PrefsDoc, type Reply } from './remote'
@@ -54,11 +54,11 @@ export const hasHoldKey = () => holdKey() != null
 // ── 범위(이 기기만) ─────────────────────────────────────
 export type Scope = { prefs: boolean; hold: boolean }
 export function readScope(): Scope {
-  const r = readJson(KEYS.scope) as Partial<Scope> | null
+  const r = readJson(storeKey(KEYS.scope)) as Partial<Scope> | null
   return { prefs: r?.prefs !== false, hold: r?.hold !== false }
 }
 function writeScope(p: Partial<Scope>) {
-  try { localStorage.setItem(KEYS.scope, JSON.stringify({ ...readScope(), ...p })) } catch { /* 못 남기면 이번 탭만 */ }
+  try { localStorage.setItem(storeKey(KEYS.scope), JSON.stringify({ ...readScope(), ...p })) } catch { /* 못 남기면 이번 탭만 */ }
 }
 
 // ── 화면에 보이는 상태 ───────────────────────────────────
@@ -73,6 +73,8 @@ function set(p: Partial<SyncStatus>) { st = { ...st, ...p }; subs.forEach(f => f
 const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f) } }
 /** rev 는 서버 내용으로 이 기기를 덮을 때마다 1씩 오른다 — 상태를 들고 있는 화면은 이때 다시 읽는다. */
 export const useSyncStatus = () => useSyncExternalStore(subscribe, () => st)
+/** 입장 관문(App.tsx)용: 이 탭에 키 해시가 있나 — 연결 · 끊김(401 포함) 때 바로 다시 그린다(값이 같으면 그리지 않는다). */
+export const useHasKey = () => useSyncExternalStore(subscribe, () => getKeyHash() != null)
 /** 알림 화면의 범위 문구 — 두 벌(명세 S5). on = ① 을 주고받는 중, push = 이 기기 폰 알림 구독. */
 export const scopeText = (on: boolean, push: boolean) => (on ? (push ? '연결됨 · 폰 알림 켜짐' : '연결됨') : '이 기기만 — 울리지 않음')
 
@@ -134,7 +136,7 @@ function lost(h: string) {
   if (changing) return   // 키 바꾸는 중 — 옛 해시로 나간 요청의 401 은 바뀐 결과다
   const k = keptHash()
   if (k && k !== h) adopt(k)
-  else { disableSync(KEY_LOST); clearMe() }   // account.refreshMe 의 401 과 같은 뒷정리
+  else { clearMe(); disableSync(KEY_LOST); void dropLocalPush() }   // account.refreshMe 의 401 과 같은 뒷정리(끊긴 표시를 먼저 · 이 브라우저 폰 알림 구독도 끊는다)
 }
 
 /** 요청 한 번 + 공통 처리. 키가 없거나 401 이면(끊는다) null. 받지 못한 응답(409 제외)은 알림 글을 남긴다. */
@@ -235,7 +237,7 @@ function onVisibility() {
 function onStorage(e: StorageEvent) {
   if (e.storageArea !== localStorage) return
   if (e.key === KEEP_KEY && e.newValue && HEX64.test(e.newValue)) { if (e.newValue !== getKeyHash()) adopt(e.newValue); return }
-  if (e.key === KEYS.scope) { if (st.linked) set({ on: readScope().prefs }); return }
+  if (e.key === storeKey(KEYS.scope)) { if (st.linked) set({ on: readScope().prefs }); return }
   if (e.newValue !== null || (e.key !== KEEP_KEY && e.key !== storeKey('econPrefsV1'))) return
   if (getKeyHash()) disableSync('다른 탭에서 이 기기를 잊거나 데이터를 지워 이 탭도 끊었습니다.')
 }
@@ -380,11 +382,11 @@ export async function changeKey(cur: string, next: string): Promise<string> {
 // econHoldSync_v1 = { base: 마지막으로 맞췄을 때의 보유 지문, upAt: 마지막 올림, downAt: 마지막 받음, server: 서버에 있음, checkedAt } — 보유 값은 없다.
 export type HoldRec = { base?: string; upAt?: string; downAt?: string; server?: boolean; checkedAt?: string }
 export function readHoldRec(): HoldRec {
-  const r = readJson(KEYS.holdSync)
+  const r = readJson(storeKey(KEYS.holdSync))
   return r && typeof r === 'object' ? (r as HoldRec) : {}
 }
 function noteHold(p: HoldRec) {
-  try { localStorage.setItem(KEYS.holdSync, JSON.stringify({ ...readHoldRec(), ...p })) } catch { /* 못 남기면 다음 확인이 둘 중 고르라고 묻는다 */ }
+  try { localStorage.setItem(storeKey(KEYS.holdSync), JSON.stringify({ ...readHoldRec(), ...p })) } catch { /* 못 남기면 다음 확인이 둘 중 고르라고 묻는다 */ }
 }
 
 /** 확인 결과. migrate = 예전 보유 암호 사본 · broken = 열쇠로는 풀리는데 모양이 깨진 사본(둘 다 그 덩어리 — 「서버 사본 버리고 올리기」가 seen 으로 쓴다) · needKey = 보유 열쇠 재료 없음. */

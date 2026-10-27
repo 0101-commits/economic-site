@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — 계정 모듈(signIn · refreshMe · signOut). sync.ts 는 화면 모듈을 끌고 와 node 에서 못 불러오므로 makeAccount 에 가짜를 꽂는다.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { makeAccount, ME_KEY, parseMe } from './account.ts'
+import { clearMe, keyWasLost, makeAccount, ME_KEY, parseMe } from './account.ts'
 
 const store = new Map<string, string>()
 const mem = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v) }, removeItem: (k: string) => { store.delete(k) } }
@@ -11,9 +11,9 @@ const KEEP = 'econSyncHashKeep_v1'
 const HASH = 'a'.repeat(64)
 const ME = { uid: 'u1abc', name: '민수', role: 'member', viaBackup: false }
 
-type Calls = { connect: string[]; disable: number; forget: number }
+type Calls = { connect: string[]; perm: unknown[]; disable: number; forget: number; drop: number }
 function setup(status: number | 'net', body: unknown = ME, connectOk = true) {
-  const calls: Calls = { connect: [], disable: 0, forget: 0 }
+  const calls: Calls = { connect: [], perm: [], disable: 0, forget: 0, drop: 0 }
   const seen: { url?: string; hash?: string } = {}
   const g = globalThis as unknown as { fetch: unknown }
   const saved = g.fetch
@@ -26,9 +26,10 @@ function setup(status: number | 'net', body: unknown = ME, connectOk = true) {
   const hs: { cur: string | null } = { cur: HASH }
   const acct = makeAccount({
     getKeyHash: () => hs.cur,
-    connectSync: async (k: string) => { calls.connect.push(k); return connectOk },
+    connectSync: async (k: string, perm?: Promise<unknown>) => { calls.connect.push(k); calls.perm.push(perm); return connectOk },
     disableSync: () => { calls.disable++; store.delete(KEEP) },
     forgetDevice: async () => { calls.forget++; store.delete(KEEP) },
+    dropPush: async () => { calls.drop++ },
   })
   return { acct, calls, seen, hs, restore: () => { g.fetch = saved } }
 }
@@ -108,14 +109,41 @@ test('signIn: me 는 맞는데 연결이 안 되면 offline 이고 econMe_v1 을
   try { assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'offline'); assert.equal(store.has(ME_KEY), false) } finally { t.restore() }
 })
 
-test('refreshMe: 401 → disableSync · econSyncHashKeep_v1 · econMe_v1 제거', async () => {
+test('refreshMe: 401 → disableSync · econSyncHashKeep_v1 · econMe_v1 제거 · 이 브라우저 폰 알림 구독 끊기 · 끊긴 표시', async () => {
   const t = setup(401, { error: 'unauthorized' })
   try {
     store.set(ME_KEY, JSON.stringify(ME))
     await t.acct.refreshMe()
     assert.equal(t.calls.disable, 1)
+    assert.equal(t.calls.drop, 1)
     assert.equal(store.has(KEEP), false)
     assert.equal(store.has(ME_KEY), false)
+    assert.equal(keyWasLost(), true)
+  } finally { t.restore() }
+})
+
+test('끊긴 표시: 다시 들어오면(me 저장) 지운다 · 403 은 폰 알림 구독을 건드리지 않는다', async () => {
+  const t = setup(200)
+  try {
+    clearMe()
+    assert.equal(keyWasLost(), true)
+    assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'ok')
+    assert.equal(keyWasLost(), false)
+  } finally { t.restore() }
+  const u = setup(403, { error: 'paused' })
+  try {
+    store.set(ME_KEY, JSON.stringify(ME))
+    await u.acct.refreshMe()
+    assert.equal(u.calls.drop, 0)
+  } finally { u.restore() }
+})
+
+test('signIn: 단추를 누른 순간 물은 알림 허락(perm)을 연결에 그대로 넘긴다', async () => {
+  const t = setup(200)
+  try {
+    const perm = Promise.resolve('granted')
+    assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA', perm), 'ok')
+    assert.equal(t.calls.perm[0], perm)
   } finally { t.restore() }
 })
 

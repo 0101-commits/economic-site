@@ -29,7 +29,10 @@ import { applyTheme, useTheme, type Theme } from './lib/theme'
 import { countUse, screenKey } from './lib/usage'
 import { loadBundle, useBundleRev, useNewBuild, watchBundles, type Meta } from './lib/bundle'
 import { haltLine, type Halt } from './lib/refresh'
-import { getKeyHash } from './lib/personal/sync'
+import { useHasKey } from './lib/personal/sync'
+import { keyWasLost, useMe } from './lib/personal/account'
+import { gateRedirect } from './lib/welcome'
+import { publicLedger } from './lib/alerts/v2'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
 applyUpdown(readPrefs().settings.updown)
@@ -115,7 +118,9 @@ function Shell() {
     loadRootJson<unknown>('events/latest.json').then(r => { setRows(r); tidyAlerts(r, prior) }, () => tidyAlerts([], prior))
   }, [])
   useEffect(() => { if (pathname === '/alerts') setSeen(markSeen()) }, [pathname])
-  const unseen = hasUnseen(rows, seen)
+  const me = useMe()
+  // 멤버의 안 읽음 점은 시장 사건만으로(공개 원장의 사용자 조건 · 묶음 행은 마스터 것 — lib/alerts/v2.ts publicLedger)
+  const unseen = hasUnseen(me?.role === 'member' ? publicLedger(rows) : rows, seen)
   // 묶음 다시 읽기(lib/bundle.ts — meta nextAt + 30초, 없으면 장중 5분). 새 묶음이 오면 rev 가 오르고, 홈 · 시장 · 지표 상세 · 내 자산은
   // 묶음을 읽는 곳이 rev 를 보고 그 자리에서 다시 읽는다(화면을 다시 만들지 않아 입력 · 열린 시트가 남는다). 렌즈 · 알림 · 설정은 그대로다.
   useEffect(() => watchBundles(), [])
@@ -153,9 +158,13 @@ function Shell() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
-  // 키 없는 기기는 입장 화면부터(주소를 그대로 next 로 넘겨 들어간 뒤 돌아온다). 입장 화면엔 머리줄 · 하단 탭 · 오른쪽 패널이 없다.
+  // 입장 관문(lib/welcome.ts gateRedirect): 키 없는 기기는 입장 화면부터(주소를 그대로 next 로 넘겨 들어간 뒤 돌아온다).
+  // 401 로 끊겼으면 why=lost, 멈춘 사람이면 why=paused — 키 해시 · me 가 바뀌는 순간 다시 그려 바로 보낸다(다음 이동을 기다리지 않는다).
+  // 입장 화면엔 머리줄 · 하단 탭 · 오른쪽 패널이 없다.
+  const hasKey = useHasKey()
   const welcome = pathname === '/welcome'
-  if (!welcome && !getKeyHash()) return <Navigate to={'/welcome?next=' + encodeURIComponent(pathname + query)} replace />
+  const gate = gateRedirect({ path: pathname, query, hash: hasKey, paused: me?.status === 'paused', lost: keyWasLost() })
+  if (gate) return <Navigate to={gate} replace />
   return (
     <div className={`min-h-dvh ${welcome ? '' : 'pc:pr-12'} ${rail.open && !welcome ? 'min-[90rem]:pr-75' : ''}`}>
       {/* PC 상단 */}
@@ -224,7 +233,7 @@ function Shell() {
             <Route path="/welcome" element={<Welcome />} />
             <Route path="/settings" element={<PinGate><Settings /></PinGate>} />
             <Route path="/members" element={<PinGate><Members /></PinGate>} />
-            <Route path="*"element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
+            <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
           </Routes>
         </Boundary>
       </main>

@@ -6,12 +6,10 @@ import { currentPerson, setPendingPerson, storeKey, type ScopedBase } from './wh
 import { read, readLedger, readPortfolio, readSnaps, scopedWipeNames, write, writeLedger, wipeAllPeople, writePortfolio, writeSnaps, type Portfolio } from './scoped.ts'
 import { makeAccount, ME_KEY } from './account.ts'
 
-const store = new Map<string, string>()
-Object.assign(globalThis, {
-  localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v) }, removeItem: (k: string) => { store.delete(k) },
-    get length() { return store.size }, key: (i: number) => [...store.keys()][i] ?? null },
-  sessionStorage: { removeItem: () => {} },
-})
+const store = new Map<string, string>(), sess = new Map<string, string>()
+const fakeStorage = (m: Map<string, string>) => ({ getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, v) }, removeItem: (k: string) => { m.delete(k) },
+  get length() { return m.size }, key: (i: number) => [...m.keys()][i] ?? null })
+Object.assign(globalThis, { localStorage: fakeStorage(store), sessionStorage: fakeStorage(sess) })
 
 const as = (p: { uid: string; role: 'owner' | 'member' } | null) => { setPendingPerson(null); if (p) store.set(ME_KEY, JSON.stringify({ ...p, name: 'x', viaBackup: false })); else store.delete(ME_KEY) }
 const OWNER = { uid: 'u0', role: 'owner' as const }, X = { uid: 'uX1', role: 'member' as const }
@@ -45,7 +43,8 @@ test('실제 읽기 · 쓰기 함수: 보유 · 스냅샷 · 원장이 사람 �
   assert.ok(store.has('portfolioV1:uX1') && store.has('pfLedgerV1:uX1') && store.has('pfSnapshotsV1:uX1'))
 })
 
-for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1'] as const) {
+// 뒤 넷 = 편의 기록(보유 동기화 지문 · 연결 범위 · 최근 본 것 · 보유 시세 캐시) — 마스터는 옛 이름, 멤버는 이름:uid
+for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1', 'econHoldSync_v1', 'econSyncScope_v1', 'econSearchRecentV1', 'econHoldQuotes_v1'] as const) {
   test(`바꿔 써도 안 섞인다: ${base}`, () => {
     store.clear()
     const put = (b: ScopedBase, v: unknown) => write(storeKey(b), v)
@@ -57,22 +56,27 @@ for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1'] as cons
   })
 }
 
+const ALL_BASES = ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1',
+  'econHoldSync_v1', 'econSyncScope_v1', 'econSearchRecentV1', 'econHoldQuotes_v1']
+
 test('wipe 이름: 지금 사람 것만 — econ_fav_v1 은 마스터 · 나간 상태에서만', () => {
   as(X)
-  assert.deepEqual(scopedWipeNames(), ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1'].map(b => `${b}:uX1`))
+  assert.deepEqual(scopedWipeNames(), ALL_BASES.map(b => `${b}:uX1`))
   assert.equal(scopedWipeNames().includes('econ_fav_v1'), false)
   as(OWNER); assert.ok(scopedWipeNames().includes('econ_fav_v1')); assert.ok(scopedWipeNames().includes('portfolioV1'))
+  assert.deepEqual(scopedWipeNames().filter(n => n !== 'econ_fav_v1'), ALL_BASES, '마스터는 옛 이름 그대로')
   as(null); assert.ok(scopedWipeNames().includes('econ_fav_v1'))
 })
 
 test('wipeAllPeople(PIN 잊음): 모든 사람의 키 · 마스터 기본 키 · econMe_v1 · 덧붙인 키를 지우고 남의 키는 둔다', () => {
-  store.clear(); as(OWNER)
-  const bases = ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1']
-  for (const b of bases) { store.set(b, '1'); store.set(`${b}:uX1`, '1'); store.set(`${b}:uY2`, '1') }
+  store.clear(); sess.clear(); as(OWNER)
+  for (const b of ALL_BASES) { store.set(b, '1'); store.set(`${b}:uX1`, '1'); store.set(`${b}:uY2`, '1') }
   store.set('econ_fav_v1', '1'); store.set('econ_usage_v1', '1'); store.set('unrelated', '1')
+  sess.set('econHoldQuotes_v1', '1'); sess.set('econHoldQuotes_v1:uX1', '1'); sess.set('sessUnrelated', '1')   // 시세 캐시는 sessionStorage
   setPendingPerson(X)
   assert.equal(wipeAllPeople(['econ_usage_v1']), true)
   assert.deepEqual([...store.keys()], ['unrelated'])
+  assert.deepEqual([...sess.keys()], ['sessUnrelated'])
   assert.equal(currentPerson(), null)
 })
 

@@ -31,8 +31,11 @@ export function lastSeenText(day: string | null | undefined, today: string): str
   return `${Number(m[1])}/${Number(m[2])}`
 }
 
-/** 카톡에 보낼 글. */
-export const kakaoText = (key: string): string => `ECOM 시장 화면 ${SITE} 에서 이 키로 들어오세요: ${key}`
+/** 어디에 무엇이 저장되는지(명세 8절) — 카톡에 보낼 글과 입장 화면이 같이 쓴다. */
+export const STORAGE_NOTE = '관심 종목·알림 조건은 운영 서버에 저장되며 운영자가 볼 수 있습니다. 보유는 본인 키로 잠겨 운영자도 볼 수 없습니다.'
+
+/** 카톡에 보낼 글 — 들어오는 길이 먼저, 저장 안내가 뒤에. */
+export const kakaoText = (key: string): string => `ECOM 시장 화면 ${SITE} 에서 이 키로 들어오세요: ${key}\n${STORAGE_NOTE}`
 
 /** 서버 목록 답 → Member[] (모양이 틀린 행은 버린다). 마스터를 맨 위로, 나머지는 받은 차례. */
 export function parseMembers(doc: any): Member[] {   // eslint-disable-line @typescript-eslint/no-explicit-any

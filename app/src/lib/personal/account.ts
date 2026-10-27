@@ -15,9 +15,10 @@ export type StoredMe = Me & { status?: 'paused' }
 
 export type Deps = {
   getKeyHash: () => string | null
-  connectSync: (key: string) => Promise<boolean>
+  connectSync: (key: string, perm?: Promise<unknown>) => Promise<boolean>
   disableSync: (msg?: string) => void
   forgetDevice: () => Promise<void>
+  dropPush?: () => Promise<void>   // 401 때 이 브라우저 폰 알림 구독 끊기(push.dropLocalPush)
 }
 
 /** 저장된 글 → Me. 모양이 틀리면 null. */
@@ -38,7 +39,15 @@ function notify() {
   listeners.forEach(f => f())
   try { window.dispatchEvent(new StorageEvent('storage', { key: ME_KEY })) } catch { /* window 없음(시험) */ }
 }
-function writeMe(me: StoredMe | null) {
+// 키가 안 맞아(401) 끊겼다는 표시(이 탭) — 입장 관문이 why=lost 로 「키가 바뀌었거나 지워졌습니다」를 띄운다. 다시 들어오거나 나가면 지운다.
+const LOST_KEY = 'econKeyLost_v1'
+function setLost(on: boolean) {
+  try { if (on) sessionStorage.setItem(LOST_KEY, '1'); else sessionStorage.removeItem(LOST_KEY) } catch { /* 막힌 저장소 = 표시 없음 */ }
+}
+/** 이 탭에서 키가 안 맞아(401) 끊겼나. */
+export const keyWasLost = (): boolean => { try { return sessionStorage.getItem(LOST_KEY) === '1' } catch { return false } }
+function writeMe(me: StoredMe | null, lost = false) {
+  setLost(lost)
   try { if (me) localStorage.setItem(ME_KEY, JSON.stringify(me)); else localStorage.removeItem(ME_KEY) } catch { /* 못 남기면 이번 탭만 */ }
   notify()
 }
@@ -62,14 +71,17 @@ function subscribe(f: () => void) {
 /** 화면용 훅(얇게): 저장된 me 를 구독한다. */
 export const useMe = (): StoredMe | null => useSyncExternalStore(subscribe, snapshot, () => null)
 
-/** 키가 안 맞음(401)을 어디서 받았든 같은 뒷정리 — me 삭제(연결 끊기는 부른 쪽이 한다). */
-export const clearMe = (): void => writeMe(null)
+/** 키가 안 맞음(401)을 어디서 받았든 같은 뒷정리 — me 삭제 + 끊긴 표시(연결 끊기 · 폰 알림 구독 끊기는 부른 쪽이 한다). 기기 기록은 그대로. */
+export const clearMe = (): void => writeMe(null, true)
 /** 멈춤(403)을 어디서 받았든 같은 뒷정리 — 표시만 남기고 키 · 연결은 그대로. */
-export function markPaused(): void { const cur = readMe(); if (cur && cur.status !== 'paused') writeMe({ ...cur, status: 'paused' }) }
+export function markPaused(): void { const cur = readMe(); if (cur && cur.status !== 'paused') writeMe({ ...cur, status: 'paused' }, keyWasLost()) }
 
 export function makeAccount(deps: Deps) {
-  /** 입장 키로 들어오기: 정규화 → 해시 → GET /me → ok 면 me 를 저장하고 기존 연결(connectSync)을 이어 한다. */
-  async function signIn(raw: string): Promise<SignInResult> {
+  /**
+   * 입장 키로 들어오기: 정규화 → 해시 → GET /me → ok 면 me 를 저장하고 기존 연결(connectSync)을 이어 한다.
+   * perm = 들어가기 단추를 누른 그 순간 물은 폰 알림 허락(아이폰 · 사파리는 사용자 동작 안에서만 묻는다) — 연결이 이어지면 이 기기를 구독한다.
+   */
+  async function signIn(raw: string, perm?: Promise<unknown>): Promise<SignInResult> {
     let h: string
     try { h = await keyHash(normalizeEntryKey(raw)) } catch { return 'offline' }
     const r = await meGet(h)
@@ -81,7 +93,7 @@ export function makeAccount(deps: Deps) {
     // 연결(connectSync)이 읽고 쓰는 기기 저장 이름이 이 사람 것이 되게, me 를 남기기 전에 들어오는 사람으로 알려 둔다(who.ts).
     setPendingPerson({ uid: r.me.uid, role: r.me.role })
     let linked = false
-    try { linked = await deps.connectSync(raw) } catch { linked = false }
+    try { linked = await deps.connectSync(raw, perm) } catch { linked = false }
     if (!linked) { setPendingPerson(null); return 'offline' }
     // connectSync 는 이 기기 것과 서버 것이 달라 묻는 중에도 true 를 돌려준다(해시는 답한 뒤에 저장) — 해시가 없으면 아직 들어온 것이 아니다.
     if (deps.getKeyHash()) { writeMe(r.me); setPendingPerson(null); return 'ok' }
@@ -109,7 +121,7 @@ export function makeAccount(deps: Deps) {
     const r = await meGet(h)
     // 기다리는 사이 다른 키로 들어왔으면(해시가 바뀜) 옛 키의 답으로 새 로그인을 지우지 않는다.
     if ((r.status === 401 || r.status === 403) && deps.getKeyHash() !== h) return
-    if (r.status === 401) { deps.disableSync(); clearMe() }
+    if (r.status === 401) { clearMe(); deps.disableSync(); await deps.dropPush?.().catch(() => {}) }   // 끊긴 표시를 먼저(관문이 why=lost 로 보낸다)
     else if (r.status === 403) markPaused()
     else if (r.status === 200 && r.me) writeMe(r.me)
   }
@@ -126,10 +138,10 @@ export function makeAccount(deps: Deps) {
 let instance: ReturnType<typeof makeAccount> | null = null   // 'ask' 로 기다리는 me 가 한 곳에 남도록 하나만 둔다
 const lazy = async () => {
   if (instance) return instance
-  const s = await import('./sync')
-  return (instance ??= makeAccount({ getKeyHash: s.getKeyHash, connectSync: k => s.connectSync(k), disableSync: s.disableSync, forgetDevice: s.forgetDevice }))
+  const [s, p] = await Promise.all([import('./sync'), import('../push')])
+  return (instance ??= makeAccount({ getKeyHash: s.getKeyHash, connectSync: (k, perm) => s.connectSync(k, perm), disableSync: s.disableSync, forgetDevice: s.forgetDevice, dropPush: p.dropLocalPush }))
 }
-export const signIn = async (raw: string): Promise<SignInResult> => (await lazy()).signIn(raw)
+export const signIn = async (raw: string, perm?: Promise<unknown>): Promise<SignInResult> => (await lazy()).signIn(raw, perm)
 /** signIn 이 'ask' 를 돌려준 뒤 사용자가 연결 질문에 답하면 부른다. 해시가 저장됐을 때만 true. */
 export const finishSignIn = (): boolean => instance?.finishSignIn() ?? false
 /** signIn 이 'ask' 를 돌려준 뒤 사용자가 그만두면 부른다. */

@@ -19,7 +19,9 @@ export const WAIT = Number(opt('wait', 2500));
 // 알림 v2: 사건 탭 · 채널 탭 · 지표 상세(#/i/kospi) + 벨 시트를 연 채로(?bell=1) 본 상세.
 // 국내 상승 · 하락 보기(v=gainers · losers)는 표 열이 많아 PC 둘째 줄 4칸에서 잘리던 자리라 따로 찍는다.
 // 거시(주제 한 격자 · 나라 꼬리표)와 렌즈 지표 상세(#/i/us10y — 렌즈 패널 · 흐름 차트 기준선) · 종목 상세(#/i/005930 — Yahoo 일봉 · 수급 · 메르 언급)도 본다.
-export const NEXT_PATHS = ['#/', '#/market', '#/market?a=kr&v=gainers', '#/market?a=kr&v=losers', '#/market?a=macro', '#/market?a=kr&v=toss', '#/market?a=macro&v=calendar', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1', '#/i/us10y', '#/i/005930', '#/settings', '#/members'];   // 새 층은 HashRouter
+// 입장 화면(#/welcome · 키가 끊긴 안내 why=lost)은 키 없는 기기 문맥에서 본다(키가 있으면 홈으로 보낸다 — sweep 이 문맥을 바꾼다).
+export const NEXT_PATHS = ['#/', '#/market', '#/market?a=kr&v=gainers', '#/market?a=kr&v=losers', '#/market?a=macro', '#/market?a=kr&v=toss', '#/market?a=macro&v=calendar', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1', '#/i/us10y', '#/i/005930', '#/settings', '#/members', '#/welcome', '#/welcome?why=lost'];   // 새 층은 HashRouter
+const isWelcome = p => /^#?\/welcome(?:[?#]|$)/.test(p);
 export const LEGACY_PATHS = ['dashboard', 'equity', 'market', 'macro', 'calendar', 'realestate',
   'investor', 'merlens', 'merblog', 'notes', 'study', 'settings'].map(p => `/?p=${p}`);
 
@@ -44,21 +46,24 @@ export const fullUrl = (base, p) => {
 export const slug = p => (p.replace(/^#?\//, '').replace(/[?&=\/#]+/g, '-').replace(/^-|-$/g, '') || 'home');
 
 // 폭 × 테마 문맥. 테마는 세 겹으로 건다: 에뮬레이션, 기존 사이트 저장값, 새 층의 data-theme.
-export async function newCtx(browser, w, theme) {
+// keyless = 키 없는 기기(입장 화면용) — 키 해시 · 계정을 심지 않는다.
+export async function newCtx(browser, w, theme, { keyless = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: w, height: w < 500 ? 844 : 900 }, colorScheme: theme });
-  await ctx.addInitScript(t => {
+  await ctx.addInitScript(([t, bare]) => {
     try {
       localStorage.setItem('econ_theme', t);
       sessionStorage.setItem('econLockOk_v1', '1');   // PIN 관문 해제(안 풀면 잠긴 화면을 못 잼)
       sessionStorage.setItem('econLockAt_v1', String(Date.now()));   // 해제 시각(5분 안이어야 열린 것으로 본다, lib/pin.ts)
-      // 입장 키가 있는 기기처럼: 해시 · 보유 열쇠 재료 · 마스터 계정을 심어 /welcome 으로 가지 않게 한다
-      const h = 'a'.repeat(64);
-      sessionStorage.setItem('econSyncHash_v1', h);
-      localStorage.setItem('econSyncHashKeep_v1', h);
-      localStorage.setItem('econMe_v1', JSON.stringify({ uid: 'owner000test', name: '마스터', role: 'owner', viaBackup: false }));
+      if (!bare) {
+        // 입장 키가 있는 기기처럼: 해시 · 보유 열쇠 재료 · 마스터 계정을 심어 /welcome 으로 가지 않게 한다
+        const h = 'a'.repeat(64);
+        sessionStorage.setItem('econSyncHash_v1', h);
+        localStorage.setItem('econSyncHashKeep_v1', h);
+        localStorage.setItem('econMe_v1', JSON.stringify({ uid: 'owner000test', name: '마스터', role: 'owner', viaBackup: false }));
+      }
       document.documentElement.setAttribute('data-theme', t);
     } catch (_) {}
-  }, theme);
+  }, [theme, keyless]);
   // Worker 모의: GET /me = 200(owner) · 키 해시를 실은 그 밖의 요청은 끊는다(가짜 해시가 진짜 서버에서 401 을 받아 연결이 지워지지 않게) · 해시 없는 요청(시세 등)은 그대로 보낸다
   const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
   await ctx.route('https://ecom-dashboard-proxy.e-hcg.workers.dev/**', r => {
@@ -134,8 +139,10 @@ export async function sweep({ setup, onShot } = {}) {
   for (const theme of THEMES) for (const w of WIDTHS) {
     const ctx = await newCtx(browser, w, theme);
     if (setup) await setup(ctx);
+    let bare = null;   // 키 없는 기기 문맥 — 입장 화면 경로가 있을 때만 한 번 만든다
     for (const p of list) {
-      const page = await ctx.newPage();
+      if (isWelcome(p) && !bare) { bare = await newCtx(browser, w, theme, { keyless: true }); if (setup) await setup(bare); }
+      const page = await (isWelcome(p) ? bare : ctx).newPage();
       let v = [], err = null;
       try {
         await page.goto(fullUrl(base, p), { waitUntil: 'load', timeout: 60000 });
@@ -147,6 +154,7 @@ export async function sweep({ setup, onShot } = {}) {
       await page.close();
     }
     await ctx.close();
+    if (bare) await bare.close();
   }
   await browser.close();
   return rows;

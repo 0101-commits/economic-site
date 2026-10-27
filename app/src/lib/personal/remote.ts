@@ -229,6 +229,8 @@ export async function aiAsk(hash: string, question: string, snapshot: unknown): 
 }
 
 const AI_ERR: Record<string, string> = {
+  ai_quota: '오늘 AI 질문을 모두 썼습니다(하루 30회).',   // 멤버 하루 상한(Worker 429 ai_quota) — 1분 뒤가 아니다
+  paused: '멈춘 키입니다. 모임 운영자에게 문의해 주세요.',
   rate_limited: '요청이 많습니다. 1분 뒤 다시 물어보세요.',
   unauthorized: '입장 키가 서버와 맞지 않습니다. 설정 › 내 계정에서 다시 연결하세요.',
   sync_key_not_configured: '서버에 입장 키가 설정되지 않아 지금은 물을 수 없습니다.',

@@ -1,15 +1,18 @@
 // 입장 화면 — 키 없는 기기는 여기서 시작한다(App.tsx Shell 이 /welcome?next=… 로 보낸다).
 // 흐름은 lib/personal/account.ts signIn → ok(환영 줄 0.8초 뒤 next) · ask(서버 설정과 다름: 기기 연결과 같은 물음) · 오류 넷.
 // 키 원문은 입력 칸 상태에만 있다가 보내는 순간 비운다(저장하지 않는다).
+// why=paused(멈춘 키) · why=lost(401 로 끊김)이면 첫 줄로 알린다(lib/welcome.ts whyText). 이미 들어와 있는 기기는 홈으로 보낸다(welcomeAway).
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { BrandLogo } from '../components/Brand'
 import { Card } from '../components/ui'
 import { AskBox } from '../components/personal/DeviceLink'
 import { BTN } from '../components/personal/bits'
 import { cancelSignIn, finishSignIn, readMe, signIn } from '../lib/personal/account'
-import { useSyncStatus } from '../lib/personal/sync'
-import { safeNext } from '../lib/welcome'
+import { getKeyHash, useSyncStatus } from '../lib/personal/sync'
+import { pushSupported } from '../lib/push'
+import { STORAGE_NOTE } from '../lib/personal/members'
+import { safeNext, welcomeAway, whyText } from '../lib/welcome'
 
 const ERRORS = {
   bad: '키가 맞지 않습니다. 하이픈과 대소문자는 신경 쓰지 않아도 됩니다.',
@@ -30,6 +33,10 @@ export default function Welcome() {
   const [hello, setHello] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(timer.current), [])
+  // 열 때 한 번만 본다 — 여기서 들어오는 중(해시가 막 생김)에는 보내지 않는다
+  const [away] = useState(() => welcomeAway({ hash: !!getKeyHash(), paused: readMe()?.status === 'paused' }))
+  const why = whyText(params.get('why'))
+  if (away) return <Navigate to="/" replace />
 
   const enter = () => {
     setHello(`${readMe()?.name ?? ''}님, 어서 오세요`)
@@ -39,11 +46,13 @@ export default function Welcome() {
     e.preventDefault()
     const raw = key
     if (busy || !raw.trim()) return
+    // 폰 알림 허락은 누른 그 순간에 묻는다(아이폰 · 사파리는 사용자 동작 안에서만 묻는다 — 기기 연결과 같은 방식). 들어가면 이 기기를 구독한다.
+    const perm = pushSupported() && Notification.permission === 'default' ? Notification.requestPermission().catch(() => 'default') : undefined
     setKey('')
     setErr('')
     setBusy(true)
     try {
-      const r = await signIn(raw)
+      const r = await signIn(raw, perm)
       if (r === 'ok') enter()
       else if (r === 'ask') setAsking(true)
       else setErr(ERRORS[r])
@@ -67,6 +76,7 @@ export default function Welcome() {
           {hello ? <p role="status" className="m-0 text-14 text-ink-1">{hello}</p>
             : s.ask && asking ? <AskBox ask={s.ask} busy={s.busy} onAnswered={answered} /> : (
               <form onSubmit={submit} className="flex flex-col gap-3" aria-label="입장 키로 들어가기">
+                {why && !err && <p role="status" className="m-0 text-13 text-warn">{why}</p>}
                 <label className="flex flex-col gap-1 min-w-0">
                   <span className="text-12 text-ink-2">입장 키</span>
                   <input type="text" autoComplete="off" autoCapitalize="characters" spellCheck={false} autoFocus
@@ -77,6 +87,7 @@ export default function Welcome() {
                 {err && <p id="welcome-err" role="alert" className="m-0 text-12 text-warn">{err}</p>}
                 <button type="submit" disabled={busy || !key.trim()} className={`${BTN} h-11 text-14 font-bold`}>{busy ? '확인 중' : '들어가기'}</button>
                 <p className="m-0 text-12 text-ink-3">키는 모임 운영자에게 받습니다. 한 번 들어가면 이 기기는 다음부터 바로 열립니다. 키는 기기에 저장하지 않습니다.</p>
+                <p className="m-0 text-12 text-ink-3">{STORAGE_NOTE}</p>
               </form>
             )}
         </Card>

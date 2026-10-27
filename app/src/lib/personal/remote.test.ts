@@ -208,3 +208,8 @@ test('aiAsk: 키 해시는 본문 keyHash(Worker 가 보는 곳), 질문은 300�
   } finally { globalThis.fetch = real }
   assert.match(aiErrText({ status: 0, error: 'network' }), /닿지 못했습니다/)
 })
+
+test('aiErrText: 멤버 하루 상한(429 ai_quota) · 멈춘 키(403 paused)', () => {
+  assert.equal(aiErrText({ status: 429, error: 'ai_quota' }), '오늘 AI 질문을 모두 썼습니다(하루 30회).')
+  assert.equal(aiErrText({ status: 403, error: 'paused' }), '멈춘 키입니다. 모임 운영자에게 문의해 주세요.')
+})
