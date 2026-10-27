@@ -16,7 +16,7 @@ import { fmtNumber, fmtPct, mdHm, scaled, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
-import { KEYS, readHk, readPrefs, writeHk, writePrefs, type AlertCond, type Level, type Pkg, type Prefs, type Settings, type Strength } from '../lib/personal/store'
+import { readHk, storeKey, readPrefs, writeHk, writePrefs, type AlertCond, type Level, type Pkg, type Prefs, type Settings, type Strength } from '../lib/personal/store'
 import { PACKAGE_PRESET, setPackage } from '../lib/personal/prefsV2'
 import { armU1, condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
 import type { Hk } from '../lib/personal/housekeeping'
@@ -137,7 +137,7 @@ export default function Alerts() {
   }, [])
   // 동기화(sync.ts)·자동 정리(store.tidyAlerts)·다른 탭이 바꾸면 다시 읽는다 — 낡은 사본으로 저장해 다른 기기의 조건을 지우지 않게.
   useEffect(() => {
-    const f = (e: StorageEvent) => { if (e.key === KEYS.prefs) { setPrefs(readPrefs()); setHk(readHk()) } }
+    const f = (e: StorageEvent) => { if (e.key === storeKey('econPrefsV1')) { setPrefs(readPrefs()); setHk(readHk()) } }
     window.addEventListener('storage', f)
     return () => window.removeEventListener('storage', f)
   }, [])

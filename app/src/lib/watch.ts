@@ -2,16 +2,20 @@
 // 같은 화면의 별(띠 카드 · 표 행 · 관심 패널)이 한 저장소를 보고, 다른 탭에서 바꿔도 따라온다.
 // 다른 기기와 맞추는 것(/prefs 로 올리고 받기)은 lib/personal/sync.ts 가 이 열쇠를 읽고 쓴다.
 import { useSyncExternalStore } from 'react'
+import { storeKey } from './personal/who'
 
-const KEY = 'econ_watch_v1'
+// 열쇠 이름은 사람마다 갈린다(who.ts storeKey) — 마스터 · 로그아웃은 econ_watch_v1 그대로, 멤버는 econ_watch_v1:uid.
+const key = () => storeKey('econ_watch_v1')
 const subs = new Set<() => void>()
-let cache: string[] | null = null
+let cache: string[] | null = null, cacheKey = ''
 
 function read(): string[] {
-  if (cache) return cache
+  const k = key()
+  if (cache && cacheKey === k) return cache   // 사람이 바뀌면 이름이 달라져 다시 읽는다
+  cacheKey = k
   try {
     // 현행 화면(js/app4.js MY 레일)의 즐겨찾기 econ_fav_v1 도 같은 지표 id 배열이다 — 새 화면을 처음 열면 이어받는다(같은 origin 이라 저장소가 같다).
-    const raw = localStorage.getItem(KEY) ?? localStorage.getItem('econ_fav_v1') ?? '[]'
+    const raw = localStorage.getItem(k) ?? (k === 'econ_watch_v1' ? localStorage.getItem('econ_fav_v1') : null) ?? '[]'   // 옛 즐겨찾기는 마스터(옛 이름)만 이어받는다
     const v = JSON.parse(raw)
     cache = Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
   } catch { cache = [] }
@@ -19,12 +23,12 @@ function read(): string[] {
 }
 
 function write(ids: string[]) {
-  cache = ids
-  try { localStorage.setItem(KEY, JSON.stringify(ids)) } catch { /* 저장 못 해도 이번 화면엔 남는다 */ }
+  cache = ids; cacheKey = key()
+  try { localStorage.setItem(cacheKey, JSON.stringify(ids)) } catch { /* 저장 못 해도 이번 화면엔 남는다 */ }
   subs.forEach(f => f())
 }
 
-window.addEventListener('storage', e => { if (e.key === KEY) { cache = null; subs.forEach(f => f()) } })
+window.addEventListener('storage', e => { if (!e.key || e.key === key() || e.key === 'econMe_v1') { cache = null; subs.forEach(f => f()) } })
 
 const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f) } }
 

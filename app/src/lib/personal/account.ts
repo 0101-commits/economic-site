@@ -61,6 +61,11 @@ function subscribe(f: () => void) {
 /** 화면용 훅(얇게): 저장된 me 를 구독한다. */
 export const useMe = (): StoredMe | null => useSyncExternalStore(subscribe, snapshot, () => null)
 
+/** 키가 안 맞음(401)을 어디서 받았든 같은 뒷정리 — me 삭제(연결 끊기는 부른 쪽이 한다). */
+export const clearMe = (): void => writeMe(null)
+/** 멈춤(403)을 어디서 받았든 같은 뒷정리 — 표시만 남기고 키 · 연결은 그대로. */
+export function markPaused(): void { const cur = readMe(); if (cur && cur.status !== 'paused') writeMe({ ...cur, status: 'paused' }) }
+
 export function makeAccount(deps: Deps) {
   /** 입장 키로 들어오기: 정규화 → 해시 → GET /me → ok 면 me 를 저장하고 기존 연결(connectSync)을 이어 한다. */
   async function signIn(raw: string): Promise<SignInResult> {
@@ -98,8 +103,8 @@ export function makeAccount(deps: Deps) {
     const r = await meGet(h)
     // 기다리는 사이 다른 키로 들어왔으면(해시가 바뀜) 옛 키의 답으로 새 로그인을 지우지 않는다.
     if ((r.status === 401 || r.status === 403) && deps.getKeyHash() !== h) return
-    if (r.status === 401) { deps.disableSync(); writeMe(null) }
-    else if (r.status === 403) { const cur = readMe(); if (cur) writeMe({ ...cur, status: 'paused' }) }
+    if (r.status === 401) { deps.disableSync(); clearMe() }
+    else if (r.status === 403) markPaused()
     else if (r.status === 200 && r.me) writeMe(r.me)
   }
 

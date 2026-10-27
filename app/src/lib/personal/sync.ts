@@ -7,7 +7,7 @@
 //   키      화면에서 받은 동기화 키 원문은 저장하지 않는다. 연결할 때(원문이 손에 있을 때) 두 가지로 바꿔 둔다:
 //           SHA-256 해시 → sessionStorage econSyncHash_v1(이 탭) + localStorage econSyncHashKeep_v1(기억 — 새 탭이 PIN 없이 잇는다, 결정 D10),
 //           보유 열쇠 재료(e2e.ts holdKeyOf) → localStorage econHoldKey_v1. 기억 해시와 재료는 수명이 같다 —
-//           「이 기기 잊기」 · 키가 틀려(401) 끊김 · 이 기기 데이터 지우기(store.ts WIPE_KEYS) · 다른 탭에서 지움(storage 이벤트) 때 함께 지운다.
+//           「이 기기 잊기」 · 키가 틀려(401) 끊김 · 이 기기 데이터 지우기(store.ts wipeKeys) · 다른 탭에서 지움(storage 이벤트) 때 함께 지운다.
 //   연결    키 → 해시 · 재료 → GET /prefs. 서버에 저장본이 있고 이 기기에도 관심 · 조건 · 시나리오(또는 기본값에서 바꾼 설정)가 있는데 서로 다르면 한 번 묻는다
 //           (st.ask — 「서버 것으로 맞추기 / 이 기기 것을 올리기」, answerAsk). 답하기 전엔 아무것도 저장하지 않는다. 한쪽이 비었거나 같으면 묻지 않는다.
 //           서버에 못 닿으면 연결하지 않는다(나중에 말없이 덮지 않게 — 다시 「연결」).
@@ -27,14 +27,14 @@ import { useSyncExternalStore } from 'react'
 import { mdHm } from '../format'
 import { samePin } from '../pin'
 import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../push'
-import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, writePortfolio, writePrefs } from './store'
+import { clearMe, markPaused } from './account'
+import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, storeKey, writePortfolio, writePrefs } from './store'
 import { blankLocal, defaultSet, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, type Local, type PrefsDoc, type Reply } from './remote'
 import { applyEntries, autoStep, decide, encrypt, entriesOf, fingerprint, holdKeyOf, openBlob, relockBlob, type EncBlob, type Entry, type Plan } from './e2e'
 import type { Holding } from './calc'
 
 const HASH_KEY = 'econSyncHash_v1'
 const KEEP_KEY = 'econSyncHashKeep_v1'
-const SCEN_KEY = 'econ_scenarios_v1'   // components/lens/WhatIf.tsx SAVE_KEY 와 같은 열쇠
 const QUIET_MS = 2_000                 // 바뀐 뒤 이만큼 조용하면 보낸다
 const GAP_MS = 6_000                   // 요청 사이 최소 간격(분당 10회 아래)
 const RETRY_MS = 60_000                // 서버에 못 닿았을 때 다시 해 볼 때까지
@@ -80,7 +80,7 @@ export const scopeText = (on: boolean, push: boolean) => (on ? (push ? '연결�
 function readJson(k: string): unknown { try { return JSON.parse(localStorage.getItem(k) || 'null') } catch { return null } }
 
 function readLocal(): Local {
-  const w = readJson(KEYS.watch), sc = readJson(SCEN_KEY), p = readPrefs()
+  const w = readJson(storeKey('econ_watch_v1')), sc = readJson(storeKey('econ_scenarios_v1')), p = readPrefs()
   return {
     watch: Array.isArray(w) ? w.filter((x): x is string => typeof x === 'string') : [],
     alerts: p.alerts, settings: syncedOf(p.settings),
@@ -90,12 +90,12 @@ function readLocal(): Local {
 
 function writeLocal(l: Local) {
   const put = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* 저장 못 하면 이번 화면만 그대로 */ } }
-  put(KEYS.watch, l.watch)
-  put(SCEN_KEY, l.scenarios)
+  put(storeKey('econ_watch_v1'), l.watch)
+  put(storeKey('econ_scenarios_v1'), l.scenarios)
   const cur = readPrefs()
   writePrefs({ ...cur, alerts: l.alerts, settings: { ...cur.settings, ...l.settings } })   // 금액 단위 · 자동 강등은 이 기기 값 그대로
   applyUpdown(l.settings.updown)
-  for (const key of [KEYS.watch, KEYS.prefs, SCEN_KEY]) window.dispatchEvent(new StorageEvent('storage', { key }))
+  for (const key of [storeKey('econ_watch_v1'), storeKey('econPrefsV1'), storeKey('econ_scenarios_v1')]) window.dispatchEvent(new StorageEvent('storage', { key }))
 }
 
 const fp = () => JSON.stringify(readLocal())
@@ -134,7 +134,7 @@ function lost(h: string) {
   if (changing) return   // 키 바꾸는 중 — 옛 해시로 나간 요청의 401 은 바뀐 결과다
   const k = keptHash()
   if (k && k !== h) adopt(k)
-  else disableSync(KEY_LOST)
+  else { disableSync(KEY_LOST); clearMe() }   // account.refreshMe 의 401 과 같은 뒷정리
 }
 
 /** 요청 한 번 + 공통 처리. 키가 없거나 401 이면(끊는다) null. 받지 못한 응답(409 제외)은 알림 글을 남긴다. */
@@ -145,6 +145,7 @@ async function call(put?: Parameters<typeof prefsCall>[1]): Promise<Reply | null
   const r = await prefsCall(h, put)
   busy = false; set({ busy: false })
   if (r.status === 401) { lost(h); return null }
+  if (r.status === 403 && getKeyHash() === h) markPaused()   // 멈춤 — 키 · 연결은 그대로, 표시만(account.refreshMe 의 403 과 같다)
   if (!r.doc && r.status !== 409) set({ msg: errText(r) })
   return r
 }
@@ -235,7 +236,7 @@ function onStorage(e: StorageEvent) {
   if (e.storageArea !== localStorage) return
   if (e.key === KEEP_KEY && e.newValue && HEX64.test(e.newValue)) { if (e.newValue !== getKeyHash()) adopt(e.newValue); return }
   if (e.key === KEYS.scope) { if (st.linked) set({ on: readScope().prefs }); return }
-  if (e.newValue !== null || (e.key !== KEEP_KEY && e.key !== KEYS.prefs)) return
+  if (e.newValue !== null || (e.key !== KEEP_KEY && e.key !== storeKey('econPrefsV1'))) return
   if (getKeyHash()) disableSync('다른 탭에서 이 기기를 잊거나 데이터를 지워 이 탭도 끊었습니다.')
 }
 

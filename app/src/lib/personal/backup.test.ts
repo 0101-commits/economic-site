@@ -88,9 +88,8 @@ test('시나리오 출처: 파일의 scenarios 는 렌즈 저장(econ_scenarios_
   // 열쇠가 렌즈 화면과 같다
   const whatIf = readFileSync(new URL('../../components/lens/WhatIf.tsx', import.meta.url), 'utf8')
   const store = readFileSync(new URL('./store.ts', import.meta.url), 'utf8')
-  assert.match(whatIf, /SAVE_KEY = 'econ_scenarios_v1'/)
-  assert.match(store, /scenarios: 'econ_scenarios_v1'/)
-  assert.match(store, /read<unknown>\(KEYS\.scenarios, \[\]\)/)
+  assert.match(whatIf, /storeKey\('econ_scenarios_v1'\)/)
+  assert.match(store, /storeKey\('econ_scenarios_v1'\)/)
 })
 
 test('파일에 없는 칸 · 못 읽는 칸은 undefined(이 기기 것을 그대로 둔다), 원래 빈 목록은 빈 목록', async () => {

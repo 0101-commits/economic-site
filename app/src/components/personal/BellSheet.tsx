@@ -11,7 +11,7 @@ import { ALERT_CAP, levelChoices, savedNote, sheetEvents, yearCounts, type Dict 
 import { loadDaily } from '../../lib/alerts/daily'
 import { armU1, condId, repeatNote } from '../../lib/personal/alertStatus'
 import { watchKind } from '../../lib/personal/remote'
-import { KEYS, readPrefs, writePrefs, type AlertCond, type Level, type Strength } from '../../lib/personal/store'
+import { storeKey, readPrefs, writePrefs, type AlertCond, type Level, type Strength } from '../../lib/personal/store'
 import { useSyncStatus } from '../../lib/personal/sync'
 import dictJson from '../../lib/alerts/dict.json'
 
@@ -72,7 +72,7 @@ function BellForm({ id, cur, unit }: { id: string; cur?: number | null; unit?: s
     if (!old && p.alerts.length >= ALERT_CAP) { setErr(CAP_MSG); return }
     const next = old ? p.alerts.map(x => (x === old ? { ...a, id: old.id, ...(old.armedAt ? { armedAt: old.armedAt } : {}) } : x)) : [...p.alerts, armU1(a, cur)]
     if (!writePrefs({ ...p, alerts: next })) { setErr('이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.'); return }
-    window.dispatchEvent(new StorageEvent('storage', { key: KEYS.prefs }))
+    window.dispatchEvent(new StorageEvent('storage', { key: storeKey('econPrefsV1') }))
     setErr(''); setValue(''); setSavedAt(Date.now())
   }
   const note = savedNote(sync, savedAt)
