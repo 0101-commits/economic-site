@@ -15,7 +15,7 @@ ecom 은 주인 1명이 여러 기기에서 쓰도록 자랐다. 이제 **ECOM �
 | 쓰는 사람 | 주인 + 아는 사람 몇 명(초대한 사람만) **[사용자 결정]** |
 | 들어오는 방식 | 사람마다 받는 **입장 키**(주인이 만들어 나눠 줌). 아이디·비밀번호 가입 없음 **[사용자 결정]** |
 | 주소 | `https://ecom-terminal.pages.dev` (무료). `ecom.pages.dev` 는 다른 계정이 사용 중(2026-10-27 실측: 브라질 사이트 「Escamax™」), `ecom.com`·`ecom.kr` 도 등록됨 **[사용자 결정]** |
-| 로고 | ECOM 모임 킥오프 자료(`OneDrive …\ECOM\[ECOM] Kick-off Meeting_250701_vf.pptx`)의 로고 — 초록 마크 + 「ECOM」 + 「ECONOMIC CONNECTION OPPORTUNITY MOMENTUM」 **[사용자 결정]** |
+| 로고 | ECOM 킥오프 자료(pptx) 안 `ppt/media/image1.png` 의 로고 — 초록 마크 + 「ECOM」 + 「ECONOMIC CONNECTION OPPORTUNITY MOMENTUM」 **[사용자 결정]** |
 
 ## 3. 목표 · 하지 않을 것 · 실패로 볼 것
 

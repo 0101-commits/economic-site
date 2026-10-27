@@ -67,7 +67,7 @@
 - Modify: 루트 `og-cover.png`(옛 화면 공유 그림, 1200×630 새 그림으로 덮기)
 
 **Interfaces:**
-- Produces: SVG 3종은 `viewBox` 만 있고 `width/height` 없음, 모든 도형 `fill="currentColor"`(색은 쓰는 쪽이 정함). `ecom-mark.svg` = 마크만, `ecom-word.svg` = 「ECOM」 글자만, `ecom-logo.svg` = 마크 + ECOM + 영문 두 줄. 원본 소스: `C:\Users\cgpar\OneDrive - 휴먼컨설팅그룹\09 Admin\09 etc\other\ECOM\draft\[ECOM] Kick-off Meeting_250701_vf.pptx` 안 `ppt/media/image1.png`(500×500 투명, 로고 영역 bbox (61,159)-(442,307), 마크 = 로고 영역 왼쪽 x<102, 글자 = x≥129, 「ECOM」 = 글자 영역 y<64).
+- Produces: SVG 3종은 `viewBox` 만 있고 `width/height` 없음, 모든 도형 `fill="currentColor"`(색은 쓰는 쪽이 정함). `ecom-mark.svg` = 마크만, `ecom-word.svg` = 「ECOM」 글자만, `ecom-logo.svg` = 마크 + ECOM + 영문 두 줄. 원본 소스: ECOM 킥오프 자료(pptx) 안 `ppt/media/image1.png`(500×500 투명, 로고 영역 bbox (61,159)-(442,307), 마크 = 로고 영역 왼쪽 x<102, 글자 = x≥129, 「ECOM」 = 글자 영역 y<64).
 
 - [ ] **Step 1:** `trace_logo.py` — 원본 알파를 4배 확대(LANCZOS) → 임계 128 → potrace 로 추적(`pip install --target .omc/tmp/pylib potracer`, 저장소에 넣지 않음) → 세 SVG 저장. 글꼴로 대체하지 말 것(윤곽만).
 - [ ] **Step 2:** `check_logo.mjs` — Playwright 로 각 SVG 를 원본 해당 영역 크기로 렌더(검정 채움) → 원본 알파(>128)와 픽셀 비교, 불일치 비율 출력. 실행: `node scripts/brand/check_logo.mjs` → 기대 `mark <1% · word <1% · logo <1%`, 하나라도 1% 이상이면 exit 1.
@@ -307,10 +307,14 @@
 ## 배포(컨트롤러가 직접, 사용자 승인 뒤 — 코드 작업 아님)
 
 순서대로, 각 줄의 확인이 통과해야 다음 줄:
-1. `main` 을 브랜치에 병합 → 전 시험 → PR → 병합(봇 데이터 커밋과 겹치는 파일 없음 확인).
-2. Pages 프로젝트 `ecom-terminal` 생성 + `cloudflare-pages/` 배포 → `https://ecom-terminal.pages.dev/` 200, `data.json` `lastUpdated` 가 옛 주소와 같음.
-3. Worker 는 main 푸시로 자동 배포(legacy 모드) → 마스터 키로 `/me` = legacy owner.
-4. 시크릿 `PUSH_WRITE_KEY` 생성(값 미출력) → `wrangler secret put` + `gh secret set --body`.
-5. `POST /admin/migrate` 1회 → 응답 `created:true` → 다시 1회 `created:false` → 새 주소에서 마스터 키로 입장 · 보유 복호화 · 관심 그대로 확인.
-6. 멤버 관리에서 마스터 예비 키 발급(사용자에게 1회 전달) + 시험 멤버 1명 → 칸 분리 · 폰 알림 실발송 확인 → 시험 멤버 삭제.
-7. 사용자 조치 안내: 네이버 클라우드 콘솔에 `ecom-terminal.pages.dev` 등록(옛 화면 지역 지도), 마스터 기기마다 「내 데이터 내려받기 → 새 주소 올리기」 · PIN · 폰 알림 다시 켜기.
+1. **사용자**: 카카오 개발자 콘솔 「사이트 도메인」에 `https://ecom-terminal.pages.dev` 추가 — **합치기 전**(합치는 순간 카톡 링크가 새 주소로 바뀐다). 네이버 클라우드 콘솔에 같은 도메인 등록(옛 화면 지도).
+2. Pages 프로젝트 `ecom-terminal` 생성 + `cloudflare-pages/` 배포 + 확인(`https://ecom-terminal.pages.dev/` 200, `data.json` `lastUpdated` 가 옛 주소와 같음) — **합치기 전**.
+3. `main` 을 브랜치에 병합 → 전 시험 → PR → 병합(봇 데이터 커밋과 겹치는 파일 없음 확인). Worker(Workers Builds) · Pages 배포가 끝날 때까지 기다린다. 마스터 키로 `/me` = legacy owner 확인.
+4. 시크릿 `PUSH_WRITE_KEY` 생성(값 미출력) → Worker(`wrangler secret put`) + GitHub(`gh secret set --body`).
+5. **조용한 창에서 이전**: 장 마감 뒤, 마스터 기기의 화면을 모두 닫고 `POST /admin/migrate` 1회 → 응답 `created:true` → 2분 기다림 → 다시 1회 `created:false` → 새 주소에서 마스터 키로 입장 · 보유 · 관심 확인.
+6. 마스터 예비 키 발급(종이에 적어 보관) + 시험 멤버 1명으로 칸 분리 · 폰 알림 · 받은 알림 확인 → 시험 멤버 삭제. 멤버 초대는 **한 명씩**(같은 와이파이에서 동시에 넣으면 IP 당 분당 10회 제한에 걸린다).
+7. 사용자 안내: 기기마다 「내 데이터 내려받기 → 새 주소에서 올리기」, PIN · 폰 알림 · 홈 화면 아이콘 다시. 옛 주소에서 받은 폰 알림을 누르면 앱 첫 화면이 열린다(새 주소에서 폰 알림을 다시 켜면 해결).
+
+**되돌리기**: 이전(5) 뒤에 Worker 를 되돌리면 옛 칸(`prefs:<hash16>` · `push:<hash16>` · `portfolio:encHoldings`)이 이전 시점 값으로 보인다 — 이전 뒤 되돌리기는 사람 표를 지우지 말고 앞으로 고쳐 나간다. 옛 칸은 저절로 만료되지 않는다(필요하면 손으로 지운다).
+
+**후속**: P4 실발송 확인 뒤 단수 CI 경로(`GET /prefs` · `GET /push/subscriptions` 마스터 고정) 정리 · 새 주소 요청 수 2주 실측.
