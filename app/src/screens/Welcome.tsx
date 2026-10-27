@@ -57,7 +57,7 @@ export default function Welcome() {
 
   return (
     <div className="min-h-dvh grid grid-cols-1 md:grid-cols-2">
-      <section className="bg-[var(--c-brand)] text-white flex flex-col justify-center gap-4 px-6 py-8 md:px-12 md:py-16">
+      <section className="bg-brand text-on-brand flex flex-col justify-center gap-4 px-6 py-8 md:px-12 md:py-16">
         <BrandLogo tagline className="h-20 md:h-28 w-auto self-start" />
         <p className="m-0 max-w-[28rem] text-14 md:text-16 leading-relaxed">ECOM 모임 멤버를 위한 시장 화면입니다. 자산과 관심 종목은 사람마다 따로 저장됩니다.</p>
       </section>
