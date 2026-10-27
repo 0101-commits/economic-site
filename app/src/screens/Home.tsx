@@ -15,7 +15,8 @@ import { More, Panel, RankTable, StripCard, WatchStar, type Col } from '../compo
 import { BTN, INPUT, LevelPill } from '../components/personal/bits'
 import Brief, { emphasize } from '../components/home/Brief'
 import { useItems } from '../components/Rail'
-import { hhmm, todayRows } from '../lib/alerts/v2'
+import { hhmm, publicLedger, todayRows } from '../lib/alerts/v2'
+import { useMe } from '../lib/personal/account'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
 import { aiAsk, aiErrText } from '../lib/personal/remote'
@@ -52,7 +53,9 @@ export default function Home() {
   // 알림 원장(events/latest.json) — 「일정·알림」 패널의 「오늘 바뀐 것」. 아직 없으면(배포 전) 패널은 종전 그대로다.
   const [ledger, setLedger] = useState<unknown>(null)
   useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setLedger, () => {}) }, [])
-  const changed = useMemo(() => todayRows(ledger, kstDay()), [ledger])
+  // 멤버에겐 공개 원장의 사용자 조건 · 묶음 행(마스터 것)을 빼고 시장 사건만(lib/alerts/v2.ts publicLedger)
+  const member = useMe()?.role === 'member'
+  const changed = useMemo(() => todayRows(member ? publicLedger(ledger) : ledger, kstDay()), [ledger, member])
   const [s, setS] = useViewParam<string>('s', 'kospi')
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const watch = useWatch()

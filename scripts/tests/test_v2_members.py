@@ -124,6 +124,10 @@ def test_member_u1_cross_goes_to_fired_not_public_ledger(env):
     assert len(rec.fired) == 1 and rec.fired[0][0] == MEMBER                  # /fired 한 번
     item = rec.fired[0][1]
     assert item["event"] == "U1" and item["cond"] == "m1" and item["title"] and item["ts"]
+    # 앱이 원장 행처럼 읽는 칸(lib/alerts/v2.ts memberFeed) — 그 사람 조건 id · 사건 · 방향 · 울린 때(ISO) · 묶임 · 보류
+    assert item["dir"] == "up" and dt.datetime.fromisoformat(item["ts"]) == at
+    assert item["bundled"] is False and item["held"] is False and item["level"] == "alert" and "why" in item
+    assert len(json.dumps({"uid": MEMBER, "item": item}, ensure_ascii=False).encode("utf-8")) <= 2048   # Worker 한 건 상한
     assert [p.get("uid") for p in rec.pushes] == [MEMBER]                     # 멤버 푸시 항목엔 uid
     assert [(u, c) for u, c, _k in rec.owner] == [(OWNER, "c1")]              # 카톡 경로(deliver.send)는 마스터만
     mk = _mk(MEMBER, "m1")
@@ -374,8 +378,8 @@ def test_member_fired_budget_skips_record_not_push(env, monkeypatch, capsys):
     assert "기록 생략" in capsys.readouterr().out
 
 
-def test_member_briefing_has_no_owner_personal_rows(monkeypatch, tmp_path):
-    """아침 AI 재료 「밤사이 알림」엔 마스터 보류 행(내 조건 포함) 제목이 실린다 — 멤버 푸시엔 시장 내용만."""
+def _brief_env(monkeypatch, tmp_path, now, ai=None):
+    """브리핑 시험 판 — 네트워크 · 카드 · 카톡은 가짜. ai = slot_ai_line 대신(없으면 재료를 그대로 되풀이 = 재료가 새면 보인다)."""
     import copy
 
     import investor_flows
@@ -387,26 +391,80 @@ def test_member_briefing_has_no_owner_personal_rows(monkeypatch, tmp_path):
     monkeypatch.setattr(k, "_intraday_chain", empty)
     monkeypatch.setattr(k, "_verified_investor", lambda market="KOSPI": None)
     monkeypatch.setattr(investor_flows, "week_sum", lambda *a, **kw: None)
-    monkeypatch.setattr(k, "slot_ai_line", lambda d, lslot, title, blocks: " ".join(v for _l, v in blocks if v))   # AI 가 재료를 되풀이
+    monkeypatch.setattr(k, "slot_ai_line", ai or (lambda d, lslot, title, blocks: " ".join(v for _l, v in blocks if v)))
     monkeypatch.setattr(briefing.cards, "brief_card_png", lambda spec: b"\x89PNG")
     monkeypatch.setattr(briefing.dc, "kr_closed", lambda *a, **kw: False)
     monkeypatch.setattr(briefing, "_kakao", lambda *a, **kw: False)
-    now = dt.datetime(2026, 10, 6, 7, 30, tzinfo=KST)
     ctx = copy.copy(Context.load(now=now))
     ctx.now = now
     led = Ledger(day=now.date(), root=str(tmp_path / "events"))
-    secret = "삼성전자 70,000 · 내 조건 위로"
-    led.append({"key": "U1:005930:up:abc123", "event": "U1", "target": "005930", "dir": "up", "level": "alert",
-                "value": 70000, "unit": "", "asOf": "2026-10-06", "fresh": "live", "title": secret, "why": "내 조건",
-                "next": "", "url": "#/i/005930", "ts": "2026-10-06T01:00:00+09:00", "cond": "c1",
-                "sent": {"push": 0, "kakao": False, "discord": False, "bundled": False, "held": True}})
-    q = tmp_path / "q.json"
-    briefing.send("morning", ctx, led, {"briefings": {"morning": True}}, log=lambda *a: None, queue_path=str(q),
-                  uid=OWNER, members=[(MEMBER, None)])
-    items = {i.get("uid"): i for i in json.loads(q.read_text(encoding="utf-8"))}
+
+    def run_slot(slot):
+        q = tmp_path / f"q-{slot}.json"
+        briefing.send(slot, ctx, led, {"briefings": {slot: True}}, log=lambda *a: None, queue_path=str(q),
+                      uid=OWNER, members=[(MEMBER, None)])
+        return {i.get("uid"): i for i in json.loads(q.read_text(encoding="utf-8"))}
+    return led, run_slot
+
+
+SECRET = "삼성전자 70,000 · 내 조건 위로"
+
+
+def _row(key, event, ts, title, level="alert", held=False, **kw):
+    return dict({"key": key, "event": event, "target": "x", "dir": "up", "level": level, "value": None, "unit": "",
+                 "asOf": ts[:10], "fresh": "live", "title": title, "why": "왜", "next": "", "url": "#/", "ts": ts,
+                 "sent": {"push": 0 if held else 1, "kakao": False, "discord": False, "bundled": False, "held": held}},
+                **kw)
+
+
+def _no_secret(item):
+    text = item["title"] + item["body"]
+    return "삼성전자" not in text and "내 조건" not in text and "알림 3건 더" not in text and "보류된 시장" not in text
+
+
+def test_member_briefing_has_no_owner_personal_rows(monkeypatch, tmp_path):
+    """아침 AI 재료 「밤사이 알림」엔 마스터 보류 행(내 조건 포함) 제목이 실린다 — 멤버 푸시엔 시장 내용만."""
+    now = dt.datetime(2026, 10, 6, 7, 30, tzinfo=KST)
+    led, run_slot = _brief_env(monkeypatch, tmp_path, now)
+    led.append(_row("U1:005930:up:abc123", "U1", "2026-10-06T01:00:00+09:00", SECRET, held=True, cond="c1"))
+    items = run_slot("morning")
     assert "삼성전자" in items[OWNER]["body"]                                 # 마스터 본문엔 그대로(재료가 실제로 샌다는 확인)
-    assert "삼성전자" not in items[MEMBER]["title"] + items[MEMBER]["body"]
-    assert "내 조건" not in items[MEMBER]["title"] + items[MEMBER]["body"]
+    assert _no_secret(items[MEMBER])
+
+
+def _owner_rows(led, day):
+    led.append(_row(f"U1:005930:up:{day}", "U1", f"{day}T10:00:00+09:00", SECRET, cond="c1"))
+    led.append(_row(f"BUNDLE:{day}:1010", "BUNDLE", f"{day}T10:10:00+09:00", "알림 3건 더 · 삼성전자"))
+    led.append(_row(f"B1:000660:new:{day}", "B1", f"{day}T10:20:00+09:00", "삼성전자 신고가 · 내 조건", cond="c2"))
+
+
+@pytest.mark.parametrize("ai", ["echo", "fail"])
+def test_member_close_briefing_has_no_owner_personal_rows(monkeypatch, tmp_path, ai):
+    """마감 — AI 가 재료를 되풀이해도 · AI 가 실패해 원장 행에서 문장을 골라도(마스터 보류 행 포함) 멤버엔 공개 시장 행만."""
+    now = dt.datetime(2026, 10, 6, 15, 40, tzinfo=KST)
+    fail = (lambda d, lslot, title, blocks: "") if ai == "fail" else None
+    led, run_slot = _brief_env(monkeypatch, tmp_path, now, ai=fail)
+    led.append(_row("A1:kospi:up:held", "A1", "2026-10-06T09:05:00+09:00", "보류된 시장 사건", held=True))   # 마스터 조용한 시간 보류
+    _owner_rows(led, "2026-10-06")
+    led.append(_row("A1:kospi:up:pub", "A1", "2026-10-06T11:00:00+09:00", "코스피 급등 공개 사건"))
+    items = run_slot("close")
+    assert _no_secret(items[MEMBER]), items[MEMBER]
+    if ai == "fail":
+        assert "보류된 시장" in items[OWNER]["body"]                          # 마스터 사전 문장은 원장 첫 행(보류 포함) 그대로
+        assert "코스피 급등 공개 사건" in items[MEMBER]["body"]               # 멤버는 공개 행에서 다시 고른다
+
+
+def test_member_weekly_briefing_counts_and_lines_without_owner_rows(monkeypatch, tmp_path):
+    """주간 — 사건 수 · AI 재료(가운데 줄) · 큰 알림에 마스터 개인 행이 섞이면 멤버 몫은 공개 행 수 · 공개 문장으로."""
+    now = dt.datetime(2026, 10, 10, 18, 0, tzinfo=KST)
+    led, run_slot = _brief_env(monkeypatch, tmp_path, now)
+    _owner_rows(led, "2026-10-10")
+    led.append(_row("A1:kospi:up:pub", "A1", "2026-10-10T11:00:00+09:00", "코스피 급등 공개 사건"))
+    led.save()
+    items = run_slot("weekly")
+    assert "사건 4건" in items[OWNER]["title"] + items[OWNER]["body"]          # 마스터 수엔 개인 행이 든다(재료가 섞인다는 확인)
+    assert _no_secret(items[MEMBER]), items[MEMBER]
+    assert "사건 1건" in items[MEMBER]["title"] + items[MEMBER]["body"] and "사건 4건" not in items[MEMBER]["body"]
 
 
 def test_member_stock_lookup_logs_no_code(monkeypatch, capsys):

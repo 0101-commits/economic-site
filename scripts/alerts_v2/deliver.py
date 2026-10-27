@@ -225,11 +225,15 @@ def send_member(s: Send, uid: str, log=print, queue_path: str | None = None) -> 
     return res
 
 
-def fired_item(row: dict, level: str, held: bool = False) -> dict:
-    """/fired 에 남길 한 건 — 앱 「받은 알림」이 그리는 만큼만(임계값 없음)."""
-    return {"id": row.get("key"), "event": row.get("event"), "cond": row.get("cond"), "level": level,
-            "title": str(row.get("title") or "")[:FIRED_TITLE_MAX], "url": row.get("url") or "#/alerts",
-            "ts": row.get("ts"), "held": bool(held)}
+def fired_item(row: dict, level: str, held: bool = False, bundled: bool = False) -> dict:
+    """/fired 에 남길 한 건 — 앱 「받은 알림」 · 조건 상태(울림 · 멈춤 · 묶임 · 보류)가 그리는 만큼만(임계값 없음).
+    원장 행과 같은 이름을 쓴다(앱이 원장 행처럼 읽는다 — app/src/lib/alerts/v2.ts memberFeed):
+    cond = 그 사람의 조건 id · event = 사건 종류(U1 · U2 · B1) · dir = 방향 · ts = 울린 때(ISO) · title · why · level · url.
+    그 사람 칸(fired:<uid>)에만 남는 그 사람 자료다(공개 원장 · 로그에는 싣지 않는다)."""
+    return {"id": row.get("key"), "event": row.get("event"), "cond": row.get("cond"), "dir": row.get("dir"),
+            "level": level, "title": str(row.get("title") or "")[:FIRED_TITLE_MAX],
+            "why": str(row.get("why") or "")[:FIRED_TITLE_MAX], "url": row.get("url") or "#/alerts",
+            "ts": row.get("ts"), "held": bool(held), "bundled": bool(bundled)}
 
 
 def post_fired(uid: str, item: dict, log=print) -> bool:

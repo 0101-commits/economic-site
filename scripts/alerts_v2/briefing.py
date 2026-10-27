@@ -298,7 +298,8 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     items = [(lab, v) for lab, v in items if v and not compose.has_relative_time(f"{lab} {v}")][:ITEMS_MAX]
     spec["info"] = [(lab, v) for lab, v in spec.get("info") or [] if v and not compose.has_relative_time(f"{lab} {v}")]
     ai = k.slot_ai_line(d, lslot, title, [("", mid)] + items + list(ai_blocks))
-    if not ai or compose.has_relative_time(ai):        # 사전 문장 — 경보 · 알림 「왜」, 없으면 카드의 큰 움직임
+    ai_from_rows = not ai or compose.has_relative_time(ai)
+    if ai_from_rows:                                   # 사전 문장 — 경보 · 알림 「왜」, 없으면 카드의 큰 움직임
         # 사용자 조건(U1 · U2 · 종목 B1 = cond)의 「왜」는 「내 조건」 · 이름 없는 내 종목 말이라 시황 문장이 못 된다
         # — 10/12 점심 · 마감 · 저녁 본문이 「내 조건」이었다. 묶음(BUNDLE) 「왜」도 제목 조각이라 뺀다.
         # 「왜」는 제목 옆에서만 뜻이 선다(「직전 신저가 1,339 (10/8)」 — 무엇의?). 제목이 행에 같이 안 실리는 슬롯은
@@ -309,21 +310,22 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
                    and not str(r.get("event") or "").startswith("U")), "") or _moves(spec, title)
     summary = " · ".join(([f"오늘 바뀐 것 {len(changed)}건"] if changed else []) + cal)
     lines = [x if x and not compose.has_relative_time(x) else "" for x in (ai, mid, summary)]
-    # 멤버 몫(푸시 제목 · 본문 두 줄) — 마스터 개인 행(사용자 조건 · 묶음 · 마스터 조용한 시간 보류)이 AI 재료나 수에 섞였으면
-    # 시장 행 · 카드 값만으로 다시 만든다. 아침 AI 재료 「밤사이 알림」엔 마스터 보류 행 제목(내 조건 포함)이 실린다.
+    # 멤버 몫(푸시 제목 · 본문 두 줄) — 슬롯과 상관없이 같은 규칙. 멤버 재료(pub_rows) = 원장 행에서 마스터 개인 행(사용자 조건
+    # cond · U* · 상한 묶음 BUNDLE — _personal)과 마스터 조용한 시간 보류 행(주간 사건 수 제외)을 뺀 것 + 카드 값.
+    #  · 원장 행이 AI 재료 · 제목 · 가운데 줄에 들어간 슬롯(fed — 아침 「밤사이 알림」 = 마스터 보류 행 제목, 주간 = 사건 수 · 큰 알림)에서
+    #    마스터 것이 섞였으면 마스터의 AI 문장 · 제목 · 가운데 줄을 다시 쓰지 않고 공개 재료로 새로 만든다.
+    #  · AI 문장이 없어 원장 행에서 사전 문장을 골랐으면 어느 슬롯이든 공개 행에서 다시 고른다(마스터 보류 행을 골랐을 수 있다).
+    fed = held if slot == "morning" else week if slot == "weekly" else []
+    pub_rows = [r for r in (week if slot == "weekly" else ledger.rows)
+                if not _personal(r) and (slot == "weekly" or not (r.get("sent") or {}).get("held"))]
+    personal_in = (slot == "morning" and bool(held)) or any(_personal(r) for r in fed)
     pub_title, pub_mid, pub_ai = title, mid, ai
-    personal_in = slot == "morning" and bool(held)
-    if slot == "weekly":
-        pub_rows = [r for r in week if not _personal(r)]
-        if len(pub_rows) != len(week):                 # 주간 사건 수에 마스터 개인 행이 섞였다
-            personal_in = True
-            pub_title = k._fit(base, [f"사건 {len(pub_rows)}건", big_txt])
-            pub_title = base if compose.has_relative_time(pub_title) else pub_title
-            pub_mid = " · ".join(x for x in (f"{dc.week_period(now)} 사건 {len(pub_rows)}건",
-                                             big_txt and f"가장 큰 움직임 {big_txt}") if x)
-    else:
-        pub_rows = [r for r in ledger.rows if not _personal(r) and not (r.get("sent") or {}).get("held")]
-    if personal_in:
+    if slot == "weekly" and personal_in:               # 주간 사건 수에 마스터 개인 행이 섞였다
+        pub_title = k._fit(base, [f"사건 {len(pub_rows)}건", big_txt])
+        pub_title = base if compose.has_relative_time(pub_title) else pub_title
+        pub_mid = " · ".join(x for x in (f"{dc.week_period(now)} 사건 {len(pub_rows)}건",
+                                         big_txt and f"가장 큰 움직임 {big_txt}") if x)
+    if personal_in or ai_from_rows:
         part = "why" if slot == "morning" else "title"
         pub_ai = next((r[part] for r in pub_rows if r.get(part) and r.get("level") in ("alarm", "alert")), "") \
             or _moves(spec, pub_title)

@@ -233,7 +233,7 @@ def _members_send(ctx, env, plans) -> None:
                         n_skip += 1
                         continue
                     lvl = (r.get("level") or s.level) if s.kind == "bundle" else s.level
-                    deliver.post_fired(p.uid, deliver.fired_item(r, lvl, held=bool(s.held)))
+                    deliver.post_fired(p.uid, deliver.fired_item(r, lvl, held=bool(s.held), bundled=s.kind == "bundle"))
             if env.write:
                 subscribe.mark_member(sides, p.prefs, p.urows, sent_keys, ctx.now, p.key)
                 if p.day_k and n != p.n0:
@@ -252,7 +252,8 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | 
 
     사용자 조건(U1 · U2 · 종목 B1)은 light 런(stock-alerts)만 판정한다 — 그 런만 alerts_state.json 을 커밋하고(U1 의 직전 쪽 ·
     울림 기록), 풀 런(fetch-data)은 12~57분 늦은 원장으로 같은 조건을 또 보내며 푸시 재시도가 events/ 하루치를 덮는다.
-    사람별(2026-10-27): 마스터는 종전 경로 그대로(공개 기록 키 = 조건 id, 원장 · 카톡), 그 뒤 멤버마다 _members_b.
+    사람별(2026-10-27): 마스터는 종전 경로 그대로(공개 기록 키 = 조건 id, 원장 · 카톡). 멤버는 마스터 발송 전에 판정 · 편성만
+    하고(_members_eval), 마스터 발송 뒤에 푸시 큐 · /fired 기록(_members_send).
     돌려주는 값 = 원장을 저장한 뒤에 쓸 alerts_state.json 문서(바뀌지 않았거나 드라이런 · light 밖이면 None)."""
     if os.environ.get("ALERTS_V2", "0") != "1":
         print(f"[v2] ALERTS_V2 꺼짐 — 원장만 기록({len(new_rows)}건)")

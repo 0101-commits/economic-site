@@ -3,7 +3,7 @@
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다.
 import { mdHm } from '../format.ts'
 import { kstDay } from '../personal/calc.ts'
-import type { LedgerRow } from '../personal/alertStatus.ts'
+import type { FiredRec, LedgerRow } from '../personal/alertStatus.ts'
 import type { AlertCond, Level } from '../personal/store'
 
 export type DictEvent = {
@@ -34,6 +34,45 @@ export function fromLedger(rows: unknown, names: Map<string, string>): FeedRow[]
     })
   }
   return out.sort((a, b) => b.at - a.at)
+}
+
+// ── 멤버의 받은 알림 ─────────────────────────────────────
+// 공개 원장(events/latest.json)의 사용자 조건 행 · 상한 묶음은 마스터 것이다(멤버 행은 공개 원장에 쓰지 않는다 — scripts/alerts_v2/run.py).
+// 멤버 자기 조건의 울림은 그 사람 칸 GET /fired(Worker fired:<uid>, scripts/alerts_v2/deliver.fired_item — 원장 행과 같은 이름)에만 있다.
+
+/** 공개 원장 행이 사람(마스터) 것인가 — 사용자 조건(cond · U*) · 상한 묶음(BUNDLE). 서버 짝 = scripts/alerts_v2/briefing._personal. */
+export const personalRow = (r: { cond?: unknown; event?: unknown } | null | undefined): boolean =>
+  !!r && (!!r.cond || /^U/.test(String(r.event ?? '')) || r.event === 'BUNDLE')
+
+/** 멤버가 보는 공개 원장 — 사람 것을 뺀 시장 사건만. 배열이 아니면 그대로(없음 · 불러오는 중). */
+export const publicLedger = (rows: unknown): unknown => (Array.isArray(rows) ? rows.filter(r => !personalRow(r)) : rows)
+
+/** /fired 한 건 → 원장 행 모양(sent 는 보류 · 묶임만). 시각 · 제목 · 조건 id 가 없으면 null. */
+export function firedRow(x: unknown, i = 0): LedgerRow | null {
+  const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>
+  const s = (k: string) => (typeof o[k] === 'string' ? (o[k] as string) : '')
+  if (!s('cond') || !s('title') || Number.isNaN(Date.parse(s('ts')))) return null
+  return {
+    key: s('id') || `fired:${i}`, event: s('event') || 'U1', target: '', dir: s('dir') || undefined, level: s('level') || 'alert',
+    title: s('title'), why: s('why') || undefined, url: s('url') || undefined, ts: s('ts'), cond: s('cond'),
+    sent: { held: o.held === true, bundled: o.bundled === true },
+  }
+}
+
+/**
+ * 멤버 화면 재료. rows = 「받은 알림」(공개 원장의 시장 사건 + 내 울림 가운데 from 날짜 이후) · mine = 내 울림 전부(조건 상태 · 다시 켜기) ·
+ * fired = 조건 id → 마지막 울림(공개 기록 alerts_state._prefs 대신 — 멤버 공개 기록 키는 HMAC 이라 화면이 못 찾는다).
+ * 내 울림 줄은 cond 가 있어 fromLedger 가 「내 조건」으로 표시한다.
+ */
+export function memberView(ledger: unknown, items: unknown, from = ''): { rows: LedgerRow[]; mine: LedgerRow[]; fired: Record<string, FiredRec> } {
+  const mine = (Array.isArray(items) ? items : []).map(firedRow).filter((r): r is LedgerRow => !!r)
+  const fired: Record<string, FiredRec> = {}
+  for (const r of mine) {
+    const ts = Math.floor(Date.parse(r.ts) / 1000)
+    if (ts > (fired[r.cond!]?.ts ?? 0)) fired[r.cond!] = { ts, fired: true }
+  }
+  const pub = Array.isArray(ledger) ? (ledger as LedgerRow[]).filter(r => !personalRow(r)) : []
+  return { rows: [...pub, ...mine.filter(r => kstDay(Date.parse(r.ts)) >= from)], mine, fired }
 }
 
 /** 한국 시각 HH:mm. */
