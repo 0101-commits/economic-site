@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from 'react'
 import { keyHash, meGet, type Me } from './remote.ts'
 import { normalizeEntryKey } from './entryKey.ts'
+import { setPendingPerson } from './who.ts'
 
 export type { Me }
 export const ME_KEY = 'econMe_v1'
@@ -77,10 +78,14 @@ export function makeAccount(deps: Deps) {
     if (r.status === 429) return 'rate'
     if (r.status !== 200 || !r.me) return 'offline'   // 0 네트워크 · 503 서버 · 모양 틀림
     pending = null
-    if (!(await deps.connectSync(raw))) return 'offline'
+    // 연결(connectSync)이 읽고 쓰는 기기 저장 이름이 이 사람 것이 되게, me 를 남기기 전에 들어오는 사람으로 알려 둔다(who.ts).
+    setPendingPerson({ uid: r.me.uid, role: r.me.role })
+    let linked = false
+    try { linked = await deps.connectSync(raw) } catch { linked = false }
+    if (!linked) { setPendingPerson(null); return 'offline' }
     // connectSync 는 이 기기 것과 서버 것이 달라 묻는 중에도 true 를 돌려준다(해시는 답한 뒤에 저장) — 해시가 없으면 아직 들어온 것이 아니다.
-    if (deps.getKeyHash()) { writeMe(r.me); return 'ok' }
-    pending = r.me
+    if (deps.getKeyHash()) { writeMe(r.me); setPendingPerson(null); return 'ok' }
+    pending = r.me   // 'ask' — 답할 때까지 들어오는 사람으로 둔다(finishSignIn · cancelSignIn 이 푼다)
     return 'ask'
   }
   let pending: Me | null = null
@@ -91,10 +96,11 @@ export function makeAccount(deps: Deps) {
     if (!me || !deps.getKeyHash()) return false
     pending = null
     writeMe(me)
+    setPendingPerson(null)
     return true
   }
   /** 'ask' 에서 그만두기: 기다리던 me 를 버린다. */
-  function cancelSignIn(): void { pending = null }
+  function cancelSignIn(): void { pending = null; setPendingPerson(null) }
 
   /** 앱을 열 때 서버에 다시 묻는다. 401 = 키가 더는 안 맞음 → 끊고 me 삭제 · 403 = 표시만 · 200 = 최신으로 갱신 · 그 밖(429 · 503 · 네트워크)은 그대로. */
   async function refreshMe(): Promise<void> {

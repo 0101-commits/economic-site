@@ -18,6 +18,10 @@ import { unsubscribePush, type GetKeyHash } from '../push'
 import { applyTheme, readTheme } from '../theme'
 import type { MyData } from './backup'
 import { storeKey } from './who'
+import { read, write, readPortfolio, writePortfolio, readSnaps, writeSnaps, readLedger, writeLedger, scopedWipeNames } from './scoped'
+export { readPortfolio, writePortfolio, readSnaps, readLedger, writeLedger }
+export type { Portfolio, Ledger } from './scoped'
+import type { Portfolio } from './scoped'
 import '../../components/personal/updown.css'
 export { storeKey }
 
@@ -31,38 +35,15 @@ export const KEYS = {
   rail: 'econRail_v1',           // 오른쪽 패널 펼침 · 탭(components/Rail.tsx)
 } as const
 
-function read<T>(key: string, fallback: T): T {
-  try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v ?? fallback } catch { return fallback }
-}
-/** 저장 실패(시크릿 창·용량 초과)는 false — 화면이 「저장 못 함」을 말해야 입력이 소리 없이 사라지지 않는다. */
-function write(key: string, v: unknown): boolean {
-  try { localStorage.setItem(key, JSON.stringify(v)); return true } catch { return false }
-}
-
 // ── 보유 ──────────────────────────────────────────────
-export type Portfolio = { groups: { id: string; name: string }[]; items: Holding[]; alerts: unknown[]; [k: string]: unknown }
-
-export function readPortfolio(): Portfolio {
-  const p = read<Partial<Portfolio> | null>(storeKey('portfolioV1'), null)
-  const items = Array.isArray(p?.items) ? p!.items.filter(x => x && typeof x.symbol === 'string') : []
-  const groups = Array.isArray(p?.groups) && p!.groups.length ? p!.groups : [{ id: 'g_default', name: '기본 그룹' }]
-  return { lastSync: null, ...p, groups, items, alerts: Array.isArray(p?.alerts) ? p!.alerts : [] }
-}
-export const writePortfolio = (p: Portfolio) => write(storeKey('portfolioV1'), p)
 export const newId = (prefix: string) => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 
-/** 스냅샷 목록. 깨진 칸(null · 날짜 없는 것)은 뺀다 — 다른 기기 · 옛 화면이 쓴 배열을 그대로 읽으므로. */
-export const readSnaps = (): Snap[] => { const a = read<unknown>(storeKey('pfSnapshotsV1'), []); return Array.isArray(a) ? a.filter((s): s is Snap => !!s && typeof s.d === 'string') : [] }
 /** 오늘(UTC 날짜) 스냅샷 한 건을 넣는다. 같은 날은 바꿔 넣으므로 하루 1건. */
 export function saveTodaySnap(ev: number, ct: number): Snap[] {
   const next = upsertSnap(readSnaps(), { d: new Date().toISOString().slice(0, 10), ev: Math.round(ev), ct: Math.round(ct) })
-  write(storeKey('pfSnapshotsV1'), next)
+  writeSnaps(next)
   return next
 }
-
-export type Ledger = { id: string; d: string; kind: 'div' | 'dep' | 'wd'; amt: number; memo?: string }
-export const readLedger = (): Ledger[] => { const a = read<unknown>(storeKey('pfLedgerV1'), []); return Array.isArray(a) ? a : [] }
-export const writeLedger = (a: Ledger[]) => write(storeKey('pfLedgerV1'), [...a].sort((x, y) => (x.d < y.d ? -1 : 1)).slice(-500))
 
 // ── 설정·알림 조건 v2(Worker /prefs 와 같은 모양 — 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md 「설정 /prefs v2」) ──
 // 조건 한 건 = 사건(사전 A1~H4 · 사용자 U1 수준 도달 · U2 급변 값) + 대상 + 세기 · 등급 · 반복 · 울림.
@@ -153,9 +134,9 @@ export function noteRecent(id: string) {
  * 현행 화면(js/app2.js)의 동기화 키 해시 · 보유 암호(pfSyncKey* · pfHoldingsPass)도 지운다 — 예전 판은 localStorage 에, 지금 판은 이 탭 sessionStorage 에 둔다.
  * econHoldQuotes_v1 = 보유 종목 시세 캐시(quotes.ts, sessionStorage) — 종목 목록이 드러나므로 같이 지운다.
  */
-export const wipeKeys = () => [storeKey('portfolioV1'), storeKey('pfSnapshotsV1'), storeKey('pfLedgerV1'), storeKey('econ_watch_v1'), storeKey('econPrefsV1'), storeKey('econ_scenarios_v1'), KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
+export const wipeKeys = () => [...scopedWipeNames(), KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
   KEYS.holdKey, KEYS.scope, KEYS.rail,
-  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1', 'econ_home_cache_v1']
+  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econAlertsSeen_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1', 'econ_home_cache_v1']
 /** 지우기 전에 이 기기 폰 알림 구독을 끊는다(서버 쪽 해지에 동기화 키 해시가 쓰인다 — 그래서 동기화는 이 뒤에 끈다). 못 끊어도 지우기는 계속. */
 export async function wipeDevice(getKeyHash: GetKeyHash): Promise<boolean> {
   await unsubscribePush(getKeyHash).catch(() => {})
