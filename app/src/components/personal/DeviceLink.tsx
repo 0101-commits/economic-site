@@ -1,4 +1,4 @@
-// 연결 · 범위 부품 — 설정 「내 계정」(MyAccount)과 입장 화면(Welcome)이 쓴다. 키 입력은 입장 화면(Welcome) 한 곳뿐이다.
+// 연결 · 범위 부품 — 설정 「내 계정」(MyAccount)이 쓴다. 로그인용 키 입력은 입장 화면(Welcome) 한 곳뿐이고, 여기 RestoreKey 는 보유 열쇠만 다시 만든다.
 // 흐름은 lib/personal/sync.ts(범위 · 키 바꾸기 · 보유 자동 맞춤), 폰 알림은 lib/push.ts. 키 칸은 autocomplete="new-password"(B13).
 import { useEffect, useState, type FormEvent } from 'react'
 import { BTN, BTN2, Field, INPUT, Switch } from './bits'
@@ -56,7 +56,7 @@ export function KeyChange({ onDone }: { onDone: (msg: string) => void }) {
     <Field label={label}><input type="password" autoComplete="new-password" className={INPUT} value={v} onChange={e => set(e.target.value)} /></Field>
   )
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2 pt-3 border-t border-line" aria-label="동기화 키 바꾸기">
+    <form onSubmit={submit} className="flex flex-col gap-2 pt-3 border-t border-line" aria-label="입장 키 바꾸기">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {box('지금 키', cur, setCur)}
         {box('새 키 · 12자 이상', n1, setN1)}
@@ -101,7 +101,7 @@ function RestoreKey() {
   const submit = async (e: FormEvent) => { e.preventDefault(); const k = key; setKey(''); setErr(await restoreHoldKey(k)) }
   return (
     <form onSubmit={submit} className="mt-2 flex flex-wrap items-end gap-2" aria-label="보유 열쇠 만들기">
-      <Field label="동기화 키 한 번 더(보유 열쇠를 만듭니다)" className="flex-1 min-w-48">
+      <Field label="입장 키 한 번 더 — 이 기기에서 보유를 엽니다" className="flex-1 min-w-48">
         <input type="password" autoComplete="new-password" className={INPUT} value={key} onChange={e => setKey(e.target.value)} />
       </Field>
       <button type="submit" disabled={s.busy || !key.trim()} className={BTN}>확인</button>
