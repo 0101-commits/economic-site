@@ -18,7 +18,7 @@ export function MovedBanner() {
         </div>
         {how && (
           <p className="mt-2 mb-0 text-ink-2">
-            이 주소의 <Link to="/settings" className="text-ink-1 underline">설정</Link> 에서 「내 데이터 내려받기」 로 파일을 받은 뒤, 새 주소의 설정에서 「올리기」 로 올립니다.
+            이 주소의 <Link to="/settings" className="text-ink-1 underline">설정</Link> 에서 「내 자료 내려받기」 로 파일을 받은 뒤, 새 주소의 설정에서 「내 자료 올리기」 로 올립니다.
           </p>
         )}
       </div>

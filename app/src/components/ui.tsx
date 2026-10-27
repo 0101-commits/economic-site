@@ -127,7 +127,7 @@ export class Boundary extends Component<{ where: string; screen?: boolean; reset
     return (
       <div role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-13 text-ink-2">
         <TriangleAlert size={16} aria-hidden className="shrink-0 text-warn" />
-        이 {this.props.screen ? '화면' : '칸'}을 그리지 못했습니다
+        {this.props.screen ? '이 화면' : '이 부분'}을 그리지 못했습니다
         <button type="button" onClick={() => this.setState(s => ({ err: false, n: s.n + 1 }))}
           className="inline-flex items-center gap-1 h-8 px-3 rounded-btn text-13 border border-line bg-card text-ink-1 cursor-pointer">
           <RotateCw size={14} aria-hidden />다시 시도

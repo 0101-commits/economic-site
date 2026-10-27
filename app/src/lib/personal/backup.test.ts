@@ -27,11 +27,11 @@ test('왕복: 만들기 → 읽기 → 같은 내용 · 미리보기 숫자', as
   assert.deepEqual(countOf(got), { holdings: 1, ledger: 1, snapshots: 1, watch: 2, alerts: 1, scenarios: 1 })
 })
 
-test('파일 암호 검사: 10자 미만 · 두 칸 다름 · 잠금 PIN 과 같음(공백 뺀 값 포함)은 거절', async () => {
+test('파일 암호 검사: 10자 미만 · 두 번 입력이 다름 · 잠금 PIN 과 같음(공백 뺀 값 포함)은 거절', async () => {
   const isPin = async (p: string) => p === PIN
   assert.match(await passIssue('short-9ch', 'short-9ch', isPin), /10자 이상/)
   assert.match(await passIssue('          x', '          x', isPin), /10자 이상/)
-  assert.match(await passIssue(PASS, PASS + '!', isPin), /두 칸이 다릅니다/)
+  assert.match(await passIssue(PASS, PASS + '!', isPin), /두 번 입력이 서로 다릅니다/)
   const pinLike = PIN + '0000'
   assert.match(await passIssue(pinLike, pinLike, async p => p === pinLike), /PIN 과 다른/)
   assert.match(await passIssue(` ${pinLike} `, ` ${pinLike} `, async p => p === pinLike), /PIN 과 다른/)
@@ -67,7 +67,7 @@ test('깨진 파일 거절', async () => {
   const bad = async (t: string, re: RegExp) => assert.rejects(readFile(t), re)
   await bad('{ 깨짐', /깨졌습니다/)
   await bad('[1,2]', /깨졌습니다/)
-  await bad(JSON.stringify({ ...ok, extra: 1 }), /모르는 칸.*extra/)
+  await bad(JSON.stringify({ ...ok, extra: 1 }), /모르는 항목.*extra/)
   await bad(JSON.stringify({ ...ok, version: 2 }), /모르는 판/)
   await bad(JSON.stringify({ ...ok, format: 'other' }), /내려받은 파일이 아닙니다/)
   await bad(JSON.stringify({ hello: 1 }), /내려받은 파일이 아닙니다/)
@@ -75,7 +75,7 @@ test('깨진 파일 거절', async () => {
   await bad(JSON.stringify({ ...ok, snapshots: {} }), /snapshots/)
   await bad(JSON.stringify({ ...ok, note: 'x'.repeat(MAX_BYTES) }), /너무 큽니다/)
   // 잠근 파일의 표지에 모르는 칸
-  await bad(JSON.stringify({ ...JSON.parse(await makeFile(data(), AT, PASS)), hint: 'x' }), /모르는 칸.*hint/)
+  await bad(JSON.stringify({ ...JSON.parse(await makeFile(data(), AT, PASS)), hint: 'x' }), /모르는 항목.*hint/)
 })
 
 test('시나리오 출처: 파일의 scenarios 는 렌즈 저장(econ_scenarios_v1) 그대로, prefs 에는 없다 · 렌즈가 못 읽는 모양은 거른다', async () => {
@@ -111,7 +111,7 @@ test('표지 없는 예전 판(이 판 전 새 화면 내려받기)도 받는다
   assert.equal(got.theme, 'dark')
 })
 
-test('이전 화면 백업: 평문은 보유 · 스냅샷만, 암호 백업과 둘 다 없는 백업은 이전 화면으로', async () => {
+test('옛 화면 백업: 평문은 보유 · 하루 평가 기록만, 암호 백업과 둘 다 없는 백업은 옛 화면으로', async () => {
   const d = data()
   const legacy = { schema: 'econ-terminal-backup', version: 1, exportedAt: AT, origin: 'x', data: { portfolioV1: JSON.stringify(d.portfolio), pfSnapshotsV1: JSON.stringify(d.snapshots), econ_notes: '노트' } }
   const got = await readFile(JSON.stringify(legacy))
@@ -120,6 +120,6 @@ test('이전 화면 백업: 평문은 보유 · 스냅샷만, 암호 백업과 �
   assert.deepEqual(got.snapshots, d.snapshots)
   assert.equal(got.prefs, undefined)
   assert.deepEqual(countOf(got), { holdings: 1, ledger: null, snapshots: 1, watch: null, alerts: null, scenarios: null })
-  await assert.rejects(readFile(JSON.stringify({ schema: 'econ-terminal-backup', version: 1, enc: {}, ciphertext: 'x' })), /이전 화면/)
-  await assert.rejects(readFile(JSON.stringify({ ...legacy, data: { econ_notes: '노트' } })), /이전 화면에서 복원/)
+  await assert.rejects(readFile(JSON.stringify({ schema: 'econ-terminal-backup', version: 1, enc: {}, ciphertext: 'x' })), /옛 화면/)
+  await assert.rejects(readFile(JSON.stringify({ ...legacy, data: { econ_notes: '노트' } })), /옛 화면에서 복원/)
 })

@@ -108,14 +108,14 @@ export const lastReqAt = () => lastReq
 export const noteReq = () => { lastReq = Date.now() }
 
 function errText(r: Reply): string {
-  if (r.status === 0) return '서버에 닿지 못했습니다. 1분 뒤 다시 해 봅니다.'
+  if (r.status === 0) return 'ecom에 닿지 못했습니다. 1분 뒤 다시 해 봅니다.'
   if (r.status === 429) return '요청이 많아 1분 뒤 다시 해 봅니다.'
   if (r.error === 'sync_key_not_configured') return '앱키가 아직 설정되지 않았습니다. 모임 운영자에게 문의해 주세요.'
-  if (r.error === 'forbidden_origin') return '이 주소에서 연 화면은 서버가 받지 않습니다.'
-  if (r.error === 'tier2_field_rejected') return `보유정보로 보이는 칸(${r.field ?? '?'})이 있어 서버가 받지 않았습니다.`
-  if (r.status === 413) return '맡길 내용이 너무 커서 서버가 받지 않았습니다. 관심·알림 조건을 줄여 주세요.'
-  if (r.status === 400) return `서버가 받지 않았습니다(${r.error ?? r.status}).`
-  return `서버가 받지 않았습니다(${r.error ?? r.status}). 1분 뒤 다시 해 봅니다.`
+  if (r.error === 'forbidden_origin') return '이 주소에서 연 화면은 ecom이 받지 않습니다.'
+  if (r.error === 'tier2_field_rejected') return `보유 정보로 보이는 항목(${r.field ?? '?'})이 있어 ecom이 받지 않았습니다.`
+  if (r.status === 413) return '저장할 내용이 너무 커서 ecom이 받지 않았습니다. 관심·알림 조건을 줄여 주세요.'
+  if (r.status === 400) return `ecom이 받지 않았습니다(${r.error ?? r.status}).`
+  return `ecom이 받지 않았습니다(${r.error ?? r.status}). 1분 뒤 다시 해 봅니다.`
 }
 /** 같은 내용을 다시 보내도 또 거절되는 응답 — 이 기기 것이 다시 바뀔 때까지 기다린다. */
 const refused = (r: Reply) => r.status === 400 || r.status === 413
@@ -258,7 +258,7 @@ function onStorage(e: StorageEvent) {
   if (e.storageArea !== localStorage) return
   if (e.key === KEEP_KEY && e.newValue && HEX64.test(e.newValue)) { if (e.newValue !== getKeyHash()) adopt(e.newValue); return }
   if (e.newValue !== null || (e.key !== KEEP_KEY && e.key !== storeKey('econPrefsV1'))) return
-  if (getKeyHash()) disableSync('다른 탭에서 나가거나 이 기기 데이터를 지워 이 탭도 나갔습니다.')
+  if (getKeyHash()) disableSync('다른 탭에서 나가거나 이 기기 자료를 지워 이 탭도 나갔습니다.')
 }
 
 /** 앱이 뜰 때 한 번(main.tsx). 이 탭에 해시가 없으면 기억한 해시를 옮겨 오고(PIN 없이), 있으면 설정 · 보유를 맞추고 감시를 시작한다. */
@@ -287,7 +287,7 @@ export async function connectSync(key: string, perm?: Promise<unknown>): Promise
   try { [h, mat] = await Promise.all([keyHash(key), holdKeyOf(key)]) } catch { return fail('이 환경(https 아님)에서는 들어갈 수 없습니다.') }
   const r = await prefsCall(h)
   if (r.status === 401) return fail('앱키가 맞지 않습니다.')
-  if (!r.doc) return fail(r.status === 0 ? '서버에 닿지 못했습니다. 잠시 뒤 다시 하세요.' : r.status === 429 ? '요청이 많습니다. 1분 뒤 다시 하세요.' : errText(r))
+  if (!r.doc) return fail(r.status === 0 ? 'ecom에 닿지 못했습니다. 잠시 뒤 다시 하세요.' : r.status === 429 ? '요청이 많습니다. 1분 뒤 다시 하세요.' : errText(r))
   set({ busy: false })
   try { sessionStorage.setItem(HASH_KEY, h) } catch { return fail('이 탭에 앱키 확인 기록을 남길 수 없어 들어갈 수 없습니다.') }
   try { localStorage.setItem(KEEP_KEY, h); localStorage.setItem(KEYS.holdKey, mat) } catch { /* 기억 못 하면 이 탭에서만 잇는다 */ }

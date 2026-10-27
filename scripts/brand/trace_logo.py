@@ -43,5 +43,5 @@ def save(name, box):
     print(name, w, h, len(svg))
 
 save('ecom-mark.svg', (0, 0, MARK_X1, H))
-save('ecom-word.svg', (TEXT_X0, 0, W, WORD_Y1))
+# ecom-word.svg 는 여기서 쓰지 않는다 — 옛 잘린 영역이라 글자가 깨진다. split_logo 가 만든 것을 그대로 둔다.
 save('ecom-logo.svg', (0, 0, W, H))

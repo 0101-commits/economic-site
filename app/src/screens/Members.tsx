@@ -57,7 +57,7 @@ export default function Members() {
     if (!n) { setErr({ uid: '', text: adminErrText({ status: 400, error: 'bad_name' }) }); return }
     void run('', () => adminCreate(hash!, n), r => {
       const key = r.doc?.key
-      if (typeof key !== 'string') { setErr({ uid: '', text: '서버 답에 앱키가 없습니다. 목록을 확인하세요.' }); return }
+      if (typeof key !== 'string') { setErr({ uid: '', text: 'ecom의 답에 앱키가 없습니다. 목록을 확인하세요.' }); return }
       setIssued({ title: `${r.doc?.user?.name ?? n} 님의 앱키`, key, note: '이 화면을 닫으면 다시 볼 수 없습니다. 잃어버리면 「앱키 다시 만들기」로 새 앱키를 줍니다.', kakao: true })
       setAdding(false); setName('')
     })
@@ -70,13 +70,13 @@ export default function Members() {
   const toggle = (m: Member) => void run(m.uid, () => adminPatch(hash!, m.uid, { status: m.status === 'paused' ? 'active' : 'paused' }), () => setStep(null))
   const rekey = (m: Member) => void run(m.uid, () => adminRekey(hash!, m.uid), r => {
     const key = r.doc?.key
-    if (typeof key !== 'string') { setErr({ uid: m.uid, text: '서버 답에 앱키가 없습니다.' }); return }
+    if (typeof key !== 'string') { setErr({ uid: m.uid, text: 'ecom의 답에 앱키가 없습니다.' }); return }
     setIssued({ title: `${m.name} 님의 새 앱키`, key, note: '이 화면을 닫으면 다시 볼 수 없습니다. 옛 앱키는 이미 막혔습니다.', kakao: true }); setStep(null)
   })
   const del = (m: Member) => void run(m.uid, () => adminDelete(hash!, m.uid), () => setStep(null))
   const backup = () => void run('', () => adminBackupKey(hash!), r => {
     const key = r.doc?.key
-    if (typeof key !== 'string') { setErr({ uid: '', text: '서버 답에 앱키가 없습니다.' }); return }
+    if (typeof key !== 'string') { setErr({ uid: '', text: 'ecom의 답에 앱키가 없습니다.' }); return }
     setIssued({ title: '예비 앱키', key, note: '마스터 앱키를 잃었을 때 이 예비 앱키로 들어와 「앱키 바꾸기」로 새 마스터 앱키를 만듭니다. 따로 적어 두세요.', kakao: false }); setHasBackup(true); setAskBackup(false)
   })
 

@@ -33,6 +33,25 @@ test('화면 글에 옛 이름 · 맞춤 말이 없다(입장 키 · 보유 열�
   assert.deepEqual(hits, [])
 })
 
+// 멤버 2차 Task 6 — 용어 정리: 화면에 보이는 글에 개발 · 영어식 말이 남지 않았는지(표는 task-6-brief.md · CLAUDE.md 「말 사전」).
+const BANNED_TERMS = ['서버', '사본', '맡김', '맡겨', '덩어리', '해시', '구독', '웹 푸시', 'Yahoo', 'what-if', '스냅샷', '원장', '현행', '이전 화면', '옛 키', '꾸러미',
+  '기준선 없음', '연환산', '무위험', '시간가중', '내 데이터', '데이터 상태', '이 기기 데이터']
+test('화면 글에 개발 · 영어식 말이 없다(서버 · 스냅샷 · 원장 · 현행 · 구독 · what-if · 꾸러미 · 연환산 …)', () => {
+  const hits: string[] = []
+  for (const f of files(SRC)) {
+    const lines = code(readFileSync(f, 'utf8')).split('\n')
+    lines.forEach((l, i) => { for (const w of BANNED_TERMS) if (l.includes(w)) hits.push(`${f.slice(SRC.length)}:${i + 1} 「${w}」 ${l.trim().slice(0, 80)}`) })
+  }
+  assert.deepEqual(hits, [])
+})
+
+test('금융 용어는 쉬운 이름 + 괄호 원어 · 풀이(title)가 붙는다', () => {
+  const my = readFileSync(join(SRC, 'screens/My.tsx'), 'utf8')
+  assert.match(my, /위험 대비 수익\(샤프\)/)
+  assert.match(my, /손실 대비 수익\(소르티노\)/)
+  assert.match(my, /title="1년 기준으로 환산한 값입니다/)
+})
+
 test('모듈이 내보내는 글(카톡 글 · 저장 안내 · 오류 글)도 「앱키」', () => {
   const texts = [
     kakaoText('ECOM-AAAA-BBBB-CCCC'), STORAGE_NOTE, adminErrText({ status: 401 }), adminErrText({ status: 403 }),

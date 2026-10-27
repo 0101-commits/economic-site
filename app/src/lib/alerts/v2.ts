@@ -156,8 +156,8 @@ export function sheetEvents(d: Dict, target: string, stock: boolean, lens: Reado
 /** 조건을 저장한 직후의 한 줄(head = 첫머리 말): 들어와 있지 않으면 「이 기기에만」, 들어와 있으면 서버에 올라갔는지. savedAt 0 = 아직 저장하지 않음(빈 글). */
 export function savedNote(sync: { on: boolean; at: number | null }, savedAt: number, head = '저장했습니다'): string {
   if (!savedAt) return ''
-  if (!sync.on) return `${head} · 이 기기만 — 울리지 않음(앱키로 다시 들어와야 서버가 봅니다)`
-  return sync.at && sync.at >= savedAt ? `${head} · 서버에 올라감 ${hhmm(sync.at)}` : `${head} · 서버로 올리는 중`
+  if (!sync.on) return `${head} · 이 기기만 — 울리지 않음(앱키로 다시 들어와야 ecom이 봅니다)`
+  return sync.at && sync.at >= savedAt ? `${head} · 자동 저장됨 ${hhmm(sync.at)}` : `${head} · 저장하는 중`
 }
 
 // ── 세기별 「지난 1년 N회」 ─────────────────────────────

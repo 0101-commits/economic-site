@@ -27,7 +27,7 @@ import { needsName } from '../lib/personal/names'
 
 const VIEWS = [
   { key: 'hold', label: '보유' }, { key: 'pnl', label: '손익 분해' }, { key: 'risk', label: '위험' },
-  { key: 'div', label: '배당' }, { key: 'ledger', label: '원장' }, { key: 'sched', label: '내 일정' },
+  { key: 'div', label: '배당' }, { key: 'ledger', label: '입출금·배당 기록' }, { key: 'sched', label: '내 일정' },
 ] as const
 type View = typeof VIEWS[number]['key']
 const KIND = { div: '배당', dep: '입금', wd: '출금' } as const
@@ -88,7 +88,7 @@ function Holdings() {
   // ponytail: 오늘 칸이 이미 있으면(현행 화면이 썼을 수 있다) 덮지 않는다 — 하루 첫 저장이 남는다.
   useEffect(() => {
     if (!qs || !pf.items.length) return
-    if (totals.missing > 0) { setSnapNote(`시세 없는 종목이 ${totals.missing}개라 오늘 스냅샷은 건너뛰었습니다.`); return }
+    if (totals.missing > 0) { setSnapNote(`시세 없는 종목이 ${totals.missing}개라 오늘 하루 평가 기록은 건너뛰었습니다.`); return }
     if (!(totals.basisValue > 0 && totals.cost > 0)) return
     const d = kstDay()   // 한국 날짜 — 앱을 열 때 남기는 것(snapDaily.ts)과 같은 칸
     if (!readSnaps().some(s => s.d === d)) { setSnaps(saveTodaySnap(totals.basisValue, totals.cost)); void syncSnaps() }
@@ -146,7 +146,7 @@ function Holdings() {
         <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><Wallet size={18} aria-hidden />내 자산</h1>
         {md?.quotesAsOf && <span className="inline-flex items-center gap-1 text-12 text-ink-3">시세 <AsOfBadge asOf={md.quotesAsOf} state={md.home?.topAmount?.state} liveUntil={md.home?.topAmount?.liveUntil} /></span>}
         {!qs && <span className="text-12 text-ink-3">시세 불러오는 중</span>}
-        {yahooN > 0 && <span className="text-12 text-ink-3">{`${yahooN}종목은 Yahoo 지연 시세`}</span>}
+        {yahooN > 0 && <span className="text-12 text-ink-3">{`${yahooN}종목은 지연 시세`}</span>}
       </header>
       <HoldNotice onPulled={() => setPf(readPortfolio())} />
 
@@ -162,7 +162,7 @@ function Holdings() {
           <span className={`num ${DIR_TEXT[changeDir(t.pnlPct, 2)]}`}>{fmtPct(t.pnlPct)}</span>
         </p>
         {!has && <p className="mt-2 mb-0 text-13 text-ink-3">아직 담은 종목이 없습니다. 아래 보유 패널에서 종목을 넣으세요.</p>}
-        {qs && t.missing > 0 && <p className="mt-2 mb-0 text-12 text-ink-3">시세 없는 {t.missing}종목은 총평가에서 뺐습니다. 묶음에도 없고 Yahoo 시세도 받지 못한 종목입니다.</p>}
+        {qs && t.missing > 0 && <p className="mt-2 mb-0 text-12 text-ink-3">시세 없는 {t.missing}종목은 총평가에서 뺐습니다. ecom 시세에도 없고 외부 시세도 받지 못한 종목입니다.</p>}
         {msg && <p role="alert" className="mt-2 mb-0 text-12 text-warn">{msg}</p>}
       </Card>
 
@@ -170,9 +170,9 @@ function Holdings() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label="국내 비중" value={pctText(share(t.domestic, t.value))} sub="상장 시장 기준" />
         <Stat label="해외 비중" value={pctText(share(t.foreign, t.value))} sub="상장 시장 기준" />
-        <Stat label="하루 최대 손실" value={rk.var95 != null ? fmtMoney(rk.var95, unit) : `스냅샷 쌓는 중 ${rk.n}/${RISK_MIN}`}
+        <Stat label="하루 최대 손실" value={rk.var95 != null ? fmtMoney(rk.var95, unit) : `기록 모으는 중 ${rk.n}/${RISK_MIN}`}
           sub={rk.var95 != null ? '95% · 20일 중 하루는 이보다 더 잃을 수 있음' : '60건이 모이면 보입니다'} small={rk.var95 == null} />
-        <Stat label="배당 이달" value={divs.length ? fmtMoney(divMonth, unit) : '기록 없음'} sub={divs.length ? '원장 기준' : '원장에 배당을 적으면 보입니다'} small={!divs.length} />
+        <Stat label="배당 이달" value={divs.length ? fmtMoney(divMonth, unit) : '기록 없음'} sub={divs.length ? '입출금·배당 기록 기준' : '입출금·배당 기록에 배당을 적으면 보입니다'} small={!divs.length} />
       </div>
 
       <SegBar label="내 자산 보기" options={VIEWS} value={v} onChange={setV} />
@@ -204,8 +204,8 @@ function Holdings() {
           {t.missing > 0 && <p className="mt-2 mb-0 text-12 text-ink-3">시세 없는 {t.missing}종목은 지도에 없습니다.</p>}
         </Panel>
 
-        <Panel className="pc:col-span-6" title="평가액 추이" unit={unitLabel} source={`스냅샷 ${snaps.length}건`}>
-          <LineChart label="평가액" periods={trend} decimals={0} empty="스냅샷이 2건 이상 쌓이면 그립니다(하루 1건)" />
+        <Panel className="pc:col-span-6" title="평가액 추이" unit={unitLabel} source={`하루 평가 기록 ${snaps.length}건`}>
+          <LineChart label="평가액" periods={trend} decimals={0} empty="하루 평가 기록이 2건 이상 쌓이면 그립니다(하루 1건)" />
           {snapNote && <p className="mt-2 mb-0 text-12 text-ink-3">{snapNote}</p>}
         </Panel>
 
@@ -229,7 +229,7 @@ function Holdings() {
           </p>
         </Panel>
 
-        <Panel className="pc:col-span-4" title="환율 what-if" source="추정">
+        <Panel className="pc:col-span-4" title="환율 만약에" source="추정">
           <FxWhatIf value={t.value} usdValue={t.usdValue} usdMissing={rows.filter(r => r.usd && r.value == null && r.h.qty).length} fxNow={md?.fx?.now ?? null} unit={unit} />
         </Panel>
 
@@ -362,8 +362,8 @@ function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Sn
       <Panel title="위험">
         {rk.var95 == null ? (
           <p className="m-0 text-13 text-ink-2">
-            스냅샷 쌓는 중 <span className="num font-bold text-ink-1">{`${rk.n}/${RISK_MIN}`}</span>. 시세가 모두 있는 날 내 자산을 열 때마다 하루 1건씩 쌓입니다.
-            60건이 안 되면 믿을 만한 범위가 아니어서 수치(최대 손실 · 변동성 · 샤프 · 소르티노)를 보이지 않습니다.
+            하루 평가 기록 모으는 중 <span className="num font-bold text-ink-1">{`${rk.n}/${RISK_MIN}`}</span>. 시세가 모두 있는 날 내 자산을 열 때마다 하루 1건씩 쌓입니다.
+            60건이 안 되면 믿을 만한 범위가 아니어서 수치(최대 손실 · 변동성 · 위험 대비 수익 · 손실 대비 수익)를 보이지 않습니다.
           </p>
         ) : (
           <>
@@ -371,18 +371,18 @@ function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Sn
               <div><dt className="text-12 text-ink-2">하루 최대 손실(95%)</dt><dd className="m-0 num text-18 font-bold text-down">{fmtMoney(rk.var95, unit)}</dd></div>
               <div><dt className="text-12 text-ink-2">하루 변동성</dt><dd className="m-0 num text-18 font-bold text-ink-1">{`${fmtNumber(rk.sd! * 100, 2)}%`}</dd></div>
               <div><dt className="text-12 text-ink-2">최대 낙폭</dt><dd className="m-0 num text-18 font-bold text-down">{`${fmtNumber(rk.mdd, 1)}%`}</dd></div>
-              <div><dt className="text-12 text-ink-2">샤프(연환산)</dt><dd className="m-0 num text-18 font-bold text-ink-1">{ratio(rk.sharpe)}</dd></div>
-              <div><dt className="text-12 text-ink-2">소르티노(연환산)</dt><dd className="m-0 num text-18 font-bold text-ink-1">{ratio(rk.sortino)}</dd></div>
+              <div><dt className="text-12 text-ink-2" title="1년 기준으로 환산한 값입니다. 클수록 흔들린 것에 비해 많이 번 것입니다.">위험 대비 수익(샤프)</dt><dd className="m-0 num text-18 font-bold text-ink-1">{ratio(rk.sharpe)}</dd></div>
+              <div><dt className="text-12 text-ink-2" title="1년 기준으로 환산한 값입니다. 손실 난 날의 흔들림만 위험으로 보고 견줍니다.">손실 대비 수익(소르티노)</dt><dd className="m-0 num text-18 font-bold text-ink-1">{ratio(rk.sortino)}</dd></div>
             </dl>
             <p className="mt-2 mb-0 text-12 text-ink-3">하루 수익률 {rk.n}건 기준 · 평가액 × 하루 변동성 × 1.645 · 정규분포를 가정한 추정이며 최악을 보증하지 않습니다.</p>
-            <p className="mt-1 mb-0 text-12 text-ink-3">하루 수익률은 그날 산 돈 · 판 돈을 뺀 값입니다. 샤프 · 소르티노는 무위험 수익률을 0 으로 두고 하루 평균 수익률 ÷ 하루 변동성(소르티노는 손실 난 날만) × √252 로 셌습니다.</p>
+            <p className="mt-1 mb-0 text-12 text-ink-3">하루 수익률은 그날 산 돈 · 판 돈을 뺀 값입니다. 위험 대비 수익(샤프) · 손실 대비 수익(소르티노)은 예금 같은 안전 수익을 0 으로 두고 하루 평균 수익률 ÷ 하루 변동성(소르티노는 손실 난 날만) × √252(1년 환산)로 셌습니다.</p>
           </>
         )}
       </Panel>
       <Panel title="시장 대비" source="기간 첫 날 = 100">
-        {snaps.filter(s => s.ev > 0 && s.ct > 0).length < 2 ? <p className="m-0 text-13 text-ink-3">스냅샷이 쌓이면 보입니다(하루 1건, 2건부터).</p>
+        {snaps.filter(s => s.ev > 0 && s.ct > 0).length < 2 ? <p className="m-0 text-13 text-ink-3">하루 평가 기록이 쌓이면 보입니다(하루 1건, 2건부터).</p>
           : idx == null ? <p className="m-0 text-13 text-ink-3">지수 불러오는 중</p>
-            : !lines || !cur ? <p className="m-0 text-13 text-ink-3">{idx.length ? '스냅샷 날짜에 맞는 지수 값이 2일 이상 없습니다.' : '지수 시계열이 없어 비교할 수 없습니다.'}</p>
+            : !lines || !cur ? <p className="m-0 text-13 text-ink-3">{idx.length ? '기록한 날짜에 맞는 지수 값이 2일 이상 없습니다.' : '지수 시계열이 없어 비교할 수 없습니다.'}</p>
               : (
                 <>
                   <p className="m-0 mb-2 text-13 text-ink-2">
@@ -392,7 +392,7 @@ function RiskPanel({ rk, snaps, unit }: { rk: ReturnType<typeof risk>; snaps: Sn
                     <span className="text-ink-3">{` (${shortDate(lines[0].periods[cur]![0][0])} = 100)`}</span>
                   </p>
                   <LineChart label="시장 대비" name="나" periods={lines[0].periods} period={cur} onPeriod={setP} decimals={1} compare={lines.slice(1)} />
-                  <p className="mt-2 mb-0 text-12 text-ink-3">나 = 날마다 그날 수익률만 이어 곱한 값(시간가중)이라 추가 매수 · 매도가 선을 끌어올리거나 내리지 않습니다. 판 날은 판 종목도 전체와 같은 수익률이었다고 봅니다. 지수는 스냅샷 날짜의 종가(없으면 7일 안의 직전 값)이고 배당은 양쪽 다 빠져 있습니다.</p>
+                  <p className="mt-2 mb-0 text-12 text-ink-3">나 = 날마다 그날 수익률만 이어 곱한 값(넣고 뺀 돈의 영향을 뺀 수익률)이라 추가 매수 · 매도가 선을 끌어올리거나 내리지 않습니다. 판 날은 판 종목도 전체와 같은 수익률이었다고 봅니다. 지수는 기록한 날짜의 종가(없으면 7일 안의 직전 값)이고 배당은 양쪽 다 빠져 있습니다.</p>
                 </>
               )}
       </Panel>
@@ -407,7 +407,7 @@ function DividendPanel({ divs, month, unit }: { divs: Ledger[]; month: string; u
   const year = divs.filter(l => l.d.slice(0, 7) > from).reduce((a, l) => a + l.amt, 0)
   return (
     <Panel title="배당" unit={unit === 'man' ? '만원' : '원'}>
-      {!divs.length ? <p className="m-0 text-13 text-ink-3">원장에 배당 기록이 없습니다. 원장 보기에서 배당을 적으세요.</p> : (
+      {!divs.length ? <p className="m-0 text-13 text-ink-3">배당 기록이 없습니다. 「입출금·배당 기록」 보기에서 배당을 적으세요.</p> : (
         <>
           <p className="m-0 text-13 text-ink-2">최근 12개월 합 <span className="num font-bold text-ink-1">{fmtMoney(year, unit)}</span></p>
           {mine.length ? <LedgerList items={mine} unit={unit} /> : <p className="mt-2 mb-0 text-13 text-ink-3">이달 배당 기록은 없습니다.</p>}
@@ -453,8 +453,8 @@ function LedgerPanel({ ledger, today, unit, onSave }: { ledger: Ledger[]; today:
     setAmt(''); setMemo(''); setErr('')
   }
   return (
-    <Panel title="원장" source={`이 기기에만 저장 · ${ledger.length}건`}>
-      <form onSubmit={add} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end" aria-label="원장 기록 추가">
+    <Panel title="입출금·배당 기록" source={`이 기기에만 저장 · ${ledger.length}건`}>
+      <form onSubmit={add} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end" aria-label="입출금·배당 기록 추가">
         <Field label="날짜"><input type="date" className={INPUT} value={d} onChange={e => setD(e.target.value)} /></Field>
         <Field label="종류">
           <select className={INPUT} value={kind} onChange={e => setKind(e.target.value as Ledger['kind'])}>
@@ -466,7 +466,7 @@ function LedgerPanel({ ledger, today, unit, onSave }: { ledger: Ledger[]; today:
         <button type="submit" className={BTN}>기록</button>
       </form>
       <p role="alert" className="min-h-5 mt-1 mb-0 text-12 text-warn">{err}</p>
-      {ledger.length ? <LedgerList items={ledger} unit={unit} onDelete={id => onSave(ledger.filter(l => l.id !== id))} /> : <p className="m-0 text-13 text-ink-3">기록이 없습니다. 배당을 적으면 오늘 손익 분해와 배당 칸에 들어갑니다.</p>}
+      {ledger.length ? <LedgerList items={ledger} unit={unit} onDelete={id => onSave(ledger.filter(l => l.id !== id))} /> : <p className="m-0 text-13 text-ink-3">기록이 없습니다. 배당을 적으면 오늘 손익 분해와 배당 보기에 들어갑니다.</p>}
     </Panel>
   )
 }

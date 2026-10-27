@@ -5,8 +5,8 @@
 //   { v:1, at:<ISO>, snaps:[{ d:'YYYY-MM-DD'(한국 날짜), ev:정수, ct:정수, src?:'close'|'app' }] }  날짜순 · 날짜당 한 칸 · 마지막 730건.
 //   src 'close' = 마스터 작업이 남긴 그날 종가 기준 값, 'app' = 앱이 앱을 연 때의 시세로 남긴 값. 없으면(옛 화면 · 옛 판) app 과 같이 본다.
 //
-// 합치기(mergeSnaps): 날짜로 합친다. 같은 날짜는 close 가 이긴다 — close 끼리거나 close 가 없으면 앞 인자(이 기기 · 있던 것)를 남긴다. 날짜순, 끝에서 730건.
-// 올릴지(decideSnaps): 합친 것이 서버 것과 다르면 올린다(서버에 없는 날짜가 있거나, close 아닌 날짜가 이 기기 값으로 남았을 때). 이 기기와 다르면 이 기기에 쓴다.
+// 합치기(mergeSnaps): 날짜로 합친다. 같은 날짜는 close 가 이긴다 — close 끼리거나 close 가 없으면 뒤 인자(서버)를 남긴다(결과가 인자 순서가 아니라 서버 값으로 정해져 기기끼리 뒤집히지 않는다). 날짜순, 끝에서 730건.
+// 올릴지(decideSnaps): 합친 것이 서버 것과 다르면 올린다(서버에 없는 날짜가 이 기기에 있을 때). 이 기기와 다르면 이 기기에 쓴다.
 import type { Snap } from './calc.ts'
 
 export type { Snap }
@@ -28,14 +28,15 @@ function clean(x: unknown): Snap | null {
   return { d: o.d, ev, ct, ...(o.src === 'close' || o.src === 'app' ? { src: o.src } : {}) }
 }
 
-/** 합치기: 날짜별 하나 · close 우선(같으면 a = 있던 것) · 날짜순 · 끝에서 730건. */
+/** 합치기: 날짜별 하나 · close 우선 · 같은 등급이면 뒤 인자(b = 서버)가 이긴다 — 매일 종가 작업이 기준이고 기기끼리 번갈아 덮지 않게 · 날짜순 · 끝에서 730건. */
 export function mergeSnaps(a: Snap[], b: Snap[]): Snap[] {
   const m = new Map<string, Snap>()
+  const rank = (s: Snap) => (s.src === 'close' ? 1 : 0)
   for (const x of [...a, ...b]) {
     const c = clean(x)
     if (!c) continue
     const cur = m.get(c.d)
-    if (!cur || (c.src === 'close' && cur.src !== 'close')) m.set(c.d, c)
+    if (!cur || rank(c) >= rank(cur)) m.set(c.d, c)
   }
   return [...m.values()].sort((p, q) => (p.d < q.d ? -1 : 1)).slice(-SNAP_MAX)
 }

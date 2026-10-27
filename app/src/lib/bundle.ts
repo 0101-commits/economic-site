@@ -62,7 +62,7 @@ export function readHomeCache(): HomeCache<HomeBundle> | null {
 // 한 화면 안에서 같은 묶음을 두 번 받지 않는다(홈 띠 보기 · 큰 차트 · 상세가 같은 묶음을 나눠 쓴다). 실패는 기억하지 않는다.
 const bundles = new Map<string, Promise<unknown>>()
 export function loadBundle<T = unknown>(name: string): Promise<T> {
-  if (!/^[\w-]+$/.test(name)) return Promise.reject(new Error(`묶음 이름이 올바르지 않음: ${name}`))
+  if (!/^[\w-]+$/.test(name)) return Promise.reject(new Error(`자료 이름이 올바르지 않음: ${name}`))
   let p = bundles.get(name)
   if (!p) {
     const q = fetchJson<T>(`bundles/${name}.json`)
@@ -326,7 +326,7 @@ export async function loadHome(fallback = true): Promise<HomeBundle> {
     const b = await loadBundle<HomeBundle>('home')
     if (b && Array.isArray(b.strip) && b.strip.length) return b
   } catch { /* 묶음 없음 → 아래 폴백 */ }
-  if (!fallback) throw new Error('home: 묶음 없음')
+  if (!fallback) throw new Error('home: 자료 없음')
   return homeFromData(await fetchJson<DataJson>('data.json'))
 }
 

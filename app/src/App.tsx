@@ -174,7 +174,7 @@ function Shell() {
       {/* PC 상단 */}
       {!welcome && <header className="hidden pc:block bg-card border-b border-line">
         <div className="mx-auto max-w-[1200px] px-4 h-14 flex items-stretch gap-6">
-          <Link to="/" aria-label="ECOM 홈" className="self-center inline-flex shrink-0 items-center text-brand-logo no-underline"><BrandLockup className="h-[22px] w-auto" /></Link>
+          <Link to="/" aria-label="ECOM 홈" className="self-center inline-flex shrink-0 items-center text-brand-logo no-underline"><BrandLockup className="h-[26px] w-auto" /></Link>
           <nav aria-label="주 메뉴" className="flex gap-5">
             {TABS.map(({ to, label, icon: Icon }) => (
               <NavLink key={to} to={to} end={to === '/'}
@@ -195,7 +195,7 @@ function Shell() {
 
       {/* 모바일 상단: 이름 + 검색 + 톱니 */}
       {!welcome && <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
-        <Link to="/" aria-label="ECOM 홈" className="mr-auto inline-flex shrink-0 items-center text-brand-logo no-underline"><BrandLockup className="h-[22px] w-auto" /></Link>
+        <Link to="/" aria-label="ECOM 홈" className="mr-auto inline-flex shrink-0 items-center text-brand-logo no-underline"><BrandLockup className="h-[26px] w-auto" /></Link>
         <SearchButton compact onOpen={() => setSearch(true)} />
         <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
         <ThemeButton />

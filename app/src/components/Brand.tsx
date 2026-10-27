@@ -22,11 +22,5 @@ export function BrandLockup({ className, title }: { className?: string; title?: 
   return <Svg k="lockup" className={`shrink-0 ${className ?? ''}`} title={title} />
 }
 export function BrandLogo({ tagline, className }: { tagline?: boolean; className?: string }) {
-  if (tagline) return <Svg k="logo" className={className} />
-  return (
-    <span role="img" aria-label="ECOM" className={`inline-flex items-center gap-1.5 ${className ?? ''}`}>
-      <Svg k="mark" decorative className="h-[22px] w-auto" />
-      <Svg k="word" decorative className="h-[15px] w-auto" />
-    </span>
-  )
+  return tagline ? <Svg k="logo" className={className} /> : <BrandLockup className={className} />
 }

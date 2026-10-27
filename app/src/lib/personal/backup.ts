@@ -38,7 +38,7 @@ async function aesKey(pass: string, salt: Uint8Array<ArrayBuffer>) {
 /** 파일 암호 검사. '' = 통과. isPin = 잠금 PIN 과 같은지(lib/pin.ts samePin — 실패 셈을 올리지 않는다). 공백 뺀 값도 견준다. */
 export async function passIssue(p1: string, p2: string, isPin: (p: string) => Promise<boolean>): Promise<string> {
   if (p1.trim().length < 10) return '파일 암호는 10자 이상이어야 합니다.'
-  if (p1 !== p2) return '파일 암호 두 칸이 다릅니다.'
+  if (p1 !== p2) return '파일 암호 두 번 입력이 서로 다릅니다.'
   for (const p of new Set([p1, p1.trim()])) if (await isPin(p)) return '잠금 PIN 과 다른 암호를 쓰세요.'
   return ''
 }
@@ -86,12 +86,12 @@ export async function readFile(text: string, pass?: string): Promise<Loaded> {
   const list = <T,>(k: string, ok: (x: any) => x is T): T[] | undefined => {
     const v = doc[k]
     if (v == null) return undefined
-    if (!Array.isArray(v)) throw fail(`「${k}」 칸이 깨졌습니다.`)
+    if (!Array.isArray(v)) throw fail(`「${k}」 항목이 깨졌습니다.`)
     const out = v.filter(ok)
     return out.length || !v.length ? out : undefined
   }
-  if (!isObj(doc.portfolio) || !Array.isArray(doc.portfolio.items)) throw fail('「portfolio」 칸이 깨졌습니다.')
-  if (doc.prefs != null && !isObj(doc.prefs)) throw fail('「prefs」 칸이 깨졌습니다.')
+  if (!isObj(doc.portfolio) || !Array.isArray(doc.portfolio.items)) throw fail('「portfolio」 항목이 깨졌습니다.')
+  if (doc.prefs != null && !isObj(doc.prefs)) throw fail('「prefs」 항목이 깨졌습니다.')
   const p = doc.prefs != null ? upgradePrefs(doc.prefs) : undefined, th = doc.prefs?.settings?.theme
   return {
     at: typeof doc.exportedAt === 'string' && !Number.isNaN(Date.parse(doc.exportedAt)) ? doc.exportedAt : null,
@@ -108,17 +108,17 @@ export async function readFile(text: string, pass?: string): Promise<Loaded> {
 
 function unknownKeys(doc: Record<string, unknown>, known: string[]) {
   const extra = Object.keys(doc).filter(k => !known.includes(k))
-  if (extra.length) throw fail(`이 화면이 모르는 칸이 있습니다: ${extra.slice(0, 5).join(', ')}`)
+  if (extra.length) throw fail(`이 화면이 모르는 항목이 있습니다:${extra.slice(0, 5).join(', ')}`)
 }
 
 function legacy(doc: Record<string, any>): Loaded {
-  if (doc.enc || doc.ciphertext) throw fail('이전 화면의 암호 백업입니다. 이전 화면 「설정 › 데이터 백업·복구」에서 복원하세요.')
+  if (doc.enc || doc.ciphertext) throw fail('옛 화면의 암호 백업입니다. 옛 화면 「설정 › 데이터 백업·복구」에서 복원하세요.')
   const json = (v: unknown) => { try { return typeof v === 'string' ? JSON.parse(v) : null } catch { return null } }
   const pf = json(doc.data?.portfolioV1), sn = json(doc.data?.pfSnapshotsV1)
   const out: Loaded = { at: typeof doc.exportedAt === 'string' && !Number.isNaN(Date.parse(doc.exportedAt)) ? doc.exportedAt : null, legacy: true }
   if (isObj(pf) && Array.isArray(pf.items)) out.portfolio = pf as Portfolio
   if (Array.isArray(sn)) out.snapshots = sn.filter(x => isObj(x) && typeof x.d === 'string')
-  if (!out.portfolio && !out.snapshots) throw fail('이전 화면 백업에 보유 · 스냅샷이 없습니다. 이전 화면에서 복원하세요.')
+  if (!out.portfolio && !out.snapshots) throw fail('옛 화면 백업에 보유 · 하루 평가 기록이 없습니다. 옛 화면에서 복원하세요.')
   return out
 }
 

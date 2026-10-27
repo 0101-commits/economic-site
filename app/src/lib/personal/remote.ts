@@ -137,7 +137,7 @@ export async function syncKeyChange(currentKey: string, newKey: string): Promise
 }
 
 // 0(네트워크) · -1(2xx 인데 ok:true 없음)은 서버가 바꿨는데 답만 잃었을 수 있다 — 새 키로 다시 연결해 보게 한다.
-const KEY_LOST_REPLY = '서버 답을 확인하지 못했습니다. 앱키가 바뀌었을 수 있으니 잠시 뒤 새 앱키로 다시 들어와 보세요. 들어와지지 않으면 지금 앱키 그대로입니다.'
+const KEY_LOST_REPLY = 'ecom의 답을 확인하지 못했습니다. 앱키가 바뀌었을 수 있으니 잠시 뒤 새 앱키로 다시 들어와 보세요. 들어와지지 않으면 지금 앱키 그대로입니다.'
 const KEY_ERR: Record<number, string> = {
   401: '지금 앱키가 맞지 않습니다.',
   429: '요청이 많습니다. 1분 뒤 다시 하세요.',
@@ -148,8 +148,8 @@ const KEY_ERR: Record<number, string> = {
 /** 키 바꾸기 결과 → 화면 글. '' = 바뀜. */
 export function keyChangeText(r: KeyChange): string {
   if (r.status === 200) return ''
-  if (r.error === 'weak_new_key') return '서버가 새 앱키를 받지 않았습니다. 12자 이상, 지금 앱키와 다른 앱키를 쓰세요.'
-  return KEY_ERR[r.status] ?? `서버가 받지 않았습니다(${r.error ?? r.status}).`
+  if (r.error === 'weak_new_key') return '새 앱키를 받지 못했습니다. 12자 이상, 지금 앱키와 다른 앱키를 쓰세요.'
+  return KEY_ERR[r.status] ?? `ecom이 받지 않았습니다(${r.error ?? r.status}).`
 }
 
 // ── /me · /admin/* · /fired (회원) ───────────────────────────
@@ -254,9 +254,9 @@ const AI_ERR: Record<string, string> = {
   rate_limited: '요청이 많습니다. 1분 뒤 다시 물어보세요.',
   unauthorized: '앱키가 맞지 않습니다. 앱키로 다시 들어와 주세요.',
   sync_key_not_configured: '앱키가 아직 설정되지 않아 지금은 물을 수 없습니다.',
-  no_ai_available: '서버에 AI 엔진이 설정되지 않아 지금은 물을 수 없습니다.',
+  no_ai_available: 'ecom에 AI 엔진이 설정되지 않아 지금은 물을 수 없습니다.',
   forbidden_origin: '이 주소에서는 물을 수 없습니다.',
-  network: '서버에 닿지 못했습니다. 잠시 뒤 다시 물어보세요.',
+  network: 'ecom에 닿지 못했습니다. 잠시 뒤 다시 물어보세요.',
 }
 /** 질문 실패 → 화면 글. 429 는 본문 없이 올 수도 있어 상태로도 고른다. */
 export const aiErrText = (r: AiReply) =>

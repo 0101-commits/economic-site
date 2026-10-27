@@ -168,7 +168,7 @@ test('keyChangeText: 바뀜은 빈 글 · 답을 잃은 0 · -1 은 새 앱키�
   assert.equal(keyChangeText({ status: 0 }), keyChangeText({ status: -1 }))
   assert.match(keyChangeText({ status: 400, error: 'weak_new_key' }), /12자 이상/)
   assert.equal(keyChangeText({ status: 401 }), '지금 앱키가 맞지 않습니다.')
-  assert.equal(keyChangeText({ status: 502, error: 'kv_write_failed' }), '서버가 받지 않았습니다(kv_write_failed).')
+  assert.equal(keyChangeText({ status: 502, error: 'kv_write_failed' }), 'ecom이 받지 않았습니다(kv_write_failed).')
 })
 
 test('blankLocal: 관심 · 조건 · 시나리오가 없고 설정도 기본값일 때만 빈 기기(칸 순서 무관)', () => {

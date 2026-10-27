@@ -17,7 +17,7 @@ export function KeyChange({ onDone }: { onDone: (msg: string) => void }) {
   const [err, setErr] = useState('')
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (n1 !== n2) { setErr('새 앱키 두 칸이 다릅니다.'); return }
+    if (n1 !== n2) { setErr('새 앱키 두 번 입력이 서로 다릅니다.'); return }
     const r = await changeKey(cur, n1)
     if (r) { setErr(r); return }
     setCur(''); setN1(''); setN2('')
@@ -69,7 +69,7 @@ export function PushScope() {
     <li className="py-2 border-t border-line">
       {supported
         ? <Switch on={on} onChange={v => void toggle(v)} disabled={busy} label="이 기기로 폰 알림 받기" />
-        : <p className="m-0 text-13 text-ink-2">이 브라우저는 웹 푸시를 지원하지 않습니다. 아이폰은 Safari 공유 메뉴의 「홈 화면에 추가」로 연 앱에서만 켤 수 있습니다.</p>}
+        : <p className="m-0 text-13 text-ink-2">이 브라우저는 폰 알림을 지원하지 않습니다. 아이폰은 Safari 공유 메뉴의 「홈 화면에 추가」로 연 앱에서만 켤 수 있습니다.</p>}
       <p className={NOTE}>받는 기기 <span className="num">{n ?? '—'}/{PUSH_MAX}</span> · {PUSH_MAX}대를 넘으면 가장 먼저 켠 기기가 빠집니다.</p>
       {msg && <p role="status" className="mt-1 mb-0 text-12 text-ink-2">{msg}</p>}
     </li>

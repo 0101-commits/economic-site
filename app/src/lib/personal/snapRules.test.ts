@@ -23,10 +23,20 @@ test('mergeSnaps: 같은 날짜는 close 가 app 을 이긴다 — 어느 쪽에
   assert.deepEqual(mergeSnaps([s('2026-10-01', 1)], [s('2026-10-01', 9, 'close')]), [s('2026-10-01', 9, 'close')])   // 표식 없는 옛 칸도 close 가 이긴다
 })
 
-test('mergeSnaps: close 가 아니면 있던 것(앞 인자 — 이 기기)을 남긴다 · 둘 다 close 여도 있던 것', () => {
-  assert.deepEqual(mergeSnaps([s('2026-10-01', 1, 'app')], [s('2026-10-01', 2, 'app')]), [s('2026-10-01', 1, 'app')])
-  assert.deepEqual(mergeSnaps([s('2026-10-01', 1)], [s('2026-10-01', 2, 'app')]), [s('2026-10-01', 1)])
-  assert.deepEqual(mergeSnaps([s('2026-10-01', 1, 'close')], [s('2026-10-01', 2, 'close')]), [s('2026-10-01', 1, 'close')])
+test('mergeSnaps: 같은 등급이면 서버(뒤 인자)가 이긴다 — app 끼리도 close 끼리도', () => {
+  assert.deepEqual(mergeSnaps([s('2026-10-01', 1, 'app')], [s('2026-10-01', 2, 'app')]), [s('2026-10-01', 2, 'app')])
+  assert.deepEqual(mergeSnaps([s('2026-10-01', 1)], [s('2026-10-01', 2, 'app')]), [s('2026-10-01', 2, 'app')])
+  assert.deepEqual(mergeSnaps([s('2026-10-01', 1, 'close')], [s('2026-10-01', 2, 'close')]), [s('2026-10-01', 2, 'close')])
+})
+
+test('decideSnaps: 두 기기가 서로 다른 app 값을 가져도 서버 값으로 모인다 — 뒤집히지 않는다', () => {
+  const server = [s('2026-10-01', 5, 'app')]
+  const a = decideSnaps([s('2026-10-01', 1, 'app')], server)
+  const b = decideSnaps([s('2026-10-01', 9, 'app')], server)
+  assert.deepEqual(a.merged, server)
+  assert.deepEqual(b.merged, server)
+  assert.equal(a.push, false)   // 서버와 같아졌으니 다시 올리지 않는다
+  assert.equal(a.writeLocal, true)
 })
 
 test('mergeSnaps: 730건 상한 — 가장 새 것을 남긴다 · 깨진 칸은 버린다', () => {
@@ -59,9 +69,9 @@ test('decideSnaps: 서버에만 있는 날짜는 받기만(올리지 않는다) 
   assert.deepEqual(d.merged.map(x => x.ev), [9, 2])
 })
 
-test('decideSnaps: 같은 날짜가 close 아닌 값으로 다르면 이 기기 것을 남기고 올린다(app 이 서버보다 새 값) · 둘 다 비면 아무것도 안 함', () => {
+test('decideSnaps: 같은 날짜가 close 아닌 값으로 다르면 서버 것을 남기고 올리지 않는다 · 둘 다 비면 아무것도 안 함', () => {
   const d = decideSnaps([s('2026-10-01', 5, 'app')], [s('2026-10-01', 1, 'app')])
-  assert.equal(d.push, true); assert.equal(d.merged[0].ev, 5)
+  assert.equal(d.push, false); assert.equal(d.writeLocal, true); assert.equal(d.merged[0].ev, 1)
   const none = decideSnaps([], null)
   assert.equal(none.push, false); assert.equal(none.writeLocal, false)
   const fromNull = decideSnaps([s('2026-10-01', 1, 'app')], null)

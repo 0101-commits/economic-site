@@ -27,13 +27,13 @@ const SCREENS: Fixed[] = [
   ...([['kr', '국내', 'kospi 코스피 코스닥 주식'], ['global', '해외', '미국 나스닥 s&p 지수'], ['fxrate', '환율금리', '환율 금리 달러 국채'],
     ['commod', '원자재', '유가 금 구리 wti'], ['macro', '거시', 'cpi 물가 gdp 고용'], ['flow', '수급', '외국인 기관 개인 순매수'], ['realestate', '부동산', '아파트 주택 전세']] as const)
     .map(([k, l, keys]): Fixed => ({ kind: '화면', label: `시장 · ${l}`, to: `/market?a=${k}`, keys: `시장 ${l} ${keys}` })),
-  ...([['whatif', '만약에', '시나리오 what-if'], ['chain', '사슬', '연결 고리'], ['flow', '흐름', '흐름']] as const)
+  ...([['whatif', '만약에', '시나리오 whatif'], ['chain', '사슬', '연결 고리'], ['flow', '흐름', '흐름']] as const)
     .map(([k, l, keys]): Fixed => ({ kind: '화면', label: `렌즈 · ${l}`, to: `/lens?m=${k}`, keys: `렌즈 메르 위험 ${l} ${keys}` })),
   { kind: '화면', label: '내 자산', to: '/my', keys: '내 자산 보유 포트폴리오 평가액 손익' },
   { kind: '화면', label: '알림', to: '/alerts', keys: '알림 조건 받은 알림 푸시' },
 ]
 const TOOLS: Fixed[] = [
-  { kind: '도구', label: '환율 what-if', sub: '내 자산 · 달러원이 움직이면 총평가는', to: '/my', keys: '환율 달러원 what-if whatif 만약 시나리오 fx' },
+  { kind: '도구', label: '환율 만약에', sub:'내 자산 · 달러원이 움직이면 총평가는', to: '/my', keys: '환율 달러원 whatif 만약 시나리오 fx' },
 ]
 
 type Post = { title: string; url: string; date?: string; fullText?: string }
