@@ -3,7 +3,7 @@
 // · 이름을 고치면 한 번 올림 · 이미 들어와 있던 기기(옛 기록)가 옛 판으로 새 판을 덮지 않음 · 옛 형식 덩어리.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { decrypt, encrypt, entriesOf, fingerprint, type EncBlob, type Entry } from './e2e.ts'
+import { decrypt, encrypt, encryptJson, entriesOf, fingerprint, type EncBlob, type Entry } from './e2e.ts'
 import { HOLD_TEXT, makeHoldSync, noteHoldEdit, noteHoldNames, readHoldRec, resetHoldRec, type HoldDeps } from './holdSync.ts'
 import { read, readPortfolio, writePortfolio } from './scoped.ts'
 import { setPendingPerson } from './who.ts'
@@ -232,4 +232,32 @@ test('옛 형식 덩어리에서 「이 기기 보유로 새로 잠그기」: �
   assert.equal(srv.posts.length, 1)
   assert.deepEqual((await decrypt(srv.posts[0], MAT)).entries.map(e => e.q), [6])
   assert.deepEqual(read<{ side: string; enc: EncBlob } | null>('portfolioV1:prev', null)?.enc, old)
+})
+
+test('「새로 잠그기」: 이 기기에 보유가 없으면 올리지 않고 한 줄로 이유를 말한다 — 서버 판을 빈 판으로 덮지 않는다', async () => {
+  fresh()
+  setLocal([])
+  resetHoldRec()
+  const old = await encrypt([ent('005930', 4)], 'old-pass-123', '2026-10-01T00:00:00.000Z')
+  const { srv, sync } = fakeServer(old)
+  const r = await sync.run({ drop: true })
+  assert.equal(srv.posts.length, 0)
+  assert.equal(srv.enc, old)
+  assert.equal(r.state.kind, 'error')
+  assert.equal(r.state.text, HOLD_TEXT.dropEmpty)
+  assert.equal(read('portfolioV1:prev', null), null)                      // 한 벌도 만들지 않는다
+})
+
+test('둘 다 바뀌었는데 서버 판에 바꾼 때(t)가 없으면(옛 빌드가 올림): 기기 바꾼 때가 있어도 서버 판이 이기고 기기 판은 한 벌 남는다', async () => {
+  fresh()
+  const { srv, sync } = await agreed([row('005930', 1)])
+  setLocal([row('005930', 5)]); noteHoldEdit('2026-10-27T03:00:00.000Z')
+  srv.enc = await encryptJson([{ s: '005930', m: 'KR', a: 1000, q: 9, fx: null }], MAT)   // t 없는 판
+  const r = await sync.run()
+  assert.equal(srv.posts.length, 0)
+  assert.equal(r.pulled, true)
+  assert.equal(qtyOf('005930'), 9)
+  const prev = read<{ side: string; data: { items: Holding[] } } | null>('portfolioV1:prev', null)
+  assert.equal(prev?.side, 'device')
+  assert.equal(prev?.data.items[0].qty, 5)
 })

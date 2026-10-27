@@ -101,7 +101,7 @@ export function npsDomesticShare(allocation: { asset: string; pct: number }[] | 
 }
 
 /** 스냅샷 한 건: 날짜 · 평가액 · 원금(현행 사이트 pfSnapshotsV1 모양). */
-export type Snap = { d: string; ev: number; ct: number }
+export type Snap = { d: string; ev: number; ct: number; src?: 'close' | 'app' }   // src: 마스터 작업의 종가 값('close') · 앱이 낸 값('app') — snapRules.ts
 
 /** 같은 날짜는 바꿔 넣고, 날짜순, 끝에서 730건만(현행 사이트와 같은 상한). */
 export function upsertSnap(snaps: Snap[], s: Snap): Snap[] {

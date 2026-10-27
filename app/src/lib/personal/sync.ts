@@ -1,7 +1,7 @@
 // 앱키로 들어온 기기끼리 저절로 맞춤 — ① 관심 · 알림 조건 · 표시 설정 · 렌즈 시나리오(Worker /prefs)와 ② 보유(/portfolio 의 잠근 덩어리, holdSync.ts).
 // ③ 폰 알림 구독은 lib/push.ts 가 같은 앱키 해시로 한다. 사람에게 묻지 않는다 — 어느 쪽을 남길지는 syncRules.ts 규칙 하나.
 // /prefs 문서에 보유(portfolioV1)·스냅샷·원장은 없다. 보내는 문서는 remote.ts toServer 가 아래 저장소 세 곳에서만 만든다.
-// 보유는 앱키에서 만든 재료로 잠근 덩어리(e2e.ts)로만 /portfolio 에 올린다. 스냅샷·원장은 어디로도 보내지 않는다.
+// 보유는 앱키에서 만든 재료로 잠근 덩어리(e2e.ts)로만 /portfolio 에 올린다. 스냅샷(날짜 · 평가액 · 원금)도 같은 재료로 잠가 /snaps 에만 올린다(snapSync.ts). 원장은 어디로도 보내지 않는다.
 //
 // 규칙
 //   앱키    화면에서 받은 앱키 원문은 저장하지 않는다. 들어올 때(원문이 손에 있을 때) 두 가지로 바꿔 둔다:
@@ -26,11 +26,12 @@ import { samePin } from '../pin'
 import { dropLocalPush, pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../push'
 import { clearMe, markPaused } from './account'
 import { applyUpdown, KEYS, readPrefs, storeKey, writePrefs } from './store'
-import { fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, type Local, type PrefsDoc, type Reply } from './remote'
+import { fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, snapsGet, snapsPut, syncedOf, syncKeyChange, toServer, type Local, type PrefsDoc, type Reply } from './remote'
 import { holdKeyOf, relockBlob } from './e2e'
 import { prefsStep, type PrefsRec } from './syncRules'
 import { makeHoldSync, noteHoldEdit, noteHoldNames, resetHoldRec, type HoldResult, type HoldState } from './holdSync'
-import { keepPrev, read, write } from './scoped'
+import { keepPrev, read, readSnaps, write, writeSnaps } from './scoped'
+import { makeSnapSync, type SnapRec } from './snapSync'
 import { currentPerson } from './who'
 
 const HASH_KEY = 'econSyncHash_v1'
@@ -240,7 +241,7 @@ function adopt(h: string) {
 function onVisibility() {
   if (!getKeyHash()) return
   if (document.visibilityState === 'hidden') { if (prev && fp() !== sent) void pushPrefs(true); return }
-  if (Date.now() - lastHold > PULL_MS) void syncHoldings()
+  if (Date.now() - lastHold > PULL_MS) void syncAll()
   if (!prev || busy || Date.now() < retryAt) return
   if (fp() !== sent) void pushPrefs()
   else if (Date.now() - lastPull > PULL_MS) void pullPrefs()
@@ -268,7 +269,7 @@ export function startSync() {
   window.addEventListener('storage', onStorage)
   const kept = keptHash()
   if (!getKeyHash() && kept) { try { sessionStorage.setItem(HASH_KEY, kept) } catch { /* 막힌 저장소 = 잇지 않음 */ } }
-  if (getKeyHash()) { begin(); void syncHoldings() }
+  if (getKeyHash()) { begin(); void syncAll() }
 }
 
 // ── 들어오기 · 나가기 · 앱키 바꾸기 ─────────────
@@ -296,7 +297,7 @@ export async function connectSync(key: string, perm?: Promise<unknown>): Promise
   set({ msg: '' })
   begin()
   await settlePrefs(r.doc, true)
-  void syncHoldings()
+  void syncAll()
   void autoPush()
   return true
 }
@@ -393,6 +394,37 @@ export const syncHoldings = async (): Promise<boolean> => (getKeyHash() ? (await
 export const unlockHoldings = (old: string) => runHold({ old })
 /** 예전 암호를 모를 때: 못 여는 서버 판 대신 이 기기 보유를 지금 앱키로 잠가 둔다(서버 판은 이 기기 portfolioV1:prev 에 그대로). */
 export const replaceHoldings = () => runHold({ drop: true })
+
+// ── 스냅샷 — snapSync.ts(합치기 · 서버 주고받기, 규칙은 snapRules.ts). 보유 맞춤 바로 뒤에 같은 길로 이어 돈다(따로 도는 감시 없음) ──
+// 돌리는 때: 들어올 때 · 앱을 열 때 · 탭으로 돌아올 때(보유 맞춤과 같이) · 오늘 스냅샷을 남긴 직후. 예비 앱키 세션과 보유 재료 없는 기기는 받지도 올리지도 않는다.
+const snaps = makeSnapSync({
+  hash: getKeyHash, mat: holdKey, backup: () => currentPerson()?.viaBackup === true,
+  get: h => { lastReq = Date.now(); return snapsGet(h) },
+  put: (h, e) => { lastReq = Date.now(); return snapsPut(h, e) },
+  read: readSnaps, write: writeSnaps,
+  readRec: () => { const r = read<unknown>(storeKey('econSnapSync_v1'), {}); return r && typeof r === 'object' && !Array.isArray(r) ? (r as SnapRec) : {} },
+  writeRec: r => { write(storeKey('econSnapSync_v1'), r) },
+  lost,
+})
+let snapTail: Promise<unknown> = Promise.resolve(), snapQueued: Promise<boolean> | null = null
+/** 스냅샷 맞춤 한 번(차례대로 — 겹치지 않게, 기다리는 것이 있으면 그것 하나로 합친다). 이 기기 스냅샷이 바뀌었으면 true(화면이 다시 읽는다). */
+export function syncSnaps(): Promise<boolean> {
+  if (!getKeyHash()) return Promise.resolve(false)
+  if (snapQueued) return snapQueued
+  const p = snapTail.then(() => { snapQueued = null; return snaps.run() }).then(r => {
+    if (r.pulled) window.dispatchEvent(new StorageEvent('storage', { key: storeKey('pfSnapshotsV1') }))
+    if (r.pulled || r.pushed) set({ at: Date.now() })
+    return r.pulled
+  }, () => false)
+  snapQueued = p
+  snapTail = p
+  return p
+}
+/** 보유 맞춤 → 스냅샷 맞춤(들어올 때 · 앱을 열 때 · 돌아올 때). */
+let lastAll: Promise<unknown> = Promise.resolve()
+const syncAll = () => (lastAll = syncHoldings().then(() => syncSnaps()))
+/** 가장 최근에 시작한 「보유 → 스냅샷」 맞춤이 끝나면 풀리는 약속(snapDaily.ts 가 오늘 스냅샷을 남기기 전에 기다린다). */
+export const openSyncDone = (): Promise<unknown> => lastAll.catch(() => {})
 
 /** 보유 저장 뒤 2초 조용하면 맞춘다. 받았으면 onPulled. */
 export function queueHoldSync(onPulled?: () => void) {

@@ -29,7 +29,7 @@ export const readLedger = (): Ledger[] => { const a = read<unknown>(storeKey('pf
 export const writeLedger = (a: Ledger[]) => write(storeKey('pfLedgerV1'), [...a].sort((x, y) => (x.d < y.d ? -1 : 1)).slice(-500))
 
 const SCOPED_BASES: readonly ScopedBase[] = ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1',
-  'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1']
+  'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1', 'econSnapSync_v1']
 
 // ── 진 쪽 한 벌(…:prev) ─────────────────────────────────
 // 이 기기와 다른 기기가 둘 다 바꿔 한쪽을 골랐을 때(syncRules.settle) 진 쪽을 이 기기에 한 벌 남긴다. 한 칸 — 다음 진 쪽이 덮는다.

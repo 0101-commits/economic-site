@@ -61,6 +61,23 @@ export async function encrypt(entries: Entry[], pass: string, at: string): Promi
   return { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter: ITER, salt: b64(salt), iv: b64(iv), ciphertext: b64(new Uint8Array(ct)) }
 }
 
+/** 아무 JSON → 덩어리. 보유와 같은 열쇠 · 같은 형식(스냅샷 snapSync.ts · 마스터 작업 scripts/master_snapshot.py 가 같은 방식으로 잠근다). */
+export async function encryptJson(value: unknown, pass: string): Promise<EncBlob> {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12))
+  const key = await aesKey(pass, salt)
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(value)))
+  return { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter: ITER, salt: b64(salt), iv: b64(iv), ciphertext: b64(new Uint8Array(ct)) }
+}
+/** 덩어리 → JSON 값. 암호가 다르면 Error('wrong-pass'). */
+export async function decryptJson(blob: EncBlob, pass: string): Promise<unknown> {
+  let pt: ArrayBuffer
+  try {
+    const key = await aesKey(pass, unb64(blob.salt))
+    pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(blob.iv) }, key, unb64(blob.ciphertext))
+  } catch { throw new Error('wrong-pass') }
+  return JSON.parse(new TextDecoder().decode(pt))
+}
+
 /** 덩어리 → 칸. 암호가 다르면(GCM 인증 실패) Error('wrong-pass'). */
 export async function decrypt(blob: EncBlob, pass: string): Promise<{ entries: Entry[]; at: string | null }> {
   let pt: ArrayBuffer

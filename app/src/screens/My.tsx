@@ -20,8 +20,8 @@ import { benchmark, evaluate, fmtMoney, fmtMoneyChange, fxWhatIf, kstDay, moneyD
 import { useBundleRev, type Sched } from '../lib/bundle'
 import { loadBench, loadMarketData, type MarketData } from '../lib/personal/data'
 import { holdingQuotes } from '../lib/personal/quotes'
-import { newId, readLedger, readPortfolio, readPrefs, readSnaps, saveTodaySnap, writeLedger, writePortfolio, type Ledger } from '../lib/personal/store'
-import { holdEdited, holdNamesFixed, syncHoldings, useSyncStatus } from '../lib/personal/sync'
+import { newId, storeKey, readLedger, readPortfolio, readPrefs, readSnaps, saveTodaySnap, writeLedger, writePortfolio, type Ledger } from '../lib/personal/store'
+import { holdEdited, holdNamesFixed, syncHoldings, syncSnaps, useSyncStatus } from '../lib/personal/sync'
 import { fixHoldingNames } from '../lib/personal/nameLookup'
 import { needsName } from '../lib/personal/names'
 
@@ -56,6 +56,12 @@ function Holdings() {
   // 이어서 이름이 비었거나 코드뿐인 줄만 이름을 찾아 채운다(직접 지은 이름은 그대로) — 채웠으면 한 번 올려 이름이 다른 기기로 가게 한다.
   useEffect(() => { void syncHoldings().then(p => { if (p) setPf(readPortfolio()) }).then(() => fixHoldingNames()).then(ok => { if (ok) { setPf(readPortfolio()); holdNamesFixed() } }).catch(() => {}) }, [])
   useEffect(() => { if (holdRev) setPf(readPortfolio()) }, [holdRev])
+  // 서버 스냅샷을 합쳐 받았거나(sync.ts syncSnaps) 앱을 열 때 오늘 칸이 남았으면 다시 읽는다
+  useEffect(() => {
+    const on = (e: StorageEvent) => { if (e.key === storeKey('pfSnapshotsV1')) setSnaps(readSnaps()) }
+    window.addEventListener('storage', on)
+    return () => window.removeEventListener('storage', on)
+  }, [])
   const rev = useBundleRev()
   useEffect(() => {
     // 다시 읽기에서 못 받으면 보던 시세를 둔다
@@ -84,8 +90,8 @@ function Holdings() {
     if (!qs || !pf.items.length) return
     if (totals.missing > 0) { setSnapNote(`시세 없는 종목이 ${totals.missing}개라 오늘 스냅샷은 건너뛰었습니다.`); return }
     if (!(totals.basisValue > 0 && totals.cost > 0)) return
-    const d = new Date().toISOString().slice(0, 10)
-    if (!readSnaps().some(s => s.d === d)) setSnaps(saveTodaySnap(totals.basisValue, totals.cost))
+    const d = kstDay()   // 한국 날짜 — 앱을 열 때 남기는 것(snapDaily.ts)과 같은 칸
+    if (!readSnaps().some(s => s.d === d)) { setSnaps(saveTodaySnap(totals.basisValue, totals.cost)); void syncSnaps() }
   }, [qs])   // 시세가 들어온 순간(종목을 바꿔 다시 받으면 또 — 오늘 칸이 있으면 덮지 않는다)
 
   const savePf = (items: Holding[]) => {

@@ -43,7 +43,8 @@ export const HOLD_TEXT = {
   oldWrong: '넣은 암호로는 열리지 않습니다. 예전 평단가 암호나 바꾸기 전 앱키를 넣어 주세요.',
   broken: '저장된 보유를 읽지 못했습니다.',
   nokey: '이 기기에서는 보유를 열 수 없습니다. 설정 › 내 계정에서 「이 기기에서 나가기」를 누른 뒤 앱키로 다시 들어와 주세요.',
-  tooBig: '보유 종목이 너무 많아 저장할 수 없습니다.',
+  dropEmpty: '이 기기에 보유가 없어 새로 잠글 수 없습니다. 저장된 보유를 열 수 있는 예전 암호를 넣어 주세요.',
+  tooBig:'보유 종목이 너무 많아 저장할 수 없습니다.',
   saveFail: '이 기기에 저장하지 못했습니다. 시크릿 창이거나 저장 공간이 찼습니다.',
   keptDevice: '저장된 보유로 바꿨습니다. 이 기기에 있던 것은 한 벌 남겨 두었습니다.',
   keptServer: '이 기기에서 나중에 바꾼 보유로 저장했습니다. 다른 기기에서 바꾼 것은 이 기기에 한 벌 남겨 두었습니다.',
@@ -123,6 +124,8 @@ export function makeHoldSync(d: HoldDeps) {
         if ('err' in x) {
           if (backup) return res(false, false, st('backup', HOLD_TEXT.backup))
           if (o.drop) {
+            // 이 기기에 보유가 없으면 빈 판으로 서버 판을 덮게 된다 — 올리지 않고 이유만 말한다
+            if (!local.length) return res(false, false, st('error', HOLD_TEXT.dropEmpty))
             keepPrev('portfolioV1', { side: 'server', at: null, enc })
             return upload(h, mat, local, rec.editAt ?? iso(), ct, rec, o, again, OK)
           }

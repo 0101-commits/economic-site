@@ -29,7 +29,8 @@ import { applyTheme, useTheme, type Theme } from './lib/theme'
 import { countUse, screenKey } from './lib/usage'
 import { loadBundle, useBundleRev, useNewBuild, watchBundles, type Meta } from './lib/bundle'
 import { haltLine, type Halt } from './lib/refresh'
-import { useHasKey } from './lib/personal/sync'
+import { useHasKey, useSyncStatus } from './lib/personal/sync'
+import { ensureTodaySnap } from './lib/personal/snapDaily'
 import { keyWasLost, useMe } from './lib/personal/account'
 import { gateRedirect } from './lib/welcome'
 import { publicLedger } from './lib/alerts/v2'
@@ -162,6 +163,9 @@ function Shell() {
   // 401 로 끊겼으면 why=lost, 멈춘 사람이면 why=paused — 키 해시 · me 가 바뀌는 순간 다시 그려 바로 보낸다(다음 이동을 기다리지 않는다).
   // 입장 화면엔 머리줄 · 하단 탭 · 오른쪽 패널이 없다.
   const hasKey = useHasKey()
+  // 오늘 스냅샷(한국 날짜)을 앱을 열 때 하루 한 번 — 어느 화면이든. 새 기기는 보유를 받은 뒤(holdRev)에 다시 본다. 하루에 한 번 남기면 더는 하지 않는다(snapDaily.ts).
+  const { holdRev } = useSyncStatus()
+  useEffect(() => { if (hasKey) void ensureTodaySnap() }, [hasKey, holdRev])
   const welcome = pathname === '/welcome'
   const gate = gateRedirect({ path: pathname, query, hash: hasKey, paused: me?.status === 'paused', lost: keyWasLost() })
   if (gate) return <Navigate to={gate} replace />

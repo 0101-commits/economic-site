@@ -210,6 +210,26 @@ export async function portfolioPost(hash: string, enc: EncBlob): Promise<Portfol
   } catch { return { ok: false, status: 0, error: 'network' } }
 }
 
+// ── 스냅샷(Worker GET · PUT /snaps — 사람 칸 snaps:<uid>, 보유와 같은 모양의 암호 덩어리 · 64KB 상한) ──
+// GET → { ok, encSnaps: 덩어리 | null } · PUT 본문 { encSnaps: 덩어리 }. 헤더 X-Sync-Key-Hash. 풀고 합치기는 snapSync.ts.
+export async function snapsGet(hash: string): Promise<PortfolioReply> {
+  try {
+    const r = await fetch(`${WORKER}/snaps`, { headers: { 'X-Sync-Key-Hash': hash }, cache: 'no-store', signal: AbortSignal.timeout(20_000) })
+    const j = await r.json().catch(() => ({}))
+    return r.ok && j?.ok ? { ok: true, status: r.status, enc: j.encSnaps ?? null } : { ok: false, status: r.status, error: j?.error }
+  } catch { return { ok: false, status: 0, error: 'network' } }
+}
+export async function snapsPut(hash: string, enc: EncBlob): Promise<PortfolioReply> {
+  try {
+    const r = await fetch(`${WORKER}/snaps`, {
+      method: 'PUT', headers: { 'X-Sync-Key-Hash': hash, 'content-type': 'application/json' }, cache: 'no-store',
+      body: JSON.stringify({ encSnaps: enc }), signal: AbortSignal.timeout(20_000),
+    })
+    const j = await r.json().catch(() => ({}))
+    return r.ok && j?.ok ? { ok: true, status: r.status } : { ok: false, status: r.status, error: j?.error }
+  } catch { return { ok: false, status: 0, error: 'network' } }
+}
+
 // ── /ai 질문(홈 질문칸, 명세 C2) ─────────────────────────
 // POST 본문 { keyHash, question, snapshot } → { ok, summary, engine, model }. 키는 본문 keyHash 로만 본다(Worker _verifySyncKey —
 // 현행 화면 js/app3.js aiQaAsk 와 같은 모양). 질문 모드 프롬프트는 서버 고정이고 답 끝에 「투자 조언이 아닙니다」를 붙인다.

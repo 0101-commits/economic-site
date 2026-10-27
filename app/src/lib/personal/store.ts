@@ -1,6 +1,7 @@
 // 이 기기 저장소(localStorage) 한 곳. 키와 모양:
 //   portfolioV1   = { groups, items: Holding[], alerts, lastSync, ... }  현행 사이트(js/app2.js)와 같은 문서. 모르는 필드는 그대로 둔다.
-//   pfSnapshotsV1 = [{ d:'YYYY-MM-DD', ev, ct }]                          현행과 같음. 날짜는 현행처럼 UTC 기준(두 화면이 같은 날을 같은 칸에 쓴다).
+//   pfSnapshotsV1 = [{ d:'YYYY-MM-DD', ev, ct, src? }]                   현행과 같음 + src('app' 앱이 낸 값 · 'close' 마스터 작업 종가 값). 날짜는 한국 날짜(옛 판의 UTC 날짜 칸은 그대로 둔다).
+//                   앱을 열 때 하루 한 번(snapDaily.ts) 남기고, 서버(/snaps — 보유와 같은 열쇠로 잠금)와 날짜별로 합친다(snapSync.ts · snapRules.ts).
 //   pfLedgerV1    = [{ id, d, kind:'div'|'dep'|'wd', amt, memo }]         현행과 같음. 서버로 보내지 않는다.
 //   econPrefsV1   = { v:2, alerts, settings, scenarios }                  새 화면 전용. 모양은 Worker /prefs 문서와 같다(올리고 받는 것은 sync.ts).
 //                   열쇠 이름은 v1 그대로 — 읽을 때 v1 문서를 v2 로 바꾼다(prefsV2.ts).
@@ -19,6 +20,7 @@ import { unsubscribePush, type GetKeyHash } from '../push'
 import { applyTheme, readTheme } from '../theme'
 import type { MyData } from './backup'
 import { storeKey } from './who'
+import { kstDate } from './snapRules'
 import { noteHoldEdit } from './holdSync'
 import { read, write, readPortfolio, writePortfolio, readSnaps, writeSnaps, readLedger, writeLedger, scopedWipeNames, wipeAllPeople } from './scoped'
 export { readPortfolio, writePortfolio, readSnaps, readLedger, writeLedger }
@@ -39,9 +41,14 @@ export const KEYS = {
 // ── 보유 ──────────────────────────────────────────────
 export const newId = (prefix: string) => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 
-/** 오늘(UTC 날짜) 스냅샷 한 건을 넣는다. 같은 날은 바꿔 넣으므로 하루 1건. */
+/**
+ * 오늘(한국 날짜) 스냅샷 한 건을 앱이 낸 값(src:'app')으로 넣는다. 하루 1건 — 오늘 칸이 이미 있으면(다른 기기 · 마스터 작업의 종가 값 포함) 덮지 않는다.
+ * 서버로 올리는 것은 sync.ts syncSnaps.
+ */
 export function saveTodaySnap(ev: number, ct: number): Snap[] {
-  const next = upsertSnap(readSnaps(), { d: new Date().toISOString().slice(0, 10), ev: Math.round(ev), ct: Math.round(ct) })
+  const cur = readSnaps(), d = kstDate()
+  if (cur.some(s => s.d === d)) return cur
+  const next = upsertSnap(cur, { d, ev: Math.round(ev), ct: Math.round(ct), src: 'app' })
   writeSnaps(next)
   return next
 }

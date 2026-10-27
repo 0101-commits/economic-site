@@ -35,6 +35,11 @@ test('settle: 둘 다 바뀌면 나중에 바뀐 쪽이 이기고 진 쪽을 남
   assert.deepEqual(settle({ ...both, localEdited: false, localAt: 0, serverAt: 0 }), { act: 'pull', keep: 'device' })   // 이 판을 처음 연 기기 — 바꾼 때를 모른다
 })
 
+test('settle: 서버 판의 바뀐 때를 모르면(옛 빌드가 올린 판, serverAt 0) 둘 다 바뀐 경우 기기 시각이 있어도 서버가 이긴다 — 모르는 시각은 지지 않는다', () => {
+  const both = { ...base, localChanged: true, serverChanged: true, localEdited: true }
+  assert.deepEqual(settle({ ...both, localAt: T('2026-10-27T03:00:00Z'), serverAt: 0 }), { act: 'pull', keep: 'device' })
+})
+
 test('settle: 기기가 비었는데 지운 기록이 없으면(저장소가 비워짐) 받는다 — 빈 것을 올려 서버 판을 지우지 않는다', () => {
   assert.deepEqual(settle({ ...base, localHas: false, localChanged: true }), { act: 'pull', keep: null })
   assert.deepEqual(settle({ ...base, localHas: false, localChanged: true, localEdited: true }), { act: 'push', keep: null })   // 이 기기에서 직접 다 지웠다

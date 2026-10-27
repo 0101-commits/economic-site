@@ -44,7 +44,7 @@ test('실제 읽기 · 쓰기 함수: 보유 · 스냅샷 · 원장이 사람 �
 })
 
 // 뒤 다섯 = 편의 기록(보유 맞춘 기록 · 옛 범위 기록 · 설정 맞춘 기록 · 최근 본 것 · 보유 시세 캐시) — 마스터는 옛 이름, 멤버는 이름:uid
-for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1', 'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1'] as const) {
+for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1', 'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1', 'econSnapSync_v1'] as const) {
   test(`바꿔 써도 안 섞인다: ${base}`, () => {
     store.clear()
     const put = (b: ScopedBase, v: unknown) => write(storeKey(b), v)
@@ -57,7 +57,7 @@ for (const base of ['econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1', 'econHo
 }
 
 const ALL_BASES = ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1',
-  'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1']
+  'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1', 'econSnapSync_v1']
 // 둘 다 바뀌어 진 쪽 한 벌(syncRules · holdSync) — 이름 + ':prev'
 const PREVS = ['portfolioV1', 'econPrefsV1']
 

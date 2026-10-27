@@ -9,7 +9,7 @@
 //   4 기기가 비었는데 지운 기록 없음   받기 — 저장소가 비워진 것을 「다 지움」으로 올려 서버 판을 지우지 않는다
 //   5 기기만 바뀜 → 올림 · 서버만 바뀜 → 받기 · 둘 다 안 바뀜 → 할 일 없음
 //   6 둘 다 바뀜            나중에 바뀐 쪽이 이긴다. 진 쪽은 이 기기에 한 벌(keep) — 서버 쪽 진 판은 Worker 의 날짜별 이전 판에도 남는다.
-//                           시각이 같거나 기기 쪽 시각을 모르면 서버(올리지 않는 쪽 — 옛 판으로 새 판을 덮지 않는다).
+//                           시각이 같거나 기기 쪽 시각을 모르면 서버(올리지 않는 쪽 — 옛 판으로 새 판을 덮지 않는다). 서버 쪽 시각을 모르는 판(옛 빌드가 올린 보유)도 서버.
 // 바뀐 시각: 설정은 서버 문서의 updatedAt(Worker 가 저장한 때) ↔ 이 기기에서 바꾼 때(econPrefsSync_v1.editAt),
 //           보유는 암호문 안의 t(그 판을 바꾼 때) ↔ 이 기기에서 바꾼 때(econHoldSync_v1.editAt).
 import { blankLocal, fromServer, toServer, type Local, type PrefsDoc } from './remote.ts'
@@ -30,7 +30,8 @@ export function settle(x: SettleIn): Step {
   if (!x.localHas && !x.localEdited) return { act: 'pull', keep: null }
   if (!x.localChanged) return { act: x.serverChanged ? 'pull' : 'none', keep: null }
   if (!x.serverChanged) return { act: 'push', keep: null }
-  return x.localAt > x.serverAt ? { act: 'push', keep: 'server' } : { act: 'pull', keep: 'device' }
+  // 서버 판의 바뀐 때를 모르면(serverAt 0 — 옛 빌드가 t 없이 올린 보유) 지지 않는다: 모르는 시각으로 기기 판을 올려 서버 판을 덮지 않는다.
+  return x.serverAt > 0 && x.localAt > x.serverAt ?{ act: 'push', keep: 'server' } : { act: 'pull', keep: 'device' }
 }
 
 /** 키 순서와 무관한 비교용 글(서버가 조건 칸 순서를 바꿔 돌려준다). */
