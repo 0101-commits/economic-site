@@ -1,5 +1,5 @@
 // 알림 — 기획서 v2 7장. 탭 셋: 받은 알림(원장) · 사건(꾸러미 → 갈래 → 사건 낱개 → 내 조건 → 새 조건) · 채널.
-// 폰 알림 · 동기화 키 · 받는 기기는 설정 「기기 연결」, 카톡은 설정 「고급」(명세 S5 · S7). 범위 문구는 sync.ts scopeText 두 벌.
+// 폰 알림 · 앱키 · 받는 기기는 설정 「내 계정」, 카톡은 설정 「고급」(명세 S5 · S7). 범위 문구는 sync.ts scopeText.
 // 받은 알림 = events/latest.json(원장 최근 7일). 원장이 아직 없으면(배포 전) 현행 발송 이력 alerts_state.json · 홈 묶음 렌즈 돌파 ·
 // 국내 시장 매매중단으로 그린다. 금액 · 보유 종목명은 싣지 않는다. 이 화면은 PinGate 밖이라 portfolioV1 을 읽지 않는다 —
 // 사용자 조건 줄의 이름은 이 기기 econPrefsV1.alerts 와 지표 사전에서만 찾는다(원장에는 조건 id 만 있다).
@@ -353,10 +353,10 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
                       {EV.get(a.event)?.name ?? a.event} · {a.repeat === 'once' ? '한 번' : '매번'}{a.ring === false ? ' · 울림 꺼짐' : ''}
                       {show && <> · <span className={`num ${st.kind === 'rang' || st.kind === 'stopped' ? 'text-ink-1' : ''}`}>{st.text}</span></>}
                     </span>
-                    {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 동기화가 꺼져 있으면 눌러도 소용없다 */}
+                    {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 들어와 있지 않으면 눌러도 소용없다 */}
                     {st.kind === 'stopped' && (sync.on ? (
                       <button type="button" className={`${BTN2} mt-1`} aria-label={`${name} 다시 켜기`} onClick={() => setAlert(a.id, x => rearm(x, ledger, fired[a.id], Date.now(), cur(x.target)))}>다시 켜기</button>
-                    ) : <span className="block text-12 text-ink-3">설정 › 내 계정에서 연결하면 다시 켤 수 있습니다</span>)}
+                    ) : <span className="block text-12 text-ink-3">앱키로 다시 들어오면 다시 켤 수 있습니다</span>)}
                   </span>
                   <button type="button" onClick={() => put(prefs.alerts.filter(x => x.id !== a.id))} aria-label={`${name} 지우기`} title="지우기"
                     className="size-8 shrink-0 inline-flex items-center justify-center rounded-btn border-0 bg-transparent text-ink-3 hover:text-ink-1 cursor-pointer">
@@ -367,7 +367,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
             })}
           </ul>
         ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다. 지표 · 종목 상세의 벨이나 아래 「새 조건」에서 만듭니다.</p>}
-        <p className="mt-2 mb-0 text-12 text-ink-3">연결돼 있어야(설정 › 내 계정) 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
+        <p className="mt-2 mb-0 text-12 text-ink-3">같은 앱키로 들어온 기기끼리 조건이 저절로 같아지고, 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
         <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add.map(a => armU1(a, cur(a.target)))])} />
       </Panel>
 
@@ -379,7 +379,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
   )
 }
 
-/** 현행 화면(공개 저장소 alerts_config.json)의 조건을 읽는다. 운영 사이트에는 그 파일이 올라가지 않으므로 동기화 키가 있으면 Worker /portfolio 로 읽고,
+/** 현행 화면(공개 저장소 alerts_config.json)의 조건을 읽는다. 운영 사이트에는 그 파일이 올라가지 않으므로 앱키 해시가 있으면 Worker /portfolio 로 읽고,
  *  키가 없으면 같은 출처의 파일을 시도한다(로컬 개발 서버에서만 읽힌다). */
 async function readLegacy(): Promise<{ rows: unknown[] } | { error: string }> {
   const h = getKeyHash()
@@ -387,10 +387,10 @@ async function readLegacy(): Promise<{ rows: unknown[] } | { error: string }> {
   if (h) {
     const g = await portfolioGet(h)
     if (g.ok) return { rows: g.alerts ?? [] }
-    why = g.status === 401 ? '입장 키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
+    why = g.status === 401 ? '앱키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
   }
   try { return { rows: (await loadRootJson<{ alerts?: unknown[] }>('alerts_config.json')).alerts ?? [] } } catch { /* 운영 사이트에는 없다 */ }
-  return { error: why || '현행 조건을 읽으려면 설정 › 내 계정에서 연결해야 합니다.' }
+  return { error: why || '현행 조건을 읽으려면 앱키로 들어와야 합니다.' }
 }
 
 /** 「현행 조건 가져오기」: 읽기 → 미리보기(가져올 N · 건너뛸 M) → 확인하면 이 기기 조건에 더한다. 현행 화면의 조건은 그대로 둔다. */
@@ -600,14 +600,14 @@ const BRIEFS: { key: keyof Settings['briefings']; label: string }[] = [
 const RING_OPTS = [{ key: 'kakao', label: '카톡' }, { key: 'push', label: '폰' }, { key: 'both', label: '둘 다' }] as const
 const CAP_OPTS = [{ key: '3', label: '3' }, { key: '6', label: '6' }, { key: '12', label: '12' }] as const
 
-/** 채널: 울림 채널 · 하루 상한 · 조용한 시간 · 브리핑 · 카톡 기록. 폰 알림 · 동기화 키 · 받는 기기는 설정 「기기 연결」, 카톡은 설정 「고급」. */
+/** 채널: 울림 채널 · 하루 상한 · 조용한 시간 · 브리핑 · 카톡 기록. 폰 알림 · 앱키 · 받는 기기는 설정 「내 계정」, 카톡은 설정 「고급」. */
 function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) => void }) {
   const s = prefs.settings
   const quiet = s.quiet
   const setQuiet = (q: Settings['quiet']) => setS({ quiet: q })
   return (
     <>
-      <p className="m-0 text-12 text-ink-2">폰 알림 · 입장 키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
+      <p className="m-0 text-12 text-ink-2">폰 알림 · 앱키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
       <div className="grid grid-cols-1 pc:grid-cols-2 gap-4 items-start">
         <Panel title="울림 채널 · 하루 상한">
           <SegBar label="울림 채널" options={RING_OPTS} value={s.ringChannel} onChange={v => setS({ ringChannel: v })} />

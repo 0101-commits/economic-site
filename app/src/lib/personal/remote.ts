@@ -137,18 +137,18 @@ export async function syncKeyChange(currentKey: string, newKey: string): Promise
 }
 
 // 0(네트워크) · -1(2xx 인데 ok:true 없음)은 서버가 바꿨는데 답만 잃었을 수 있다 — 새 키로 다시 연결해 보게 한다.
-const KEY_LOST_REPLY = '서버 답을 확인하지 못했습니다. 키가 바뀌었을 수 있으니 잠시 뒤 새 키로 다시 연결해 보세요 — 맞지 않으면 지금 키 그대로입니다.'
+const KEY_LOST_REPLY = '서버 답을 확인하지 못했습니다. 앱키가 바뀌었을 수 있으니 잠시 뒤 새 앱키로 다시 들어와 보세요. 들어와지지 않으면 지금 앱키 그대로입니다.'
 const KEY_ERR: Record<number, string> = {
-  401: '지금 키가 맞지 않습니다.',
+  401: '지금 앱키가 맞지 않습니다.',
   429: '요청이 많습니다. 1분 뒤 다시 하세요.',
-  503: '서버에 입장 키가 설정되지 않았습니다.',
+  503: '앱키가 아직 설정되지 않았습니다. 모임 운영자에게 문의해 주세요.',
   0: KEY_LOST_REPLY,
   [-1]: KEY_LOST_REPLY,
 }
 /** 키 바꾸기 결과 → 화면 글. '' = 바뀜. */
 export function keyChangeText(r: KeyChange): string {
   if (r.status === 200) return ''
-  if (r.error === 'weak_new_key') return '서버가 새 키를 받지 않았습니다. 12자 이상, 지금 키와 다른 키를 쓰세요.'
+  if (r.error === 'weak_new_key') return '서버가 새 앱키를 받지 않았습니다. 12자 이상, 지금 앱키와 다른 앱키를 쓰세요.'
   return KEY_ERR[r.status] ?? `서버가 받지 않았습니다(${r.error ?? r.status}).`
 }
 
@@ -230,10 +230,10 @@ export async function aiAsk(hash: string, question: string, snapshot: unknown): 
 
 const AI_ERR: Record<string, string> = {
   ai_quota: '오늘 AI 질문을 모두 썼습니다(하루 30회).',   // 멤버 하루 상한(Worker 429 ai_quota) — 1분 뒤가 아니다
-  paused: '멈춘 키입니다. 모임 운영자에게 문의해 주세요.',
+  paused: '멈춘 앱키입니다. 모임 운영자에게 문의해 주세요.',
   rate_limited: '요청이 많습니다. 1분 뒤 다시 물어보세요.',
-  unauthorized: '입장 키가 서버와 맞지 않습니다. 설정 › 내 계정에서 다시 연결하세요.',
-  sync_key_not_configured: '서버에 입장 키가 설정되지 않아 지금은 물을 수 없습니다.',
+  unauthorized: '앱키가 맞지 않습니다. 앱키로 다시 들어와 주세요.',
+  sync_key_not_configured: '앱키가 아직 설정되지 않아 지금은 물을 수 없습니다.',
   no_ai_available: '서버에 AI 엔진이 설정되지 않아 지금은 물을 수 없습니다.',
   forbidden_origin: '이 주소에서는 물을 수 없습니다.',
   network: '서버에 닿지 못했습니다. 잠시 뒤 다시 물어보세요.',

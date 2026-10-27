@@ -26,8 +26,8 @@ test('lastSeenText: 오늘 · M/D · 없음', () => {
 })
 
 test('kakaoText', () => {
-  assert.equal(kakaoText('ECOM-AAAA-BBBB-CCCC'), 'ECOM 시장 화면 https://ecom-terminal.pages.dev 에서 이 키로 들어오세요: ECOM-AAAA-BBBB-CCCC\n'
-    + '관심 종목·알림 조건은 운영 서버에 저장되며 운영자가 볼 수 있습니다. 보유는 본인 키로 잠겨 운영자도 볼 수 없습니다.')
+  assert.equal(kakaoText('ECOM-AAAA-BBBB-CCCC'), 'ECOM 시장 화면 https://ecom-terminal.pages.dev 에서 이 앱키로 들어오세요: ECOM-AAAA-BBBB-CCCC\n'
+    + '관심 종목·알림 조건은 운영 서버에 저장되며 운영자가 볼 수 있습니다. 보유는 본인 앱키로 잠겨 운영자도 볼 수 없습니다.')
 })
 
 test('parseMembers: 마스터 맨 위 · 틀린 행 버림', () => {

@@ -29,7 +29,17 @@ export const readLedger = (): Ledger[] => { const a = read<unknown>(storeKey('pf
 export const writeLedger = (a: Ledger[]) => write(storeKey('pfLedgerV1'), [...a].sort((x, y) => (x.d < y.d ? -1 : 1)).slice(-500))
 
 const SCOPED_BASES: readonly ScopedBase[] = ['portfolioV1', 'pfSnapshotsV1', 'pfLedgerV1', 'econ_watch_v1', 'econPrefsV1', 'econ_scenarios_v1',
-  'econHoldSync_v1', 'econSyncScope_v1', 'econSearchRecentV1', 'econHoldQuotes_v1']
+  'econHoldSync_v1', 'econSyncScope_v1', 'econPrefsSync_v1', 'econSearchRecentV1', 'econHoldQuotes_v1']
+
+// ── 진 쪽 한 벌(…:prev) ─────────────────────────────────
+// 이 기기와 다른 기기가 둘 다 바꿔 한쪽을 골랐을 때(syncRules.settle) 진 쪽을 이 기기에 한 벌 남긴다. 한 칸 — 다음 진 쪽이 덮는다.
+// 모양 { side: 'device' | 'server', at: 진 쪽이 바뀐 때(모르면 null), savedAt, data | enc } — 보유는 portfolioV1 모양 그대로(data), 열 수 없는 덩어리는 enc.
+export type PrevBase = 'portfolioV1' | 'econPrefsV1'
+const PREV_BASES: readonly PrevBase[] = ['portfolioV1', 'econPrefsV1']
+export const prevKey = (base: PrevBase) => `${storeKey(base)}:prev`
+export function keepPrev(base: PrevBase, v: { side: 'device' | 'server'; at: string | null; data?: unknown; enc?: unknown }): boolean {
+  return write(prevKey(base), { ...v, savedAt: new Date().toISOString() })
+}
 
 /**
  * 이 기기 데이터 지우기 가운데 사람별 이름. 지금 사람의 것만 — 다른 사람 것은 그대로.
@@ -37,7 +47,7 @@ const SCOPED_BASES: readonly ScopedBase[] = ['portfolioV1', 'pfSnapshotsV1', 'pf
  */
 export function scopedWipeNames(): string[] {
   const p = currentPerson()
-  const names = SCOPED_BASES.map(storeKey)
+  const names = [...SCOPED_BASES.map(storeKey), ...PREV_BASES.map(prevKey)]
   return !p || p.role === 'owner' ? [...names, 'econ_fav_v1'] : names
 }
 

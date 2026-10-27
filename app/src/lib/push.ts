@@ -25,7 +25,7 @@ export async function pushSubscribed(): Promise<boolean> {
 }
 
 const MSG: Record<number, string> = {
-  401: '입장 키가 맞지 않습니다. 설정에서 다시 넣으세요.',
+  401: '앱키가 맞지 않습니다. 앱키로 다시 들어와 주세요.',
   429: '요청이 많습니다. 잠시 뒤 다시 하세요.',
   503: '서버에 푸시가 아직 준비되지 않았습니다.',
 }
@@ -51,7 +51,7 @@ const sameKey = (a: ArrayBuffer | null | undefined, b: Uint8Array) =>
 export async function subscribePush(getKeyHash: GetKeyHash): Promise<void> {
   if (!pushSupported()) throw new Error('이 브라우저는 웹 푸시를 지원하지 않습니다.')
   const hash = await getKeyHash()
-  if (!hash) throw new Error('설정에서 입장 키를 먼저 넣으세요.')
+  if (!hash) throw new Error('앱키로 먼저 들어와 주세요.')
   if ((await Notification.requestPermission()) !== 'granted') throw new Error('알림이 막혀 있습니다. 브라우저 사이트 설정에서 허락하세요.')
   if (!(await registerSW())) throw new Error('서비스 워커를 등록하지 못했습니다.')
   const reg = await navigator.serviceWorker.ready

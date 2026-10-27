@@ -162,12 +162,12 @@ test('syncKeyChange: 본문 { currentKey, newKey } 원문 그대로 · 해시 �
   } finally { globalThis.fetch = real }
 })
 
-test('keyChangeText: 바뀜은 빈 글 · 답을 잃은 0 · -1 은 새 키로 다시 연결해 보라고', () => {
+test('keyChangeText: 바뀜은 빈 글 · 답을 잃은 0 · -1 은 새 앱키로 다시 들어와 보라고', () => {
   assert.equal(keyChangeText({ status: 200 }), '')
-  assert.match(keyChangeText({ status: 0, error: 'network' }), /새 키로 다시 연결/)
+  assert.match(keyChangeText({ status: 0, error: 'network' }), /새 앱키로 다시 들어와/)
   assert.equal(keyChangeText({ status: 0 }), keyChangeText({ status: -1 }))
   assert.match(keyChangeText({ status: 400, error: 'weak_new_key' }), /12자 이상/)
-  assert.equal(keyChangeText({ status: 401 }), '지금 키가 맞지 않습니다.')
+  assert.equal(keyChangeText({ status: 401 }), '지금 앱키가 맞지 않습니다.')
   assert.equal(keyChangeText({ status: 502, error: 'kv_write_failed' }), '서버가 받지 않았습니다(kv_write_failed).')
 })
 
@@ -211,5 +211,5 @@ test('aiAsk: 키 해시는 본문 keyHash(Worker 가 보는 곳), 질문은 300�
 
 test('aiErrText: 멤버 하루 상한(429 ai_quota) · 멈춘 키(403 paused)', () => {
   assert.equal(aiErrText({ status: 429, error: 'ai_quota' }), '오늘 AI 질문을 모두 썼습니다(하루 30회).')
-  assert.equal(aiErrText({ status: 403, error: 'paused' }), '멈춘 키입니다. 모임 운영자에게 문의해 주세요.')
+  assert.equal(aiErrText({ status: 403, error: 'paused' }), '멈춘 앱키입니다. 모임 운영자에게 문의해 주세요.')
 })

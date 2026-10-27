@@ -22,8 +22,8 @@ test('safeNext: 입장 화면으로 되돌리지 않는다', () => {
 })
 
 test('whyText: why → 입장 화면 첫 줄', () => {
-  assert.equal(whyText('paused'), '멈춘 키입니다. 모임 운영자에게 문의해 주세요.')
-  assert.equal(whyText('lost'), '키가 바뀌었거나 지워졌습니다. 운영자에게 새 키를 받으세요')
+  assert.equal(whyText('paused'), '멈춘 앱키입니다. 모임 운영자에게 문의해 주세요.')
+  assert.equal(whyText('lost'), '앱키가 바뀌었거나 지워졌습니다. 운영자에게 새 앱키를 받으세요')
   assert.equal(whyText(null), '')
   assert.equal(whyText('x'), '')
 })

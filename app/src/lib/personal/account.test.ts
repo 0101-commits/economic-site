@@ -2,6 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { clearMe, keyWasLost, makeAccount, ME_KEY, parseMe } from './account.ts'
+import { currentPerson } from './who.ts'
 
 const store = new Map<string, string>()
 const mem = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v) }, removeItem: (k: string) => { store.delete(k) } }
@@ -34,30 +35,27 @@ function setup(status: number | 'net', body: unknown = ME, connectOk = true) {
   return { acct, calls, seen, hs, restore: () => { g.fetch = saved } }
 }
 
-test('signIn: 연결 질문이 떠 있으면(해시 아직 없음) ask — 아무것도 안 남기고, finishSignIn 은 해시가 생긴 뒤에만 남긴다', async () => {
+test('signIn: 묻는 단계 없음 — 연결이 끝났는데 해시가 없으면 offline 이고 아무것도 안 남긴다', async () => {
   const t = setup(200)
   try {
     t.hs.cur = null
-    assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'ask')
+    assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'offline')
     assert.equal(store.has(ME_KEY), false)
-    assert.equal(t.acct.finishSignIn(), false)     // 아직 해시 없음
-    assert.equal(store.has(ME_KEY), false)
-    t.hs.cur = HASH                                // 사용자가 답해 link 가 해시를 저장함
-    assert.equal(t.acct.finishSignIn(), true)
-    assert.deepEqual(JSON.parse(store.get(ME_KEY)!), ME)
-    assert.equal(t.acct.finishSignIn(), false)     // 한 번만
   } finally { t.restore() }
 })
 
-test('cancelSignIn: 기다리던 me 를 버린다', async () => {
-  const t = setup(200)
+test('signIn: 연결하는 동안 들어오는 사람에 예비 앱키 여부(viaBackup)가 실린다 — 보유 맞춤이 덮어쓰기를 막는 데 쓴다', async () => {
+  const t = setup(200, { ...ME, viaBackup: true })
+  let seen: unknown = null
+  const acct = makeAccount({
+    getKeyHash: () => HASH,
+    connectSync: async () => { seen = currentPerson(); return true },
+    disableSync: () => {}, forgetDevice: async () => {},
+  })
   try {
-    t.hs.cur = null
-    assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'ask')
-    t.acct.cancelSignIn()
-    t.hs.cur = HASH
-    assert.equal(t.acct.finishSignIn(), false)
-    assert.equal(store.has(ME_KEY), false)
+    assert.equal(await acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'ok')
+    assert.deepEqual(seen, { uid: 'u1abc', role: 'member', viaBackup: true })
+    assert.equal(currentPerson()?.viaBackup, true)                  // 들어온 뒤엔 저장된 me 가 알려 준다
   } finally { t.restore() }
 })
 

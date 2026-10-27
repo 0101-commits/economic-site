@@ -1,13 +1,14 @@
 // 보유(평단가·수량·매입 환율)의 종단간 암호화 — 현행 화면(js/app2.js pfBuildEncHoldings · pfApplyEncHoldings)과 같은 형식.
 //   덩어리  { alg:'AES-256-GCM', kdf:'PBKDF2-SHA256', iter:600000, salt, iv, ciphertext }  표준 base64 · salt 16바이트 · iv 12바이트, 올릴 때마다 새로 뽑는다.
 //   열쇠    「암호」 → PBKDF2-HMAC-SHA256 600,000회 → AES-GCM 256비트. 현행 화면처럼 반복 수는 덩어리의 iter 가 아니라 고정값으로 푼다.
-//           새 화면의 「암호」 = 보유 열쇠 재료(holdKeyOf — 동기화 키에서 만든 hex, 결정 D9 a). 서버 인증 해시(SHA-256)와는 다른 재료다.
+//           새 화면의 「암호」 = 보유 재료(holdKeyOf — 앱키에서 만든 hex, 결정 D9 a). 서버 인증 해시(SHA-256)와는 다른 재료다.
 //           예전 판은 사람이 정한 보유 암호(현행 화면의 「평단가 동기화 암호」)로 잠갔다 — 그 사본은 openBlob 이 예전 암호로 한 번 푼다(이전).
 //   평문    JSON 배열 [{ s:종목 코드, m:'KR'|'US', a:평단가, q:수량, fx:매입 환율 }] — 평단가나 수량이 있는 종목만.
 //           새 화면은 칸마다 n:종목 이름을 더 싣는다(이름이 코드뿐이면 생략 · 없는 옛 판도 읽는다 · 지문에는 안 넣는다).
-//           새 화면은 끝에 { t:올린 시각 } 한 칸을 붙인다. 현행 화면은 s 가 없는 칸을 건너뛰므로 그대로 읽는다.
+//           새 화면은 끝에 { t:그 판을 바꾼 때 } 한 칸을 붙인다(둘 다 바뀌었을 때 나중 것을 가리는 데 쓴다 — syncRules.ts).
+//           현행 화면은 s 가 없는 칸을 건너뛰므로 그대로 읽는다.
 //           Worker 는 덩어리의 모르는 필드를 지우므로(_sanitizeEncHoldings) 시각은 암호문 안에만 둘 수 있다.
-// 저장소·화면·네트워크를 만지지 않는다 — node --test 로 바로 돈다(e2e.test.ts). 흐름은 sync.ts 「보유」 칸.
+// 저장소·화면·네트워크를 만지지 않는다 — node --test 로 바로 돈다(e2e.test.ts). 흐름은 holdSync.ts.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(calc.ts 와 같은 규칙).
 
 import { normalizeEntryKey } from './entryKey.ts'
@@ -37,7 +38,7 @@ export function entriesOf(items: Item[]): Entry[] {
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 
-/** 풀어낸 평문 → 칸 + 올린 시각(현행 화면이 올린 것은 null). 서버에서 온 값이라 모양이 틀린 칸은 버린다. */
+/** 풀어낸 평문 → 칸 + 바뀐 때(현행 화면이 올린 것은 null). 서버에서 온 값이라 모양이 틀린 칸은 버린다. */
 export function parsePlain(v: unknown): { entries: Entry[]; at: string | null } {
   if (!Array.isArray(v)) throw new Error('shape')
   const entries: Entry[] = []
@@ -52,7 +53,7 @@ export function parsePlain(v: unknown): { entries: Entry[]; at: string | null } 
   return { entries, at }
 }
 
-/** 칸 → 덩어리(올리기). at = 올린 시각(ISO). */
+/** 칸 → 덩어리(올리기). at = 그 판을 바꾼 때(ISO — holdSync.ts). */
 export async function encrypt(entries: Entry[], pass: string, at: string): Promise<EncBlob> {
   const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12))
   const key = await aesKey(pass, salt)
@@ -83,7 +84,7 @@ export async function decryptAs(blob: EncBlob, pass: string): Promise<{ entries:
   }
 }
 
-// ── 보유 열쇠 재료(결정 D9 a) — 동기화 키 하나로 보유도 잠근다 ─────────────
+// ── 보유 재료(결정 D9 a) — 앱키 하나로 보유도 잠근다 ─────────────
 /** 연결할 때(키 원문이 손에 있을 때) 한 번: PBKDF2-SHA256(앞뒤 공백 뺀 키, salt "ecom-holdings-v1", 600,000회) → 32바이트 hex.
  *  서버는 SHA-256(키)만 알므로 이 재료를 만들 수 없다. 이 hex 가 덩어리 형식의 「암호」 자리에 들어간다. */
 export const HOLD_SALT = 'ecom-holdings-v1'
@@ -107,7 +108,7 @@ export async function openBlob(blob: EncBlob, mat: string, old?: string): Promis
 
 /**
  * 키 바꾸기 전: 서버 보유 사본(GET /portfolio 답 g)을 옛 재료로 풀어 새 재료로 잠근 덩어리.
- * 사본이 없거나 옛 재료로 안 풀리면(예전 암호 사본 · 깨진 사본) null — 이전은 내 자산 「동기화」가 맡는다.
+ * 사본이 없거나 옛 재료로 안 풀리면(예전 암호 사본 · 깨진 사본) null — 이전은 내 자산의 한 줄 칸(holdSync run({ old }))이 맡는다.
  * 서버 보유를 확인하지 못했으면(g.ok 아님) false — 그대로 키를 바꾸면 사본이 옛 재료로 잠긴 채 남으므로 키 바꾸기를 멈춘다.
  */
 export async function relockBlob(g: { ok: boolean; enc?: EncBlob | null }, old: string, mat: string): Promise<EncBlob | null | false> {
@@ -116,52 +117,10 @@ export async function relockBlob(g: { ok: boolean; enc?: EncBlob | null }, old: 
   try { const d = await decrypt(g.enc, old); return await encrypt(d.entries, mat, d.at ?? new Date().toISOString()) } catch { return null }
 }
 
-/**
- * 묻지 않고 해도 되는 보유 맞춤(저장 2초 뒤 · 연결할 때 · 내 자산을 열 때). decide 의 판정 → 할 일.
- *   push 이 기기만 바뀜 · pull 서버만 바뀜 · ask 둘 다 바뀜, 또는 빈 이 기기로 서버 사본을 지우게 됨(저장소가 깨졌을 수 있다) · null 할 일 없음.
- */
-export function autoStep(plan: Plan, localN: number, serverN: number): 'push' | 'pull' | 'ask' | null {
-  if (plan === 'push') return localN === 0 && serverN > 0 ? 'ask' : 'push'
-  return plan === 'pull' ? 'pull' : plan === 'conflict' ? 'ask' : null
-}
-
-/**
- * 올릴 암호 검사. '' = 통과. 잠금 PIN 으로 잠근 암호문이 감사에서 풀린 적이 있어(2026-09-29) PIN 과 같은 암호는 받지 않는다.
- * 현행 잠금은 4자 이상 아무 글자나 PIN 으로 받으므로(js/app4.js) 모양을 보지 않고 늘 견준다. 공백 뺀 값도 견준다.
- */
-export async function passProblem(pass: string, sameAsSyncKey: (p: string) => Promise<boolean>, isPin: (p: string) => Promise<boolean>): Promise<string> {
-  if (pass.trim().length < 6) return '보유 암호는 6자 이상이어야 합니다. 12자 이상을 권합니다.'
-  if (await sameAsSyncKey(pass)) return '입장 키와 다른 암호를 쓰세요.'
-  for (const p of new Set([pass, pass.trim()])) if (await isPin(p)) return '잠금 PIN 과 다른 암호를 쓰세요.'
-  return ''
-}
-
-/** 보유 지문(SHA-256 hex) — 종목 순서와 무관. 마지막으로 맞춘 때와 비교하는 데만 쓴다. */
+/** 보유 지문(SHA-256 hex) — 종목 순서 · 이름과 무관. 마지막으로 서버와 같았던 때와 견주는 데만 쓴다(holdSync.ts). */
 export async function fingerprint(es: Entry[]): Promise<string> {
   const c = JSON.stringify(es.filter(e => e.a != null || e.q != null).map(e => [e.m, e.s, e.a, e.q, e.fx]).sort())
   return hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(c)))
-}
-
-export type Plan = 'same' | 'push' | 'pull' | 'conflict' | 'none'
-type Side = { fp: string; n: number }
-
-/**
- * 어느 쪽을 쓸지 고른다(화면이 덮기 전에 한 번 묻는다). base = 마지막으로 이 기기와 서버를 맞췄을 때의 지문.
- * 시각 대신 지문을 비교한다 — 현행 화면은 보유를 고친 시각을 남기지 않고, 기기 시계는 서로 다를 수 있다.
- *   서버에 없음 → 이 기기에 보유가 있으면 push, 없으면 none
- *   같음 → same
- *   이 기기가 base 그대로 → 서버가 바뀌었다 → pull
- *   서버가 base 그대로 → 이 기기가 바뀌었다 → push
- *   base 를 모르는데 이 기기가 비었음 → pull
- *   그 밖(둘 다 바뀜 · 처음 맞추는데 둘 다 있음) → conflict
- */
-export function decide(local: Side, server: Side | null, base: string | null): Plan {
-  if (!server) return local.n ? 'push' : 'none'
-  if (local.fp === server.fp) return 'same'
-  if (base === local.fp) return 'pull'
-  if (base === server.fp) return 'push'
-  if (!local.n) return 'pull'
-  return 'conflict'
 }
 
 /**

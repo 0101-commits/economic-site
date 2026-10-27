@@ -159,7 +159,7 @@ export default function Home() {
         )}
       </p>
 
-      {/* AI 요약 — 문장 · 근거 번호 · 근거 목록 · 대조 한 줄 · 회차 넘김(components/home/Brief.tsx). 질문칸은 동기화가 켜진 기기에만(Worker /ai 가 키를 본다) */}
+      {/* AI 요약 — 문장 · 근거 번호 · 근거 목록 · 대조 한 줄 · 회차 넘김(components/home/Brief.tsx). 질문칸은 앱키로 들어온 기기에만(Worker /ai 가 앱키 해시를 본다) */}
       {(!!brief?.lines.length || linked) && <Brief brief={brief}>{linked && <AskBox home={home} />}</Brief>}
 
       {/* 지표 띠 8 + 관심 칸(9번째부터, 최대 8). 모바일 2열이라 짝을 맞추지 않는다 */}
@@ -377,8 +377,8 @@ function AskBox({ home }: { home: HomeBundle }) {
     e.preventDefault()
     const question = q.trim(), hash = getKeyHash()
     if (!question || busy) return
-    if (!hash) { setNote('동기화가 꺼졌습니다. 설정 › 내 계정에서 다시 연결하세요.'); return }
-    // 간격은 기기 연결(sync.ts)의 마지막 요청 시각과 같이 센다 — 화면을 다시 열어도 남는다
+    if (!hash) { setNote('이 기기에서 나간 상태입니다. 앱키로 다시 들어와 주세요.'); return }
+    // 간격은 맞춤(sync.ts)의 마지막 요청 시각과 같이 센다 — 화면을 다시 열어도 남는다
     const wait = lastReqAt() + ASK_GAP_MS - Date.now()
     if (wait > 0) { setNote(`${Math.ceil(wait / 1000)}초 뒤에 다시 물어보세요.`); return }
     noteReq()

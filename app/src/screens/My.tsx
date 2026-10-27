@@ -1,7 +1,7 @@
 // 내 자산 — 기획안 v4 6장. 첫 블록(총평가·오늘 손익·원금) → 띠 카드 4 → 보기 바 → 고른 보기 패널 → 격자.
 // 보유·스냅샷·원장을 읽는 코드는 전부 Holdings 안에 있다 — PinGate 가 열기 전엔 만들어지지 않는다.
-// 입력은 이 기기(localStorage)에 저장한다. 다른 기기와는 동기화 키에서 만든 열쇠로 잠근 뒤에만 주고받는다 — 설정 「기기 연결」에서 보유를 켜 두면
-// 열 때 · 저장 2초 뒤 저절로 맞추고(sync.ts syncHoldings), 둘 다 바뀌었을 때만 머리의 「동기화」 시트가 묻는다(HoldSyncSheet).
+// 입력은 이 기기(localStorage)에 저장한다. 다른 기기와는 앱키에서 만든 재료로 잠근 뒤에만 주고받는다 — 앱을 열 때 · 돌아올 때 · 이 화면을 열 때 ·
+// 저장 2초 뒤 묻지 않고 맞춘다(sync.ts · holdSync.ts — 둘 다 바뀌면 나중 것). 사람이 알아야 할 일만 머리 아래 한 줄(HoldNotice — 옛 형식 판이면 예전 암호 칸).
 // 시세: 묶음에 있는 종목은 묶음 값, 없는 종목은 Worker 프록시로 Yahoo(lib/personal/quotes.ts) — 잠금 안에서만 받는다.
 // 묶음 다시 읽기(lib/bundle.ts rev) 뒤엔 시세만 다시 맞춘다 — 입력 중인 칸 · 고른 보기는 남는다.
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
@@ -11,7 +11,7 @@ import { AsOfBadge, Card, SegBar } from '../components/ui'
 import { Panel, RankTable, type Col } from '../components/panels'
 import { DivergingBars, LineChart } from '../components/charts'
 import { WeightMap } from '../components/personal/WeightMap'
-import { HoldSyncSheet } from '../components/personal/HoldSyncSheet'
+import { HoldNotice } from '../components/personal/HoldNotice'
 import { BTN, BTN2, DIR_TEXT, Field, INPUT, ShareBar } from '../components/personal/bits'
 import { changeDir, fmtNumber, fmtPct, shortDate, slicePeriods, PERIODS, type PeriodKey, type Pt } from '../lib/format'
 import { rebase } from '../components/market/calc'
@@ -21,7 +21,7 @@ import { useBundleRev, type Sched } from '../lib/bundle'
 import { loadBench, loadMarketData, type MarketData } from '../lib/personal/data'
 import { holdingQuotes } from '../lib/personal/quotes'
 import { newId, readLedger, readPortfolio, readPrefs, readSnaps, saveTodaySnap, writeLedger, writePortfolio, type Ledger } from '../lib/personal/store'
-import { queueHoldSync, syncHoldings, useSyncStatus } from '../lib/personal/sync'
+import { holdEdited, holdNamesFixed, syncHoldings, useSyncStatus } from '../lib/personal/sync'
 import { fixHoldingNames } from '../lib/personal/nameLookup'
 import { needsName } from '../lib/personal/names'
 
@@ -51,11 +51,11 @@ function Holdings() {
   const [edit, setEdit] = useState<Holding | null>(null)
   const [msg, setMsg] = useState('')
   const [snapNote, setSnapNote] = useState('')
-  const [syncOpen, setSyncOpen] = useState(false)
-  const { hold } = useSyncStatus()
-  // 열 때 한 번 보유를 맞춘다(범위 ② 가 꺼져 있거나 연결 전이면 아무것도 안 한다). 서버 것을 받았으면 다시 읽는다.
-  // 이어서 이름이 비었거나 코드뿐인 줄만 이름을 찾아 채운다(직접 지은 이름은 그대로).
-  useEffect(() => { void syncHoldings().then(p => { if (p) setPf(readPortfolio()) }).then(() => fixHoldingNames()).then(ok => { if (ok) setPf(readPortfolio()) }).catch(() => {}) }, [])
+  const { holdRev } = useSyncStatus()
+  // 열 때 한 번 보유를 맞춘다. 받았으면 다시 읽는다(다른 때 받은 것도 holdRev 로 다시 읽는다).
+  // 이어서 이름이 비었거나 코드뿐인 줄만 이름을 찾아 채운다(직접 지은 이름은 그대로) — 채웠으면 한 번 올려 이름이 다른 기기로 가게 한다.
+  useEffect(() => { void syncHoldings().then(p => { if (p) setPf(readPortfolio()) }).then(() => fixHoldingNames()).then(ok => { if (ok) { setPf(readPortfolio()); holdNamesFixed() } }).catch(() => {}) }, [])
+  useEffect(() => { if (holdRev) setPf(readPortfolio()) }, [holdRev])
   const rev = useBundleRev()
   useEffect(() => {
     // 다시 읽기에서 못 받으면 보던 시세를 둔다
@@ -93,7 +93,7 @@ function Holdings() {
     const ok = writePortfolio(next)
     setMsg(ok ? '' : SAVE_FAIL)
     setPf(next)
-    if (ok) queueHoldSync(() => setPf(readPortfolio()))   // 2초 조용하면 올린다(서버도 바뀌었으면 묻게 표시만)
+    if (ok) holdEdited(() => setPf(readPortfolio()))   // 바꾼 때를 남기고 2초 조용하면 맞춘다(둘 다 바뀌었으면 나중 것)
   }
   const saveHolding = (f: HoldingInput, id?: string): string => {
     const items = readPortfolio().items
@@ -116,7 +116,7 @@ function Holdings() {
     }
     setEdit(null)
     // 이름이 비었거나 코드뿐이면 저장한 뒤 이름을 찾아 넣는다
-    if (needsName({ symbol: f.symbol, name })) void fixHoldingNames().then(ok => { if (ok) setPf(readPortfolio()) }).catch(() => {})
+    if (needsName({ symbol: f.symbol, name })) void fixHoldingNames().then(ok => { if (ok) { setPf(readPortfolio()); holdNamesFixed() } }).catch(() => {})
     return ''
   }
   const removeHolding = (id: string) => { savePf(readPortfolio().items.filter(it => it.id !== id)); setEdit(null) }
@@ -141,10 +141,8 @@ function Holdings() {
         {md?.quotesAsOf && <span className="inline-flex items-center gap-1 text-12 text-ink-3">시세 <AsOfBadge asOf={md.quotesAsOf} state={md.home?.topAmount?.state} liveUntil={md.home?.topAmount?.liveUntil} /></span>}
         {!qs && <span className="text-12 text-ink-3">시세 불러오는 중</span>}
         {yahooN > 0 && <span className="text-12 text-ink-3">{`${yahooN}종목은 Yahoo 지연 시세`}</span>}
-        <button type="button" className={`${BTN2} ml-auto`} onClick={() => setSyncOpen(true)}>동기화</button>
       </header>
-      {hold.text && <p role={hold.ask ? 'alert' : 'status'} className={`m-0 text-12 ${hold.ask ? 'text-warn' : 'text-ink-3'}`}>보유 · {hold.text}</p>}
-      <HoldSyncSheet open={syncOpen} onClose={() => setSyncOpen(false)} onPulled={() => setPf(readPortfolio())} />
+      <HoldNotice onPulled={() => setPf(readPortfolio())} />
 
       {/* 첫 블록 */}
       <Card>
@@ -177,7 +175,7 @@ function Holdings() {
         <Panel title="보유" unit={unitLabel}>
           <HoldTable rows={rows} unit={unit} onEdit={setEdit} />
           <HoldingForm key={edit?.id ?? 'new'} edit={edit} onSave={saveHolding} onDelete={removeHolding} onCancel={() => setEdit(null)} />
-          <p className="mt-4 mb-0 pt-3 border-t border-line text-12 text-ink-3">설정 › 내 계정에서 보유를 켜 두면 저장할 때마다 입장 키에서 만든 열쇠로 잠가 올립니다. 서버는 내용을 읽지 못합니다.</p>
+          <p className="mt-4 mb-0 pt-3 border-t border-line text-12 text-ink-3">저장할 때마다 앱키로 잠가 두고, 같은 앱키로 들어온 기기끼리 저절로 같아집니다. 운영자도 내용을 읽지 못합니다.</p>
         </Panel>
       )}
       {v === 'pnl' && (
