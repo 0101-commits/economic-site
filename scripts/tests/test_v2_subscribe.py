@@ -157,3 +157,27 @@ def test_user_conditions_are_not_missing_judges():
     assert {ev["id"] for ev in todo} >= {"U1", "U2"}
     assert run.missing_judges(todo) == []
 
+
+def test_load_all_prefs_returns_uid_role_upgraded_prefs(monkeypatch):
+    import prefs_client
+    users = [{"uid": "a", "role": "owner", "prefs": {"alerts": [], "settings": {}, "updatedAt": "t"}},
+             {"uid": "b", "role": "member", "prefs": {"alerts": [], "settings": {}, "updatedAt": "t"}}]
+    seen = []
+    monkeypatch.setattr(prefs_client, "fetch_all", lambda base: seen.append(base) or users)
+    monkeypatch.setenv("PUSH_READ_KEY", "k")
+    out = subscribe.load_all_prefs(log=lambda *a, **k: None)
+    assert seen == [subscribe.PREFS_URL]
+    assert [(u, r) for u, r, _ in out] == [("a", "owner"), ("b", "member")]
+    assert all(p["v"] == 2 for _, _, p in out)
+
+
+def test_load_all_prefs_no_key_or_failure_is_empty(monkeypatch):
+    import prefs_client
+    logs = []
+    monkeypatch.delenv("PUSH_READ_KEY", raising=False)
+    assert subscribe.load_all_prefs(log=logs.append) == []
+    assert len(logs) == 1 and "PUSH_READ_KEY" in logs[0]
+    monkeypatch.setenv("PUSH_READ_KEY", "k")
+    monkeypatch.setattr(prefs_client, "fetch_all", lambda base: None)
+    assert subscribe.load_all_prefs(log=logs.append) == []
+

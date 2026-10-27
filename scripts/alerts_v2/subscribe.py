@@ -52,6 +52,24 @@ def load_prefs(log=print) -> dict | None:
     return upgrade_prefs(doc)
 
 
+def load_all_prefs(log=print) -> list[tuple[str, str, dict]]:
+    """사람별 설정 [(uid, role, v2 로 올린 prefs)]. 읽기 키가 없거나 읽기에 실패하면 [] —
+    호출 쪽은 빈 목록이면 마스터 칸(load_prefs)·기본 설정으로 간다(load_prefs 의 None 과 같은 뜻)."""
+    try:
+        import prefs_client
+    except ImportError:
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        import prefs_client
+    if not prefs_client.auth_header():
+        log("[v2] PUSH_READ_KEY 없음 — 사람별 설정 없음(기본 설정으로 구독)")
+        return []
+    users = prefs_client.fetch_all(PREFS_URL)
+    if not users:
+        return []
+    return [(u["uid"], u.get("role") or "", upgrade_prefs(u["prefs"])) for u in users]
+
+
 def upgrade_prefs(doc: dict) -> dict:
     """v1(type 6종) → v2(event · strength · ring). v2 는 그대로."""
     out = dict(doc)
