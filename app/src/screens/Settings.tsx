@@ -5,7 +5,8 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type Rea
 import { ChevronDown, Settings as Gear } from 'lucide-react'
 import { Card, Pill, SegBar } from '../components/ui'
 import { BTN, BTN2, Field, INPUT, Switch } from '../components/personal/bits'
-import { DeviceLink } from '../components/personal/DeviceLink'
+import { MyAccount } from '../components/personal/MyAccount'
+import { useMe } from '../lib/personal/account'
 import { UsageTable } from '../components/personal/UsageTable'
 import { applyTheme, useTheme } from '../lib/theme'
 import { checkPin, hasPin, IDLE_MS, samePin, setPin, waitMs } from '../lib/pin'
@@ -29,6 +30,7 @@ export default function Settings() {
   const t = useTheme()
   const [msg, setMsg] = useState('')
   const { rev } = useSyncStatus()
+  const me = useMe()
   useEffect(() => { if (rev) setPrefs(readPrefs()) }, [rev])   // 동기화가 이 기기를 서버 내용으로 덮은 뒤
   const save = (p: Prefs) => { setPrefs(p); setMsg(writePrefs(p) ? '' : '이 기기에 저장하지 못했습니다.') }
   const setS = (k: Partial<S>) => save({ ...prefs, settings: { ...prefs.settings, ...k } })
@@ -38,7 +40,7 @@ export default function Settings() {
       <header><h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><Gear size={18} aria-hidden />설정</h1></header>
       {msg && <p role="alert" className="m-0 text-12 text-warn">{msg}</p>}
       <div className="grid grid-cols-1 pc:grid-cols-2 gap-4 items-start">
-        <DeviceLink />
+        <MyAccount />
         <Security />
         <Card title={<>표시 <span className="text-12 font-normal text-ink-3">화면 모드 · 금액 단위는 이 기기만</span></>}>
           <div className="flex flex-col gap-3">
@@ -52,7 +54,7 @@ export default function Settings() {
         <Fold title="고급"><Advanced s={prefs.settings} setS={setS} /></Fold>
       </div>
       {/* 전환 단계 A(공존): 현행 화면으로 가는 길 하나. 같은 origin 이라 PIN·보유·관심이 그대로다. */}
-      <p className="m-0 text-12 text-ink-3"><a href={new URL('legacy.html', ROOT).href} className="text-ink-3 hover:text-ink-1">이전 화면으로</a> · 폰 알림은 이 화면을 홈 화면에 추가한 기기로만 옵니다.</p>
+      <p className="m-0 text-12 text-ink-3">{me?.role === 'owner' && <><a href={new URL('legacy.html', ROOT).href} className="text-ink-3 hover:text-ink-1">이전 화면으로</a> · </>}폰 알림은 이 화면을 홈 화면에 추가한 기기로만 옵니다.</p>
     </div>
   )
 }

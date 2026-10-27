@@ -52,7 +52,7 @@ export default function Welcome() {
   const answered = (side: 'server' | 'local' | null) => {
     setAsking(false)
     if (!side) { cancelSignIn(); return }
-    if (finishSignIn()) enter(); else setErr(ERRORS.offline)
+    if (finishSignIn()) enter(); else { cancelSignIn(); setErr(ERRORS.offline) }
   }
 
   return (

@@ -164,6 +164,11 @@ export default function StockDetail({ id }: { id: string }) {
         </Panel>
       )}
 
+      {/* D7: 수급 · 왜 움직였나 자료가 둘 다 이 종목에 없으면 한 줄로 알린다(칸을 말없이 숨기지 않는다) */}
+      {!why && !(f && f.investor.length > 0) && (
+        <p className="m-0 text-12 text-ink-3">수집 대상이 아닌 종목입니다 — 시세 · 차트 · 알림은 그대로 됩니다</p>
+      )}
+
       <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
         <FlowPanel className="pc:col-span-8" name={name} short={row?.short ?? (kr ? undefined : id)} pts={chart?.pts} decimals={decimals} value={price}
           base={chart?.prev != null ? { value: chart.prev, label: '전일' } : null}

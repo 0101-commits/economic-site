@@ -17,6 +17,7 @@ import { BrandMark, BrandWord } from './components/Brand'
 import { PinGate } from './components/PinGate'
 import { MovedBanner } from './components/MovedBanner'
 import { Boundary, Pill } from './components/ui'
+import { AccountMenu } from './components/personal/AccountMenu'
 import { SearchOverlay } from './components/personal/SearchOverlay'
 import Rail, { useRail } from './components/Rail'
 import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
@@ -173,6 +174,7 @@ function Shell() {
             <IconLink to="/alerts" label="알림" icon={Bell} dot={unseen ? '안 읽은 알림 있음' : undefined} />
             <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
             <ThemeButton />
+            <AccountMenu />
           </div>
         </div>
       </header>}
@@ -183,6 +185,7 @@ function Shell() {
         <SearchButton compact onOpen={() => setSearch(true)} />
         <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
         <ThemeButton />
+        <AccountMenu />
       </header>}
 
       <MovedBanner />
