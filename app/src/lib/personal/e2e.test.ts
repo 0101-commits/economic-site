@@ -112,6 +112,11 @@ test('passProblem: 6자리 숫자가 아닌 PIN 도 거부 · 동기화 키 · �
   assert.equal(await passProblem('long-enough-pass', no, pinIs('abcdefg')), '')
 })
 
+test('holdKeyOf: 입장 키는 대소문자 · 공백 · 하이픈이 달라도 같은 재료', async () => {
+  assert.equal(await holdKeyOf('ecom-7kq3-px9m-2hta'), await holdKeyOf('ECOM-7KQ3-PX9M-2HTA'))
+  assert.equal(await holdKeyOf(' ecom 7kq3 px9m 2hta '), await holdKeyOf('ECOM-7KQ3-PX9M-2HTA'))
+})
+
 test('holdKeyOf: 같은 키 → 같은 재료(앞뒤 공백 무시) · 다른 키 → 다름 · 명세 그대로 PBKDF2-SHA256(키, "ecom-holdings-v1", 600000) 32바이트 hex', async () => {
   const a = await holdKeyOf('my-sync-key-123')
   assert.match(a, /^[0-9a-f]{64}$/)
