@@ -23,14 +23,57 @@ function setup(status: number | 'net', body: unknown = ME, connectOk = true) {
     return new Response(JSON.stringify(body), { status })
   }
   store.clear(); store.set(KEEP, HASH)
+  const hs: { cur: string | null } = { cur: HASH }
   const acct = makeAccount({
-    getKeyHash: () => HASH,
+    getKeyHash: () => hs.cur,
     connectSync: async (k: string) => { calls.connect.push(k); return connectOk },
     disableSync: () => { calls.disable++; store.delete(KEEP) },
     forgetDevice: async () => { calls.forget++; store.delete(KEEP) },
   })
-  return { acct, calls, seen, restore: () => { g.fetch = saved } }
+  return { acct, calls, seen, hs, restore: () => { g.fetch = saved } }
 }
+
+test('signIn: 연결 질문이 떠 있으면(해시 아직 없음) ask — 아무것도 안 남기고, finishSignIn 은 해시가 생긴 뒤에만 남긴다', async () => {
+  const t = setup(200)
+  try {
+    t.hs.cur = null
+    assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'ask')
+    assert.equal(store.has(ME_KEY), false)
+    assert.equal(t.acct.finishSignIn(), false)     // 아직 해시 없음
+    assert.equal(store.has(ME_KEY), false)
+    t.hs.cur = HASH                                // 사용자가 답해 link 가 해시를 저장함
+    assert.equal(t.acct.finishSignIn(), true)
+    assert.deepEqual(JSON.parse(store.get(ME_KEY)!), ME)
+    assert.equal(t.acct.finishSignIn(), false)     // 한 번만
+  } finally { t.restore() }
+})
+
+test('cancelSignIn: 기다리던 me 를 버린다', async () => {
+  const t = setup(200)
+  try {
+    t.hs.cur = null
+    assert.equal(await t.acct.signIn('ECOM-7KQ3-PX9M-2HTA'), 'ask')
+    t.acct.cancelSignIn()
+    t.hs.cur = HASH
+    assert.equal(t.acct.finishSignIn(), false)
+    assert.equal(store.has(ME_KEY), false)
+  } finally { t.restore() }
+})
+
+test('refreshMe: 기다리는 사이 다른 키로 들어왔으면 401 · 403 을 무시한다', async () => {
+  for (const s of [401, 403] as const) {
+    const t = setup(s, { error: 'x' })
+    try {
+      store.set(ME_KEY, JSON.stringify(ME))
+      const g = globalThis as unknown as { fetch: (u: string, i: RequestInit) => Promise<Response> }
+      const inner = g.fetch
+      g.fetch = async (u, i) => { t.hs.cur = 'b'.repeat(64); return inner(u, i) }   // 응답 오기 전에 다른 키로 로그인
+      await t.acct.refreshMe()
+      assert.equal(t.calls.disable, 0)
+      assert.deepEqual(JSON.parse(store.get(ME_KEY)!), ME)
+    } finally { t.restore() }
+  }
+})
 
 test('signIn: 200 → ok, econMe_v1 저장 · connectSync(원문) · 해시는 정규화한 키', async () => {
   const t = setup(200)
