@@ -279,6 +279,136 @@ def test_member_logs_have_no_uid_or_condition(env, capsys):
     assert MEMBER not in out and "005930" not in out and "m1" not in out
 
 
+def test_member_quote_path_prints_are_muted(monkeypatch, capsys):
+    """시세 길 안쪽 출력(yahoo_prev_bar_ok 「[quote] {종목} 기준 봉 …」)도 멤버 조회면 공개 로그에 안 나간다."""
+    import check_alerts as ca
+    from alerts_v2.context import Context
+    now = dt.datetime.now(dt.timezone.utc)
+    t_today, t_prev = int(now.timestamp()), int((now - dt.timedelta(days=9)).timestamp())
+    chart = {"chart": {"result": [{"meta": {"regularMarketPrice": 101.0, "gmtoffset": 0},
+                                   "timestamp": [t_prev - 86400, t_prev, t_today],
+                                   "indicators": {"quote": [{"open": [1, 1, 1], "high": [1, 1, 1], "low": [1, 1, 1],
+                                                             "close": [100.0, 100.0, 101.0], "volume": [1, 1, 1]}]}}]}}
+    monkeypatch.setattr(ca, "_http_get_json", lambda url, mobile=False: chart)        # 전일 봉이 빠진 응답(네트워크 없음)
+    ctx = Context(now=dt.datetime.now(KST), data={}, bundles={}, registry={}, mer={})
+    ctx._snap("TSLA")
+    cap = capsys.readouterr()
+    assert "TSLA" in cap.out + cap.err                                        # 마스터 조회는 지금 그대로 — 출력 길이 살아 있다
+    ctx = Context(now=dt.datetime.now(KST), data={}, bundles={}, registry={}, mer={})
+    ctx.redact_codes = True
+    assert ctx._snap("TSLA") is None
+    cap = capsys.readouterr()
+    assert "TSLA" not in cap.out + cap.err and "종목 시세 없음" in cap.out
+
+
+def test_member_evaluation_prints_are_muted_in_pipeline(env, monkeypatch, capsys):
+    """멤버 판정 중 어디서든 찍힌 줄(종목 · 값)은 숨기고 줄 수만 남긴다."""
+    people = [(OWNER, "owner", _prefs()), (MEMBER, "member", _prefs(_u("m1", value=105, target="005930")))]
+    env(people, _at("2026-10-02", "09:30"), value=99, sides={})
+    hits = subscribe.user_hits
+
+    def noisy(*a, **k):
+        if k.get("key"):                                  # 멤버 판정(state_key 를 넘긴 호출)만 — 마스터 로그는 지금 그대로
+            print("[quote] 005930 기준 봉 누락 의심")
+            print("[quote] 005930 stderr", file=sys.stderr)
+        return hits(*a, **k)
+    monkeypatch.setattr(subscribe, "user_hits", noisy)
+    capsys.readouterr()
+    env(people, _at("2026-10-02", "10:00"), value=106)
+    cap = capsys.readouterr()
+    assert "005930" not in cap.out + cap.err and "줄 숨김" in cap.out
+    assert len(env.rec.fired) == 1
+
+
+def test_member_evaluation_runs_before_owner_send(env, monkeypatch):
+    """멤버 판정(네트워크)은 마스터 발송 전에 — 마스터 카톡 뒤 · 원장 저장 전엔 큐 적재와 /fired 뿐."""
+    people = [(OWNER, "owner", _prefs(_u("c1", value=100))), (MEMBER, "member", _prefs(_u("m1", value=105)))]
+    env(people, _at("2026-10-02", "09:30"), value=99, sides={})
+    order = []
+    wrap = lambda name, f: (lambda *a, **k: order.append(name(a, k)) or f(*a, **k))   # noqa: E731
+    monkeypatch.setattr(subscribe, "user_hits", wrap(lambda a, k: "member-eval" if k.get("key") else "owner-eval",
+                                                     subscribe.user_hits))
+    monkeypatch.setattr(subscribe, "match", wrap(lambda a, k: f"{k.get('role')}-match", subscribe.match))
+    monkeypatch.setattr(deliver, "send", wrap(lambda a, k: "owner-send", deliver.send))
+    monkeypatch.setattr(deliver, "send_member", wrap(lambda a, k: "member-push", deliver.send_member))
+    monkeypatch.setattr(deliver, "post_fired", wrap(lambda a, k: "member-fired", deliver.post_fired))
+    env(people, _at("2026-10-02", "10:00"), value=106)
+    assert order == ["owner-eval", "owner-match", "member-eval", "member-match", "owner-send", "member-push",
+                     "member-fired"]
+
+
+def test_member_eval_budget_skips_remaining_members(env, monkeypatch, capsys):
+    people = [(OWNER, "owner", _prefs(_u("c1", value=100))), (MEMBER, "member", _prefs(_u("m1", value=105))),
+              (MEMBER2, "member", _prefs(_u("x1", value=105)))]
+    env(people, _at("2026-10-02", "09:30"), value=99, sides={})
+    t = [0.0]
+
+    def clock():                                          # 부를 때마다 50초 — 첫 멤버 판정 뒤 상한(90초)을 넘긴다
+        t[0] += 50
+        return t[0]
+    monkeypatch.setattr(run, "_clock", clock)
+    monkeypatch.setattr(run, "MEMBER_FIRED_BUDGET_S", 10_000)
+    capsys.readouterr()
+    sides = env(people, _at("2026-10-02", "10:00"), value=106)
+    assert [(u, c) for u, c, _k in env.rec.owner] == [(OWNER, "c1")]
+    assert [u for u, _i in env.rec.fired] == [MEMBER] and [p["uid"] for p in env.rec.pushes] == [MEMBER]
+    assert sides[_mk(MEMBER2, "x1")] == {"side": "d"}                         # 판정 안 함 — 다음 런이 그 교차를 본다
+    out = capsys.readouterr().out
+    assert "남은 멤버 1명" in out and MEMBER2 not in out
+
+
+def test_member_fired_budget_skips_record_not_push(env, monkeypatch, capsys):
+    people = [(OWNER, "owner", _prefs()), (MEMBER, "member", _prefs(_u("m1", value=105)))]
+    env(people, _at("2026-10-02", "09:30"), value=99, sides={})
+    t = [0.0]
+
+    def clock():
+        t[0] += 50
+        return t[0]
+    monkeypatch.setattr(run, "_clock", clock)
+    monkeypatch.setattr(run, "MEMBER_EVAL_BUDGET_S", 10_000)
+    at = _at("2026-10-02", "10:00")
+    sides = env(people, at, value=106)
+    assert env.rec.fired == [] and [p["uid"] for p in env.rec.pushes] == [MEMBER]   # 기록만 생략, 푸시는 나감
+    assert sides[_mk(MEMBER, "m1")]["ts"] == int(at.timestamp())              # 울림 기록도 남는다(다시 안 울림)
+    assert "기록 생략" in capsys.readouterr().out
+
+
+def test_member_briefing_has_no_owner_personal_rows(monkeypatch, tmp_path):
+    """아침 AI 재료 「밤사이 알림」엔 마스터 보류 행(내 조건 포함) 제목이 실린다 — 멤버 푸시엔 시장 내용만."""
+    import copy
+
+    import investor_flows
+    import send_kakao_digest as k
+    from alerts_v2 import briefing
+    from alerts_v2.context import Context
+    empty = lambda *a, **kw: ([], [], None, "")                                # noqa: E731
+    monkeypatch.setattr(k, "_session_chain", empty)
+    monkeypatch.setattr(k, "_intraday_chain", empty)
+    monkeypatch.setattr(k, "_verified_investor", lambda market="KOSPI": None)
+    monkeypatch.setattr(investor_flows, "week_sum", lambda *a, **kw: None)
+    monkeypatch.setattr(k, "slot_ai_line", lambda d, lslot, title, blocks: " ".join(v for _l, v in blocks if v))   # AI 가 재료를 되풀이
+    monkeypatch.setattr(briefing.cards, "brief_card_png", lambda spec: b"\x89PNG")
+    monkeypatch.setattr(briefing.dc, "kr_closed", lambda *a, **kw: False)
+    monkeypatch.setattr(briefing, "_kakao", lambda *a, **kw: False)
+    now = dt.datetime(2026, 10, 6, 7, 30, tzinfo=KST)
+    ctx = copy.copy(Context.load(now=now))
+    ctx.now = now
+    led = Ledger(day=now.date(), root=str(tmp_path / "events"))
+    secret = "삼성전자 70,000 · 내 조건 위로"
+    led.append({"key": "U1:005930:up:abc123", "event": "U1", "target": "005930", "dir": "up", "level": "alert",
+                "value": 70000, "unit": "", "asOf": "2026-10-06", "fresh": "live", "title": secret, "why": "내 조건",
+                "next": "", "url": "#/i/005930", "ts": "2026-10-06T01:00:00+09:00", "cond": "c1",
+                "sent": {"push": 0, "kakao": False, "discord": False, "bundled": False, "held": True}})
+    q = tmp_path / "q.json"
+    briefing.send("morning", ctx, led, {"briefings": {"morning": True}}, log=lambda *a: None, queue_path=str(q),
+                  uid=OWNER, members=[(MEMBER, None)])
+    items = {i.get("uid"): i for i in json.loads(q.read_text(encoding="utf-8"))}
+    assert "삼성전자" in items[OWNER]["body"]                                 # 마스터 본문엔 그대로(재료가 실제로 샌다는 확인)
+    assert "삼성전자" not in items[MEMBER]["title"] + items[MEMBER]["body"]
+    assert "내 조건" not in items[MEMBER]["title"] + items[MEMBER]["body"]
+
+
 def test_member_stock_lookup_logs_no_code(monkeypatch, capsys):
     import check_alerts as ca
     from alerts_v2.context import Context

@@ -309,6 +309,25 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
                    and not str(r.get("event") or "").startswith("U")), "") or _moves(spec, title)
     summary = " · ".join(([f"오늘 바뀐 것 {len(changed)}건"] if changed else []) + cal)
     lines = [x if x and not compose.has_relative_time(x) else "" for x in (ai, mid, summary)]
+    # 멤버 몫(푸시 제목 · 본문 두 줄) — 마스터 개인 행(사용자 조건 · 묶음 · 마스터 조용한 시간 보류)이 AI 재료나 수에 섞였으면
+    # 시장 행 · 카드 값만으로 다시 만든다. 아침 AI 재료 「밤사이 알림」엔 마스터 보류 행 제목(내 조건 포함)이 실린다.
+    pub_title, pub_mid, pub_ai = title, mid, ai
+    personal_in = slot == "morning" and bool(held)
+    if slot == "weekly":
+        pub_rows = [r for r in week if not _personal(r)]
+        if len(pub_rows) != len(week):                 # 주간 사건 수에 마스터 개인 행이 섞였다
+            personal_in = True
+            pub_title = k._fit(base, [f"사건 {len(pub_rows)}건", big_txt])
+            pub_title = base if compose.has_relative_time(pub_title) else pub_title
+            pub_mid = " · ".join(x for x in (f"{dc.week_period(now)} 사건 {len(pub_rows)}건",
+                                             big_txt and f"가장 큰 움직임 {big_txt}") if x)
+    else:
+        pub_rows = [r for r in ledger.rows if not _personal(r) and not (r.get("sent") or {}).get("held")]
+    if personal_in:
+        part = "why" if slot == "morning" else "title"
+        pub_ai = next((r[part] for r in pub_rows if r.get(part) and r.get("level") in ("alarm", "alert")), "") \
+            or _moves(spec, pub_title)
+    public_lines = [x if x and not compose.has_relative_time(x) else "" for x in (pub_ai, pub_mid)]
     try:
         png = cards.brief_card_png(spec)
     except Exception as e:                             # noqa: BLE001 — 카드가 죽어도 브리핑은 나간다(카톡은 텍스트, 경고 남음)
@@ -318,7 +337,12 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
         items = ([("오늘 바뀐 것", f"안내 {len(changed)}건 · " + " · ".join(changed_lines(changed)))] + items)[:ITEMS_MAX]
     return {"title": title, "lines": lines, "items": items, "card_png": png, "held_rows": held,
             "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links,
-            "caption": lines[0], "card_info": spec["info"]}
+            "caption": lines[0], "card_info": spec["info"], "public_title": pub_title, "public_lines": public_lines}
+
+
+def _personal(r: dict) -> bool:
+    """마스터 개인 행 — 사용자 조건(cond · U*) · 상한 묶음(BUNDLE, 제목이 마스터 알림 조각). 멤버 브리핑 재료에서 뺀다."""
+    return bool(r.get("cond")) or str(r.get("event") or "").startswith("U") or r.get("event") == "BUNDLE"
 
 
 # ---------- 보내기 ----------
@@ -375,8 +399,11 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
             "level": "brief", "requireInteraction": False}
     if owner_on:
         _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, queue_path)
-    if mem:                                            # 멤버 — 푸시만, 사람마다 uid 를 단 항목
-        if deliver.enqueue_push([dict(item, uid=u) for u in mem], queue_path):
+    if mem:                                            # 멤버 — 푸시만, 사람마다 uid 를 단 항목 · 시장 내용만(public_*)
+        pub = {"title": out.get("public_title") or out["title"],
+               "body": compose.cut("\n".join(x for x in (out.get("public_lines") or out["lines"][:2]) if x),
+                                   compose.PUSH_BODY_MAX)}
+        if deliver.enqueue_push([dict(item, **pub, uid=u) for u in mem], queue_path):
             res["members"] = len(mem)
         log(f"[v2 brief] {slot} → 멤버 {res['members']}명 푸시")
     return res

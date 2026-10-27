@@ -9,10 +9,13 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import io
 import json
 import os
 import sys
+import time
 from types import SimpleNamespace
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -131,49 +134,63 @@ def _read_book(path: str) -> dict:
     return p if isinstance(p, dict) else {}
 
 
-def _members_b(ctx, members, market, sides, events_by_id, cd_history, render, dry_run: bool, light: bool,
-               deliver, schedule, subscribe) -> None:
-    """멤버마다 판정(사용자 조건 · 시장 사건) → 그 사람 설정으로 편성 → 푸시만. 공개 원장 · 카톡은 건드리지 않는다.
+MEMBER_EVAL_BUDGET_S = 90      # 멤버 판정(종목 시세 조회 포함)에 쓰는 시간 상한 — 마스터 발송을 늦추는 몫의 끝
+MEMBER_FIRED_BUDGET_S = 30     # 마스터 발송 뒤 · 원장 저장 전 /fired 기록에 쓰는 시간 상한(잡 시한 10분 안에서 원장 저장을 지킨다)
+_clock = time.monotonic        # 시험이 바꿔 낀다
 
+
+def _members_eval(ctx, members, market, sides, events_by_id, cd_history, render, dry_run: bool, light: bool,
+                  deliver, schedule, subscribe):
+    """멤버 판정 단계 — 마스터 발송 **전**에 돈다. 네트워크(멤버 종목 시세)는 전부 여기서 끝낸다.
+
+    마스터 카톡이 나간 뒤 · 원장 저장 전에 멤버 시세 조회가 잡 시한을 넘기면 원장이 커밋되지 않아 다음 런이 마스터에게
+    같은 알림을 또 보낸다 — 그래서 판정은 앞에서, 시간 상한(MEMBER_EVAL_BUDGET_S)을 넘으면 남은 멤버는 이번 런 건너뜀.
     · 사용자 조건(U1 · U2 · 종목 B1)은 light 런 + 공개 기록을 읽은 런만, 키는 state_key(HMAC). 같은 발생 · 쿨다운은
-      member_fresh(공개 기록 keys · ts · fd), 실제로 나간 것만 mark_member · post_fired(/fired).
+      member_fresh(공개 기록 keys · ts · fd).
     · 시장 사건 쿨다운 = 공개 원장에 같은 묶음 키 행이 있으면(누구에게 나갔든) 센다 — 원장 sent 는 마스터 것이라.
       사용자 조건 행(cond)은 빼서 마스터 조건이 멤버를 막지 않게.
-    · 하루 상한 = 공개 기록 state_key(uid, member, @day) {d, n} — light 런만 고쳐 쓴다(다른 런은 읽기만, 그 런의 울림은 안 셈).
-    · 한 사람의 오류는 그 사람만 건너뛴다 — 마스터 발송이 이미 끝났으니 여기서 런이 죽으면 원장이 저장되지 않아 다음 런이
-      마스터에게 같은 알림을 또 보낸다.
-    · 로그는 수만(uid · 제목 · 종목 없음 — Actions 로그는 공개다)."""
+    · 하루 상한 = 공개 기록 state_key(uid, member, @day) {d, n} — light 런만 고쳐 쓴다(다른 런은 읽기만).
+    · 한 사람의 오류는 그 사람만 건너뛴다. 로그는 수만(uid · 제목 · 종목 없음 — Actions 로그는 공개다).
+    돌려주는 값 = 발송 단계(_members_send)가 쓸 (env, 사람별 편성 목록)."""
     env = SimpleNamespace(
         today=ctx.now.date().isoformat(), market=market, sides=sides, events_by_id=events_by_id, render=render,
         dry_run=dry_run, light=light, deliver=deliver, schedule=schedule, subscribe=subscribe,
         book=sides if sides is not None else _read_book(os.path.join(ctx.root, "alerts_state.json")),
         mem_hist=[dict(r, sent={"push": 1}) for r in cd_history if not r.get("cond")],
-        write=light and sides is not None and not dry_run)
-    n_dec = n_send = n_err = 0
+        write=light and sides is not None and not dry_run, n=len(members), n_err=0, n_late=0, n_muted=0)
+    plans = []
+    start = _clock()
     prev = getattr(ctx, "redact_codes", False)
-    ctx.redact_codes = True                                # 멤버 종목 조회 실패 로그에 코드를 찍지 않는다
+    ctx.redact_codes = True                                # 멤버 종목 조회의 시세 길 출력을 버린다(context._snap)
     try:
-        for uid, prefs in members:
+        for i, (uid, prefs) in enumerate(members):
+            if _clock() - start > MEMBER_EVAL_BUDGET_S:
+                env.n_late = len(members) - i
+                break
             try:
-                d, s = _member_one(ctx, uid, prefs, env)
-            except Exception as e:                         # noqa: BLE001 — 한 멤버의 오류가 마스터 원장 저장 · 다른 멤버를 막지 않게
-                n_err += 1
-                print(f"[v2] 멤버 1명 판정 · 발송 오류({type(e).__name__}) — 그 사람만 건너뜀")
-                continue
-            n_dec, n_send = n_dec + d, n_send + s
+                plans.append(_member_plan(ctx, uid, prefs, env))
+            except Exception as e:                         # noqa: BLE001 — 한 멤버의 오류가 마스터 · 다른 멤버를 막지 않게
+                env.n_err += 1
+                print(f"[v2] 멤버 1명 판정 오류({type(e).__name__}) — 그 사람만 건너뜀")
     finally:
         ctx.redact_codes = prev
-    print(f"[v2] 멤버 {len(members)}명 · 구독 {n_dec} → 발송 {n_send}" + (f" · 오류 {n_err}명" if n_err else "")
-          + (" (dry-run)" if dry_run else ""))
+    if env.n_late:
+        print(f"[v2] 멤버 판정 시간 상한({MEMBER_EVAL_BUDGET_S}초) — 남은 멤버 {env.n_late}명은 이번 런 건너뜀")
+    if env.n_muted:
+        print(f"[v2] 멤버 조건 판정 중 출력 {env.n_muted}줄 숨김(종목 · 값이 든 줄일 수 있어 공개 로그에 남기지 않음)")
+    return env, plans
 
 
-def _member_one(ctx, uid: str, prefs: dict | None, env) -> tuple[int, int]:
-    """멤버 한 사람 — (구독 수, 발송 수). _members_b 의 규칙 그대로."""
-    subscribe, deliver, sides = env.subscribe, env.deliver, env.sides
+def _member_plan(ctx, uid: str, prefs: dict | None, env) -> SimpleNamespace:
+    """멤버 한 사람의 판정 · 편성(발송 없음)."""
+    subscribe, sides = env.subscribe, env.sides
     key = (lambda cid: subscribe.state_key(uid, "member", cid))
     urows = []
     if env.light and sides is not None:
-        urows = subscribe.user_hits(ctx, prefs, [], render=env.render, sides=sides, key=key)
+        buf = io.StringIO()                                # 판정 중 어떤 출력도 공개 로그로 새지 않게(시세 길 · 판정 함수)
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            urows = subscribe.user_hits(ctx, prefs, [], render=env.render, sides=sides, key=key)
+        env.n_muted += len(buf.getvalue().splitlines())
         urows = subscribe.member_fresh(urows, prefs, sides, key, env.events_by_id, ctx.now)
     decisions = subscribe.match([dict(r) for r in env.market] + urows, ctx, prefs, env.events_by_id,
                                 uid=uid, role="member")
@@ -183,27 +200,51 @@ def _member_one(ctx, uid: str, prefs: dict | None, env) -> tuple[int, int]:
     n0 = int(rec.get("n") or 0) if isinstance(rec, dict) and rec.get("d") == env.today else 0
     sends = env.schedule.plan(decisions, _MemberBook(n0), ctx, settings, env.events_by_id, env.mem_hist,
                               kakao_rings=False)
-    n, n_send, sent_keys = n0, 0, set()
     for s in sends:
         s.uid = uid
-        if env.dry_run:
-            n_send += 1
-            continue
-        res = deliver.send_member(s, uid)
-        went = bool(res["push"] or res["held"])
-        if res["push"]:
-            n_send += 1
-            n += _rung(s)
-        for r in (s.bundle if s.kind == "bundle" else [s.row]):
-            if r.get("cond") and went:                     # 멤버 사용자 조건 — 공개 원장 대신 그 사람 칸(/fired)
-                sent_keys.add(r["key"])
-                lvl = (r.get("level") or s.level) if s.kind == "bundle" else s.level
-                deliver.post_fired(uid, deliver.fired_item(r, lvl, held=bool(s.held)))
-    if env.write:
-        subscribe.mark_member(sides, prefs, urows, sent_keys, ctx.now, key)
-        if day_k and n != n0:
-            sides[day_k] = {"d": env.today, "n": n}
-    return len(decisions), n_send
+    return SimpleNamespace(uid=uid, prefs=prefs, key=key, urows=urows, n_dec=len(decisions), sends=sends,
+                           n0=n0, day_k=day_k)
+
+
+def _members_send(ctx, env, plans) -> None:
+    """멤버 발송 단계 — 마스터 발송 **뒤**, 원장 저장 전. 하는 일은 푸시 큐 적재(로컬 파일)와 /fired 기록뿐이고,
+    /fired 는 시간 상한(MEMBER_FIRED_BUDGET_S)을 넘으면 건너뛴다(그 사람 「받은 알림」에서만 빠지고 발송 · 기록은 그대로)."""
+    deliver, subscribe, sides = env.deliver, env.subscribe, env.sides
+    n_dec = sum(p.n_dec for p in plans)
+    n_send = n_skip = 0
+    start = _clock()
+    for p in plans:
+        try:
+            n, sent_keys = p.n0, set()
+            for s in p.sends:
+                if env.dry_run:
+                    n_send += 1
+                    continue
+                res = deliver.send_member(s, p.uid)
+                went = bool(res["push"] or res["held"])
+                if res["push"]:
+                    n_send += 1
+                    n += _rung(s)
+                for r in (s.bundle if s.kind == "bundle" else [s.row]):
+                    if not (r.get("cond") and went):
+                        continue
+                    sent_keys.add(r["key"])                # 멤버 사용자 조건 — 공개 원장 대신 그 사람 칸(/fired)
+                    if _clock() - start > MEMBER_FIRED_BUDGET_S:
+                        n_skip += 1
+                        continue
+                    lvl = (r.get("level") or s.level) if s.kind == "bundle" else s.level
+                    deliver.post_fired(p.uid, deliver.fired_item(r, lvl, held=bool(s.held)))
+            if env.write:
+                subscribe.mark_member(sides, p.prefs, p.urows, sent_keys, ctx.now, p.key)
+                if p.day_k and n != p.n0:
+                    sides[p.day_k] = {"d": env.today, "n": n}
+        except Exception as e:                             # noqa: BLE001 — 한 멤버의 발송 오류가 원장 저장을 막지 않게
+            env.n_err += 1
+            print(f"[v2] 멤버 1명 발송 오류({type(e).__name__}) — 그 사람만 건너뜀")
+    if n_skip:
+        print(f"[v2] 멤버 발송 기록(/fired) 시간 상한({MEMBER_FIRED_BUDGET_S}초) — {n_skip}건 기록 생략(발송은 그대로)")
+    print(f"[v2] 멤버 {env.n}명 · 구독 {n_dec} → 발송 {n_send}" + (f" · 오류 {env.n_err}명" if env.n_err else "")
+          + (f" · 시간 초과 {env.n_late}명" if env.n_late else "") + (" (dry-run)" if env.dry_run else ""))
 
 
 def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | None:
@@ -250,6 +291,9 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | 
     ring_kakao = dry_run or (settings or {}).get("ringChannel") != "kakao" or deliver.kakao_rings()   # 메모 모드면 카톡은 안 울린다
     sends = schedule.plan(decisions, ledger, ctx, settings, events_by_id, cd_history, kakao_rings=ring_kakao)
     print(f"[v2] 구독 {len(decisions)} → 발송 {len(sends)}" + (" (dry-run)" if dry_run else ""))
+    # 멤버 판정(네트워크 포함)은 마스터 발송 전에 끝낸다 — 카톡이 나간 뒤 · 원장 저장 전에 오래 걸리면 다음 런이 또 보낸다
+    mem = _members_eval(ctx, members, market, sides, events_by_id, cd_history, render, dry_run, light,
+                        deliver, schedule, subscribe) if members else None
     for s in sends:
         s.uid = owner_uid                          # 푸시 큐 항목에 마스터 uid(모르면 없음 = 마스터에게만)
         if dry_run:
@@ -257,9 +301,8 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | 
         else:
             deliver.send(s, ledger, ctx)
     subscribe.mark_sent(sides, prefs, added, ledger, ctx.now)
-    if members:
-        _members_b(ctx, members, market, sides, events_by_id, cd_history, render, dry_run, light,
-                   deliver, schedule, subscribe)
+    if mem:
+        _members_send(ctx, *mem)                   # 푸시 큐 적재 + /fired(시간 상한) — 그다음 run.main 이 원장 · 공개 기록을 저장
     if sides is None or dry_run or json.dumps(sides, sort_keys=True) == before:
         return None
     return state

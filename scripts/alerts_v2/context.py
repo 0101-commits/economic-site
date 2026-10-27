@@ -7,7 +7,9 @@
 """
 from __future__ import annotations
 
+import contextlib
 import datetime as dt
+import io
 import json
 import os
 import re
@@ -292,8 +294,13 @@ class Context:
             ca = _check_alerts()
             kr = bool(KR_CODE.fullmatch(t))
             why = ""
+            # 멤버 조건이 묻는 종목이면 시세 길(get_snapshot → yahoo_snapshot → yahoo_prev_bar_ok 「[quote] {종목} …」 등)의
+            # 출력을 통째로 버린다 — 공개 Actions 로그에 멤버 종목이 찍히지 않게(아래 요약 한 줄만 남긴다)
+            mute = (contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO())) \
+                if self.redact_codes else (contextlib.nullcontext(), contextlib.nullcontext())
             try:
-                sn = ca.get_snapshot("KR" if kr else "US", t, None)
+                with mute[0], mute[1]:
+                    sn = ca.get_snapshot("KR" if kr else "US", t, None)
             except Exception as e:                         # noqa: BLE001 — 한 종목의 실패가 다른 판정을 막지 않는다
                 sn, why = None, type(e).__name__
             sane = ca.SANE_MOVE_PCT_KR if kr else ca.SANE_MOVE_PCT_US
