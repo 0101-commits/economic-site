@@ -127,3 +127,8 @@ def test_checker_catches_bad_value_and_wrapped_screen():
 def test_welcome_route_registered():
     """입장 화면 /welcome 은 Route 목록에 있어야 한다(키 없는 기기가 보내지는 곳)."""
     assert _routes()["/welcome"] == "Welcome"
+
+
+def test_members_route_registered():
+    """멤버 관리 /members 는 Route 목록에 있어야 한다(머리 메뉴가 마스터에게 여는 곳)."""
+    assert _routes()["/members"] == "Members"

@@ -13,6 +13,7 @@ import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
 import Welcome from './screens/Welcome'
+import Members from './screens/Members'
 import { BrandMark, BrandWord } from './components/Brand'
 import { PinGate } from './components/PinGate'
 import { MovedBanner } from './components/MovedBanner'
@@ -222,7 +223,8 @@ function Shell() {
             <Route path="/i/:id" element={<Detail />} />
             <Route path="/welcome" element={<Welcome />} />
             <Route path="/settings" element={<PinGate><Settings /></PinGate>} />
-            <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
+            <Route path="/members" element={<PinGate><Members /></PinGate>} />
+            <Route path="*"element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
           </Routes>
         </Boundary>
       </main>

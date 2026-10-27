@@ -19,7 +19,7 @@ export const WAIT = Number(opt('wait', 2500));
 // 알림 v2: 사건 탭 · 채널 탭 · 지표 상세(#/i/kospi) + 벨 시트를 연 채로(?bell=1) 본 상세.
 // 국내 상승 · 하락 보기(v=gainers · losers)는 표 열이 많아 PC 둘째 줄 4칸에서 잘리던 자리라 따로 찍는다.
 // 거시(주제 한 격자 · 나라 꼬리표)와 렌즈 지표 상세(#/i/us10y — 렌즈 패널 · 흐름 차트 기준선) · 종목 상세(#/i/005930 — Yahoo 일봉 · 수급 · 메르 언급)도 본다.
-export const NEXT_PATHS = ['#/', '#/market', '#/market?a=kr&v=gainers', '#/market?a=kr&v=losers', '#/market?a=macro', '#/market?a=kr&v=toss', '#/market?a=macro&v=calendar', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1', '#/i/us10y', '#/i/005930', '#/settings'];   // 새 층은 HashRouter
+export const NEXT_PATHS = ['#/', '#/market', '#/market?a=kr&v=gainers', '#/market?a=kr&v=losers', '#/market?a=macro', '#/market?a=kr&v=toss', '#/market?a=macro&v=calendar', '#/lens', '#/my', '#/alerts', '#/alerts?v=cond', '#/alerts?v=chan', '#/i/kospi', '#/i/kospi?bell=1', '#/i/us10y', '#/i/005930', '#/settings', '#/members'];   // 새 층은 HashRouter
 export const LEGACY_PATHS = ['dashboard', 'equity', 'market', 'macro', 'calendar', 'realestate',
   'investor', 'merlens', 'merblog', 'notes', 'study', 'settings'].map(p => `/?p=${p}`);
 
@@ -65,6 +65,11 @@ export async function newCtx(browser, w, theme) {
     const q = r.request(), path = new URL(q.url()).pathname;
     if (q.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: CORS });
     if (path === '/me' && q.method() === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ uid: 'owner000test', name: '마스터', role: 'owner', viaBackup: false }) });
+    if (path === '/admin/users' && q.method() === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ users: [
+      { uid: 'owner000test', name: '마스터', role: 'owner', status: 'active', lastSeenDay: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10), pushCount: 1 },
+      { uid: 'memberA00test', name: '멤버 A', role: 'member', status: 'active', lastSeenDay: '2026-10-25', pushCount: 0 },
+      { uid: 'memberB00test', name: '멤버 B', role: 'member', status: 'paused', lastSeenDay: '2026-10-20', pushCount: 2 },
+    ] }) });
     if (q.headers()['x-sync-key-hash'] || q.method() !== 'GET') return r.abort();
     return r.continue();
   });
