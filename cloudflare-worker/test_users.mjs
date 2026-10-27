@@ -2,7 +2,7 @@
 // 실행: node cloudflare-worker/test_users.mjs   (가짜 키만 쓴다)
 import {
   normalizeEntryKey, newEntryKey, newUid, sha256Hex, resolveUser, createUser, listUsers,
-  patchUser, rekeyUser, deleteUser, issueBackupKey, touchSeen, migrateOwner, _clearUserCache, getOwner, setUserKeyHash,
+  patchUser, rekeyUser, deleteUser, issueBackupKey, touchSeen, migrateOwner, _clearUserCache, getOwner, setUserKeyHash, readSeen, hexEq,
 } from './users.js';
 
 const kv = new Map();
@@ -167,15 +167,20 @@ console.log('issueBackupKey / touchSeen');
   check('예비 키로 owner + viaBackup', [r.user?.role, r.user?.viaBackup], ['owner', true]);
   const r0 = await resolveUser(env, LEG, LEG);
   check('주 키는 viaBackup false', [r0.user?.role, r0.user?.viaBackup], ['owner', false]);
-  await touchSeen(env, r0.user, '2026-10-27');
+  await touchSeen(env, { ...r0.user }, '2026-10-27');
   await patchUser(env, owner.uid, { name: '마스터2' });
-  await touchSeen(env, { ...r0.user, lastSeenDay: null }, '2026-10-28');
-  check('touchSeen 이 patch 를 안 덮음', (await KV.get(`user:${owner.uid}`, 'json')).name, '마스터2');
-  await touchSeen(env, { ...r0.user, lastSeenDay: null }, '2026-10-27');
+  await touchSeen(env, { ...r0.user }, '2026-10-28');
+  check('touchSeen 이 user 기록을 안 건드림', (await KV.get(`user:${owner.uid}`, 'json')).name, '마스터2');
+  check('seen:<uid> 기록', await readSeen(env, owner.uid), '2026-10-28');
   const b = puts;
-  await touchSeen(env, { ...r0.user, lastSeenDay: '2026-10-27' }, '2026-10-27');
+  await touchSeen(env, { ...r0.user }, '2026-10-28');
   check('같은 날 touchSeen 쓰기 0', puts - b, 0);
-  check('lastSeenDay 기록', (await KV.get(`user:${owner.uid}`, 'json')).lastSeenDay, '2026-10-27');
+  check('user 기록에 lastSeenDay 없음', 'lastSeenDay' in (await KV.get(`user:${owner.uid}`, 'json')), false);
+  check('hexEq', [hexEq('ab', 'ab'), hexEq('ab', 'ac'), hexEq('ab', 'abc')], [true, false, false]);
+  const mem = await createUser(env, { name: '삭제용' });
+  await KV.put(`aiq:${mem.user.uid}`, '{}'); await KV.put(`seen:${mem.user.uid}`, '2026-10-28');
+  await deleteUser(env, mem.user.uid);
+  check('deleteUser 가 aiq · seen 도 지움', [kv.has(`aiq:${mem.user.uid}`), kv.has(`seen:${mem.user.uid}`)], [false, false]);
 }
 
 console.log('getOwner · setUserKeyHash');

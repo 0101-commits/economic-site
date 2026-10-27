@@ -11,6 +11,15 @@ export async function sha256Hex(s) {
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// 상수 시간 비교 — 앞에서부터 몇 글자가 맞는지 응답 시간으로 새지 않게.
+export function hexEq(a, b) {
+  a = String(a); b = String(b);
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
 export function normalizeEntryKey(raw) {
   const s = String(raw == null ? '' : raw);
   const squeezed = s.replace(/[\s-]+/g, '').toUpperCase();
@@ -66,7 +75,7 @@ async function resolveUncached(env, keyHash, legacyHash) {
   const index = await readIndex(env);
   if (!Array.isArray(index)) {
     if ((await kvGetRaw(env, 'auth:migrated')) === '1') return { status: 503, error: 'users_index_missing' }; // 닫힌 채로 실패
-    if (keyHash && legacyHash && keyHash === legacyHash) {
+    if (keyHash && legacyHash && hexEq(keyHash, legacyHash)) {
       return { user: { uid: keyHash.slice(0, 16), role: 'owner', status: 'active', name: '마스터', legacy: true }, _legacyMode: true };
     }
     return { status: 401, error: 'unauthorized', _legacyMode: true };
@@ -82,7 +91,6 @@ async function resolveUncached(env, keyHash, legacyHash) {
 async function insertUser(env, { name, role, keyHash, uid = newUid() }) {
   const user = {
     uid, name, role, status: 'active', keyHash, createdAt: new Date().toISOString(),
-    lastSeenDay: null, aiDay: null, aiCount: 0,
   };
   await kvPut(env, `user:${uid}`, user);
   await kvPut(env, `ukey:${keyHash}`, uid);
@@ -144,7 +152,7 @@ export async function deleteUser(env, uid) {
   if (u.role === 'owner') return { status: 403, error: 'owner_undeletable' };
   await kvDel(env, `ukey:${u.keyHash}`);
   if (u.backupKeyHash) await kvDel(env, `ukey:${u.backupKeyHash}`);
-  for (const p of ['prefs', 'push', 'hold', 'fired']) await kvDel(env, `${p}:${uid}`);
+  for (const p of ['prefs', 'push', 'hold', 'fired', 'aiq', 'seen']) await kvDel(env, `${p}:${uid}`);
   await kvDel(env, `user:${uid}`);
   const index = ((await readIndex(env)) || []).filter(x => x !== uid);
   await kvPut(env, 'users:index', index);
@@ -166,16 +174,14 @@ export async function issueBackupKey(env, ownerUid) {
   return { key };
 }
 
+// 마지막 접속일은 user 기록이 아니라 자기 칸 seen:<uid> 에만 쓴다(뜨거운 경로가 user 기록을 다시 쓰면 멈춤·삭제와 경합한다).
+export async function readSeen(env, uid) { return await kvGetRaw(env, `seen:${uid}`); }
+
 export async function touchSeen(env, user, kstDay) {
-  if (!user || user.legacy || user.lastSeenDay === kstDay) return;
-  const rec = await kvGet(env, `user:${user.uid}`);
-  if (!rec) return;
-  user.lastSeenDay = kstDay;
-  if (rec.lastSeenDay === kstDay) return;
-  const fresh = await kvGet(env, `user:${user.uid}`); // 동시 patch 를 덮지 않도록 쓰기 직전에 다시 읽는다
-  if (!fresh || fresh.lastSeenDay === kstDay) return;
-  fresh.lastSeenDay = kstDay;
-  await kvPut(env, `user:${user.uid}`, fresh);
+  if (!user || user.legacy || user._seenDay === kstDay) return;
+  user._seenDay = kstDay; // 캐시된 같은 객체라 이 isolate 에선 하루 한 번만 읽는다
+  if ((await kvGetRaw(env, `seen:${user.uid}`)) === kstDay) return;
+  await kvPut(env, `seen:${user.uid}`, kstDay);
 }
 
 async function copyKey(env, from, to, opts) {

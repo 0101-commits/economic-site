@@ -29,7 +29,7 @@
  *    이 경우 GH_DISPATCH_TOKEN 은 Contents:RW 가 필요해 사실상 과권한 — 분리 토큰 설정을 권장한다.
  *  모든 토큰은 Worker 시크릿(wrangler secret put …)에만 보관하며, 코드/저장소에 하드코딩 금지.
  */
-import { resolveUser, touchSeen, normalizeEntryKey, getOwner, setUserKeyHash, _clearUserCache } from './users.js';
+import { resolveUser, touchSeen, normalizeEntryKey, getOwner, setUserKeyHash, hexEq, _clearUserCache } from './users.js';
 
 // 허용 호스트 — 대시보드가 실제로 호출하는 금융 데이터 출처만.
 const ALLOWED_HOSTS = [
@@ -452,7 +452,7 @@ async function handleAiSummary(request, env, ctx) {
     return jsonResponse({ error: 'payload_too_deep' }, 400);
   }
   const snapshot = payload.snapshot || payload || {};
-  // 멤버(주인·legacy 아님)는 하루 30회 — 사용자 기록(aiDay·aiCount)에 센다. 한도 초과면 모델을 부르지 않는다.
+  // 멤버(주인·legacy 아님)는 하루 30회 — 자기 칸 aiq:<uid> 에 센다. 한도 초과면 모델을 부르지 않는다.
   const quota = await _consumeAiQuota(env, auth.user);
   if (quota) return quota;
 
@@ -826,8 +826,9 @@ async function handlePortfolioGet(request, env, ctx) {
   const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx);
   if (auth.resp) return auth.resp;
   const user = auth.user;
-  let cfgRes;
-  try { cfgRes = await _readAlertsConfig(env); }
+  let cfgRes = { found: false, cfg: null };
+  // 알림 설정은 주인의 공개 파일이라 멤버에겐 GitHub 읽기 자체를 하지 않는다(GitHub 장애가 멤버에게 번지지 않게).
+  if (_isOwnerLike(user)) try { cfgRes = await _readAlertsConfig(env); }
   catch (e) { return jsonResponse({ error: 'github_read_failed', detail: String((e && e.message) || e) }, 502); }
   const { found, cfg } = cfgRes;
   let encHoldings = null;
@@ -888,6 +889,11 @@ async function _authUser(request, env, keyHashIn, ctx) {
     r = _hexEq(keyHash, legacy)
       ? { user: { uid: keyHash.slice(0, 16), role: 'owner', status: 'active', name: '마스터', legacy: true } }
       : { status: 401, error: 'unauthorized' };
+  } else if (!HEX64.test(keyHash)) {
+    // 형식이 틀린 해시는 캐시를 건드리지 않고 거절한다(표 없고 옛 키도 없으면 옛 방식 503).
+    try { if (!legacy && !Array.isArray(await env.ECON_PORTFOLIO.get('users:index', 'json'))) return { resp: _noKeyConfigured() }; }
+    catch (_) { return { resp: jsonResponse({ error: 'kv_read_failed' }, 503) }; }
+    r = { status: 401, error: 'unauthorized' };
   } else {
     try {
       r = await resolveUser(env, keyHash, legacy);
@@ -906,17 +912,16 @@ const _holdKey = user => user.legacy ? ENC_HOLDINGS_KV_KEY : 'hold:' + user.uid;
 const _holdPrevKey = user => user.legacy ? ENC_HOLDINGS_PREV_KV_KEY : 'hold:' + user.uid + ':prev';
 const _isOwnerLike = user => user.legacy || user.role === 'owner';
 const AI_DAILY_QUOTA = 30;
-// 멤버 AI 하루 한도. 쓰기 직전에 사용자 기록을 다시 읽어 센다(동시 patch 를 덮지 않도록). 넘으면 429 Response, 아니면 null.
+// 멤버 AI 하루 한도 — user 기록은 건드리지 않고 aiq:<uid> = {day,count} (2일 뒤 저절로 사라짐)에만 센다. 넘으면 429 Response, 아니면 null.
 async function _consumeAiQuota(env, user) {
   if (_isOwnerLike(user)) return null;
   const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const k = 'aiq:' + user.uid;
   try {
-    const fresh = await env.ECON_PORTFOLIO.get('user:' + user.uid, 'json');
-    if (!fresh) return jsonResponse({ error: 'unauthorized' }, 401);
-    const used = fresh.aiDay === day ? (Number(fresh.aiCount) || 0) : 0;
+    const cur = await env.ECON_PORTFOLIO.get(k, 'json');
+    const used = cur && cur.day === day ? (Number(cur.count) || 0) : 0;
     if (used >= AI_DAILY_QUOTA) return jsonResponse({ error: 'ai_quota', limit: AI_DAILY_QUOTA }, 429);
-    fresh.aiDay = day; fresh.aiCount = used + 1;
-    await env.ECON_PORTFOLIO.put('user:' + user.uid, JSON.stringify(fresh));
+    await env.ECON_PORTFOLIO.put(k, JSON.stringify({ day, count: used + 1 }), { expirationTtl: 2 * 86400 });
   } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
   return null;
 }

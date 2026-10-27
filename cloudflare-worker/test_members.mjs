@@ -3,7 +3,7 @@
 // 실행: node cloudflare-worker/test_members.mjs
 import worker from './worker.js';
 import { createHash } from 'crypto';
-import { migrateOwner, createUser, patchUser, normalizeEntryKey, listUsers, _clearUserCache } from './users.js';
+import { migrateOwner, createUser, patchUser, normalizeEntryKey, listUsers, resolveUser, touchSeen, readSeen, _clearUserCache } from './users.js';
 
 const sha = s => createHash('sha256').update(s).digest('hex');
 const kv = new Map();
@@ -19,13 +19,16 @@ const env = {
 const KEY = sha('fake-secret-for-test');
 const h16 = KEY.slice(0, 16);
 
+let ghPuts = 0, ghGets = 0;
 const realFetch = globalThis.fetch;
 const ghFile = { version: 1, updatedAt: '2026-10-01T00:00:00Z', settings: { enabled: true, frequency: 'daily' },
   alerts: [{ id: 'a1', type: 'price_above', symbol: '^KS11', name: 'KOSPI', market: 'KR', value: 2900, enabled: true }], tracking: null };
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
   if (u.startsWith('https://api.github.com/repos/') && u.includes('/contents/')) {
+    if ((init.method || 'GET') === 'GET') ghGets++;
     if ((init.method || 'GET') === 'GET') return new Response(JSON.stringify({ sha: 'abc', content: Buffer.from(JSON.stringify(ghFile)).toString('base64') }), { status: 200 });
+    ghPuts++;
     return new Response(JSON.stringify({ content: { sha: 'def' } }), { status: 200 });
   }
   return realFetch(url, init);
@@ -90,6 +93,15 @@ check('A 보유 → hold:<uidA>', (await post('/portfolio', hA, { encHoldings: e
 check('hold:<uidA>', JSON.parse(kv.get('hold:' + A.user.uid)).ciphertext, 'Y3Q9');
 const ga = await call('GET', '/portfolio', { hash: hA });
 check('멤버 GET /portfolio 는 주인 알림을 안 받음', [ga.status, ga.j.alerts, ga.j.encHoldings.ciphertext], [200, [], 'Y3Q9']);
+ghPuts = 0; ghGets = 0;
+const gp = await post('/portfolio', hA, { encHoldings: enc(9), alerts: [{ id: 'z', type: 'price_above', symbol: 'X', name: 'X', market: 'KR', value: 1, enabled: true }], settings: { enabled: false }, tracking: { items: [] } });
+check('멤버 POST 에 alerts·settings·tracking 이 와도 committed:false', [gp.status, gp.j.committed], [200, false]);
+check('GitHub PUT 0회', ghPuts, 0);
+const ga2 = await call('GET', '/portfolio', { hash: hA });
+check('멤버 GET /portfolio alerts []', ga2.j.alerts, []);
+check('멤버 GET 은 GitHub 읽기도 안 함', ghGets, 0);
+check('주인 GET 은 GitHub 읽음', [(await call('GET', '/portfolio')).j.alerts.length, ghGets], [1, 1]);
+check('형식 틀린 해시 401', (await call('GET', '/prefs', { hash: 'zz' })).status, 401);
 check('멤버 /portfolio/test 403', (await post('/portfolio/test', hA, {})).status, 403);
 check('멤버 푸시 공간 분리', (await call('GET', '/push/subscribe', { hash: hB })).j.count, 0);
 
@@ -98,6 +110,26 @@ await patchUser(env, B.user.uid, { status: 'paused' });
 const pb = await call('GET', '/prefs', { hash: hB });
 check('B 403 paused', [pb.status, pb.j], [403, { error: 'paused' }]);
 check('멈춘 B /ai 403', (await post('/ai', hB, { snapshot: {} })).status, 403);
+{
+  // 주인이 멈춘 뒤에도 멤버의 뜨거운 경로(/ai · touchSeen)가 user 기록을 되살리지 않는다.
+  const C = await createUser(env, { name: '병' }), hC = sha(normalizeEntryKey(C.key));
+  _clearUserCache();
+  const r1 = await resolveUser(env, hC, KEY);
+  await patchUser(env, C.user.uid, { status: 'paused' });
+  await touchSeen(env, r1.user, kstDay);
+  const stale = { ...C.user };
+  await touchSeen(env, stale, kstDay);
+  check('멈춘 뒤 touchSeen 해도 paused 유지', (await KV.get('user:' + C.user.uid, 'json')).status, 'paused');
+  check('seen:<uid> 에 접속일', await readSeen(env, C.user.uid), kstDay);
+  const h = await call('GET', '/prefs', { hash: hC });
+  check('멈춘 C 는 403', h.status, 403);
+  await patchUser(env, C.user.uid, { status: 'active' });
+  await post('/ai', hC, { snapshot: {} });
+  await patchUser(env, C.user.uid, { status: 'paused' });
+  await post('/ai', hC, { snapshot: {} });
+  const rc = await KV.get('user:' + C.user.uid, 'json');
+  check('/ai 를 거쳐도 user 기록은 paused · aiDay/aiCount 없음', [rc.status, 'aiDay' in rc, 'aiCount' in rc, 'lastSeenDay' in rc], ['paused', false, false, false]);
+}
 
 console.log('AI 하루 30회');
 aiCalls = 0;
@@ -107,8 +139,8 @@ check('멤버 30번째 200', last.status, 200);
 const over = await post('/ai', hA, { snapshot: { n: 31 } });
 check('멤버 31번째 429 ai_quota', [over.status, over.j.error], [429, 'ai_quota']);
 check('31번째엔 모델을 안 부름', aiCalls, 30);
-const rec = (await listUsers(env)).find(u => u.uid === A.user.uid);
-check('사용자 기록에 세어 둠', [rec.aiDay, rec.aiCount], [kstDay, 30]);
+check('aiq:<uid> 에 세어 둠', JSON.parse(kv.get('aiq:' + A.user.uid)), { day: kstDay, count: 30 });
+check('user 기록엔 안 씀', (await listUsers(env)).find(u => u.uid === A.user.uid).aiCount, undefined);
 let own; for (let i = 0; i < 31; i++) own = await post('/ai', KEY, { snapshot: { n: i } });
 check('주인 31번째 통과', own.status, 200);
 
