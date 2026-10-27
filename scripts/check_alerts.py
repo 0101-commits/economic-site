@@ -1196,6 +1196,9 @@ def _check_prefs(state, now, snaps, cfg):
     prev = state.get("_prefs") or {}
     ids = {str(a["id"]) for a in conds}
     # 지운 조건의 기록만 정리한다. 꺼 둔 조건은 남긴다 — 껐다 켠다고 once 가 다시 울리지 않게.
+    # ⚠ 마스터 조건 id 만 남긴다 — 멤버 기록(키 = HMAC(uid:조건 id), 알림 v2 subscribe.state_key)도 여기서 지워진다.
+    #   이 경로는 ALERTS_V2 != '1' 일 때만 돈다(stock-alerts.yml). ALERTS_V2=0 으로 되돌리면 멤버의 넘는 순간 쪽 · 「한 번」
+    #   멈춤 · 하루 울림 수가 사라져, 다시 1 로 켰을 때 멤버 U1 은 첫 관측(무음)부터, 「한 번」 조건은 다시 울릴 수 있다.
     st = {k: dict(v) for k, v in prev.items() if k in ids and isinstance(v, dict)}
     today = _daily_key("KR", now)
     live = [a for a in conds if a.get("enabled") is True]

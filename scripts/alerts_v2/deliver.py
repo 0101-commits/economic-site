@@ -8,6 +8,8 @@
       소리는 안 나고 「나와의 채팅」에 쌓인다(울림은 푸시가 맡는다).
       카드 PNG 는 cards.event_card_png(물결 B3) — 없으면 send_card 가 텍스트로 내려가며 경고를 남긴다.
 두 채널은 서로 독립 — 하나가 실패해도 나머지는 보내고, 결과는 각각 sent 에 적는다.
+멤버(2026-10-27): send_member = 푸시만(큐 항목에 uid), 공개 원장 손대지 않음. 멤버 사용자 조건의 발송 기록은
+      post_fired(Worker POST /fired) — 공개 원장(events/)에 멤버 행을 쓰지 않는다.
 """
 from __future__ import annotations
 
@@ -51,10 +53,13 @@ def enqueue_push(items: list[dict], path: str = PUSH_QUEUE_PATH) -> bool:
 
 def push_item(s: Send) -> dict:
     r = s.row
-    return {"id": r["key"], "title": r["title"], "body": r.get("why", "") + ("\n" + r["next"] if r.get("next") else ""),
+    item = {"id": r["key"], "title": r["title"], "body": r.get("why", "") + ("\n" + r["next"] if r.get("next") else ""),
             "url": abs_url(r.get("url", "#/alerts")), "ts": r.get("ts"),
             "level": s.level, "requireInteraction": s.level == "alarm",
             "pierceQuiet": s.level == "alarm"}   # 조용한 시간에 나간 경보 = 「경보는 조용한 시간에도 울리기」(편성이 이미 골랐다)
+    if getattr(s, "uid", None):
+        item["uid"] = s.uid                      # 받을 사람 — send_push 가 그 사람 구독에만(없으면 마스터에게만)
+    return item
 
 
 # ---------- 카톡 ----------
@@ -200,6 +205,62 @@ def send(s: Send, ledger, ctx, log=print, queue_path: str = PUSH_QUEUE_PATH) -> 
         ledger.update_sent(s.row["key"], **res)
     log(f"[v2 send] {s} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']}")
     return res
+
+
+# ---------- 멤버 ----------
+FIRED_TIMEOUT = 10
+FIRED_TITLE_MAX = 120                    # Worker FIRED_ITEM_MAX(2048 바이트) 안으로
+
+
+def send_member(s: Send, uid: str, log=print, queue_path: str | None = None) -> dict:
+    """멤버 한 통 — 푸시만(카톡은 마스터 계정 「나와의 채팅」이라 멤버에게 못 보낸다). 공개 원장은 건드리지 않는다
+    (원장 sent 는 마스터 발송 기록이고 하루 상한 · 쿨다운이 그것을 센다). 조용한 시간 보류는 푸시 없음.
+    로그는 남기지 않는다 — 공개 Actions 로그에 멤버의 제목(종목 · 값)이 찍히지 않게(호출 쪽이 수만 센다)."""
+    res = {"push": 0, "held": bool(s.held)}
+    if s.held:
+        return res
+    item = push_item(s)
+    item["uid"] = uid
+    res["push"] = 1 if enqueue_push([item], queue_path or PUSH_QUEUE_PATH) else 0
+    return res
+
+
+def fired_item(row: dict, level: str, held: bool = False) -> dict:
+    """/fired 에 남길 한 건 — 앱 「받은 알림」이 그리는 만큼만(임계값 없음)."""
+    return {"id": row.get("key"), "event": row.get("event"), "cond": row.get("cond"), "level": level,
+            "title": str(row.get("title") or "")[:FIRED_TITLE_MAX], "url": row.get("url") or "#/alerts",
+            "ts": row.get("ts"), "held": bool(held)}
+
+
+def post_fired(uid: str, item: dict, log=print) -> bool:
+    """멤버 사용자 조건 발송 기록 → Worker POST /fired {uid, item}(머리 X-Push-Write-Key = 시크릿 PUSH_WRITE_KEY).
+    공개 원장(events/)에 멤버 행을 쓰지 않는 대신 이 사람 칸 fired:<uid> 에 남긴다. 키가 없거나 실패해도 발송은 그대로 —
+    uid · 키 없는 로그 한 줄만. 리다이렉트는 따라가지 않는다(prefs_client 와 같은 이유: 쓰기 키가 다른 호스트로 새지 않게)."""
+    secret = os.environ.get("PUSH_WRITE_KEY", "").strip()
+    if not secret:
+        log("[v2] PUSH_WRITE_KEY 없음 — 멤버 발송 기록(/fired) 건너뜀")
+        return False
+    import urllib.error
+    import urllib.request
+
+    import prefs_client
+    from .subscribe import PREFS_URL
+    body = json.dumps({"uid": uid, "item": item}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(PREFS_URL.rstrip("/") + "/fired", data=body, method="POST",
+                                 headers={"X-Push-Write-Key": secret, "Content-Type": "application/json",
+                                          "Accept": "application/json", "User-Agent": "econ-alerts/1"})
+    try:
+        with prefs_client._OPENER.open(req, timeout=FIRED_TIMEOUT) as r:
+            ok = 200 <= int(getattr(r, "status", 200)) < 300
+    except urllib.error.HTTPError as e:
+        log(f"[v2] 멤버 발송 기록(/fired) 실패 — HTTP {e.code}")
+        return False
+    except Exception as e:                                   # noqa: BLE001 — 네트워크 · 시간 초과 전부 같은 처리
+        log(f"[v2] 멤버 발송 기록(/fired) 실패 — {type(e).__name__}")
+        return False
+    if not ok:
+        log("[v2] 멤버 발송 기록(/fired) 실패 — 응답 코드")
+    return ok
 
 
 def held_rows(ledger) -> list[dict]:

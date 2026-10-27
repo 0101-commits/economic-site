@@ -108,6 +108,7 @@ class Context:
     _stocks: dict = field(default_factory=dict)      # 종목 → 값 칸(None = 장 밖 · 휴장 · 조회 실패), 한 런 캐시
     _snaps: dict = field(default_factory=dict)       # 종목 → check_alerts 스냅샷(None = 실패), 한 런 캐시
     _stock_rows: dict | None = None                  # 묶음의 종목 행(값은 오늘 live 칸만) — 처음 물을 때 만든다
+    redact_codes: bool = False                       # 참 = 멤버 판정 중 — 종목 조회 실패 로그에 코드를 찍지 않는다(run._pipeline_b)
 
     @classmethod
     def load(cls, now: dt.datetime | None = None, root: str = ROOT) -> "Context":
@@ -300,7 +301,10 @@ class Context:
                 sn, why = None, "휴장 · 묵은 시세"
             elif sn and (sn["price"] <= 0 or abs(sn.get("pct") or 0) > sane):
                 sn, why = None, f"오염 의심 {sn['price']} {sn.get('pct')}%"
-            if sn is None:
+            if sn is None and self.redact_codes:
+                # 멤버 조건이 물은 종목 — 공개 Actions 로그에 멤버의 종목 코드 · 가격이 찍히지 않게 코드 · 사유 없이
+                print("[v2] 종목 시세 없음 1건(멤버 조건 · 종목 숨김) — 이 종목만 건너뜀")
+            elif sn is None:
                 print(f"[v2] 종목 시세 없음 {t}({why or '조회 실패'}) — 이 종목만 건너뜀")
             self._snaps[t] = sn
         return self._snaps[t]

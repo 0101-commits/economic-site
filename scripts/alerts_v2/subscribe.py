@@ -8,6 +8,9 @@ ALERTS_STATE_SALT HMAC 12자, 소금이 없으면 사용자 조건은 통째로 
 U1 은 넘는 순간만 울린다(2026-10-09 사용자 결정) — 직전 쪽은 공개 파일 alerts_state.json._prefs[조건 id].side 한 글자
 (u 임계 위 · d 아래)로만 남기고, 임계 · 값은 남기지 않는다. 사용자 조건은 그 파일을 커밋하는 런(stock-alerts 의 light)만 본다.
 쪽(관측)과 울림 기록(ts · fired)은 따로 — 울림 기록은 원장에 들어가 실제로 나간 행만(mark_sent).
+사람별(2026-10-27 멤버): 공개 기록 키는 state_key — 마스터는 조건 id 그대로(지금 키), 멤버는 HMAC(uid:조건 id).
+멤버 사용자 조건 행은 공개 원장에 넣지 않으므로 같은 발생 · 쿨다운을 그 기록의 keys(발생 HMAC) · ts · fd(방향 한 글자)로 본다
+(member_fresh · mark_member). 멤버 하루 울림 수는 state_key(uid, member, "@day") 한 칸({d: 날짜, n: 수}).
 """
 from __future__ import annotations
 
@@ -139,6 +142,19 @@ def hmac_key(raw: str, salt: bytes | None = None) -> str | None:
     return hmac.new(salt, raw.encode("utf-8"), hashlib.sha256).hexdigest()[:12]
 
 
+DAY_SLOT = "@day"                                   # 멤버 하루 울림 수 칸의 이름(state_key 로 HMAC 된다 — 조건 id 와 겹치지 않는 글자)
+MEMBER_KEYS_KEEP = 5                                # 멤버 조건 기록에 남기는 발생 HMAC 수
+
+
+def state_key(uid: str, role: str, cond_id: str) -> str | None:
+    """공개 alerts_state.json._prefs 의 키. 마스터 = 조건 id 그대로(지금 키 — 바뀌면 쪽 · 울림 기록이 끊긴다),
+    멤버 = HMAC(ALERTS_STATE_SALT, uid:조건 id) 12자 — 공개 파일에 멤버의 uid · 조건 id 원문이 남지 않는다.
+    소금이 없으면 멤버 키는 None(그 멤버의 사용자 조건은 판정하지 않는다)."""
+    if role == "owner":
+        return cond_id
+    return hmac_key(f"{uid}:{cond_id}")
+
+
 def _sec(iso) -> float:
     """ISO 시각 → 초. 화면 armedAt 은 UTC(Z), 원장 ts 는 KST(+09:00)라 글자로 견주면 9시간 어긋난다. 못 읽으면 0."""
     try:
@@ -181,6 +197,60 @@ def mark_sent(sides: dict | None, prefs: dict | None, rows: list[dict], ledger, 
         sides[r["cond"]] = rec
 
 
+def _occ(row: dict) -> str:
+    """사용자 조건 행 key 의 끝 칸 = 발생 HMAC(조건 id · armedAt · 기준일 · 방향, 소금 HMAC 12자)."""
+    return str(row.get("key") or "").rsplit(":", 1)[-1]
+
+
+def _fd(direction) -> str:
+    return "d" if direction == "down" else "u"
+
+
+def member_fresh(rows: list[dict], prefs: dict | None, sides: dict | None, key, events_by_id: dict | None,
+                 now: dt.datetime) -> list[dict]:
+    """멤버 사용자 조건 행 거르기 — 공개 원장에 넣지 않으므로 원장 키(같은 발생 한 번) · 원장 쿨다운 대신
+    공개 기록 sides[key(조건 id)] 의 keys(최근 발생 HMAC) · ts · fd(마지막 울림 방향)로 막는다.
+    쿨다운 = 사전 cooldown.days 안에 같은 방향으로 울렸으면(다시 켠 armedAt 뒤의 울림만 센다). 남의 행(공개 원장)은 안 본다."""
+    conds = {a.get("id"): a for a in (prefs or {}).get("alerts") or [] if isinstance(a, dict)}
+    out = []
+    for r in rows:
+        rec = (sides or {}).get(key(r.get("cond")))
+        rec = rec if isinstance(rec, dict) else {}
+        if _occ(r) in (rec.get("keys") or []):
+            continue
+        days = int((((events_by_id or {}).get(r.get("event")) or {}).get("cooldown") or {}).get("days") or 0)
+        c = conds.get(r.get("cond")) or {}
+        armed = _sec(c["armedAt"]) if c.get("armedAt") else 0.0
+        ts = rec.get("ts")
+        if (days > 0 and isinstance(ts, (int, float)) and ts > armed and rec.get("fd") == _fd(r.get("dir"))
+                and now.timestamp() - ts < days * 86400):
+            continue
+        out.append(r)
+    return out
+
+
+def mark_member(sides: dict | None, prefs: dict | None, rows: list[dict], sent_keys: set, now: dt.datetime,
+                key) -> None:
+    """멤버 판 mark_sent — 원장이 없으니 실제로 나간 행(sent_keys: 푸시 큐 적재 또는 조용한 시간 보류)만 공개 기록에
+    ts · fd · keys(발생 HMAC 최근 MEMBER_KEYS_KEEP 개) · 「한 번」 fired 를 남긴다. 값 · 임계 · 대상은 남기지 않는다."""
+    if sides is None:
+        return
+    once = {a.get("id") for a in (prefs or {}).get("alerts") or [] if a.get("repeat") == "once"}
+    for r in rows:
+        if r.get("key") not in sent_keys:
+            continue
+        k = key(r["cond"])
+        if not k:
+            continue
+        rec = dict(sides[k]) if isinstance(sides.get(k), dict) else {}
+        rec["ts"] = int(now.timestamp())
+        rec["fd"] = _fd(r.get("dir"))
+        rec["keys"] = ([x for x in rec.get("keys") or [] if isinstance(x, str)] + [_occ(r)])[-MEMBER_KEYS_KEEP:]
+        if r["cond"] in once:
+            rec["fired"] = True
+        sides[k] = rec
+
+
 def _stock_b1(ctx, target: str, want: str | None):
     """종목 52주 신고 · 신저 — 사전 B1 의 판정 함수(high52)를 그 종목 하나에 그대로 쓴다(일봉 = 옛 종목 알림의 1년 일봉).
     → (Hit 또는 None, 사전 B1 행). 조건에 방향(dir)이 있으면 그 방향만."""
@@ -191,14 +261,16 @@ def _stock_b1(ctx, target: str, want: str | None):
 
 
 def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=print,
-              sides: dict | None = None) -> list[Row]:
+              sides: dict | None = None, key=None) -> list[Row]:
     """U1 · U2 · 종목 B1 판정 → 원장 행(아직 원장엔 안 넣음). 소금 없으면 빈 목록.
 
-    sides = alerts_state.json._prefs(조건 id → {side?, at?, ts?, fired?}) — U1 의 직전 쪽은 그 자리에서 고친다.
+    sides = alerts_state.json._prefs(키 → {side?, at?, ts?, fired?}) — U1 의 직전 쪽은 그 자리에서 고친다.
+    key = 조건 id → 공개 기록 키(state_key). 없으면 조건 id 그대로(마스터).
     U1 은 직전 쪽이 반대편이었다가 이번에 임계를 넘었을 때만 울린다. 처음 보는 조건 · 깨진 기록은 지금 쪽만 남긴다.
     sides 가 None 이면(깨진 파일) U1 은 보지 않는다. U2 · B1 은 하루 한 번(원장 키). 울림 기록(ts · fired)은 mark_sent."""
     if not prefs:
         return []
+    key = key or (lambda cid: cid)
     salt = _salt()
     conds = [a for a in prefs.get("alerts") or [] if a.get("enabled", True)
              and (a.get("event") in ("U1", "U2") or (a.get("event") == "B1" and is_stock(a.get("target"))))]
@@ -212,7 +284,7 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
         thr = c.get("value")
         if not target or (thr is None and c["event"] != "B1"):
             continue
-        rec = (sides or {}).get(c.get("id"))
+        rec = (sides or {}).get(key(c.get("id")))
         rec = rec if isinstance(rec, dict) else {}
         if c.get("repeat") == "once" and _fired_after_arm(c, history, rec):
             continue
@@ -238,7 +310,7 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
                 # 직전 쪽으로 본다(없으면 첫 관측 무음). at = 이 기록이 그 켜기를 반영한 때
                 prev, new["at"] = c.get("armSide"), max(int(ctx.now.timestamp()), armed)
             crossed = met and prev in ("u", "d") and prev != side
-            sides[c["id"]] = new
+            sides[key(c["id"])] = new
             if crossed:
                 hit = Hit(target=target, dir=d, value=val, unit="", asOf=ctx.as_of(target), fresh=ctx.fresh(target),
                           chg=chg, fields={"dir_ko": U1_DIR_KO[d]})
@@ -304,7 +376,16 @@ def strength_ok(row: dict, ev: dict, override: dict | None) -> bool:
     return abs(float(chg)) >= thr
 
 
-def match(rows: list[dict], ctx, prefs: dict | None = None, events_by_id: dict | None = None) -> list[Decision]:
+def match(rows: list[dict], ctx, prefs: dict | None = None, events_by_id: dict | None = None,
+          uid: str | None = None, role: str | None = None) -> list[Decision]:
+    """원장 행 × 한 사람의 설정 → Decision(그 사람 uid · role 을 단다)."""
+    out = _match(rows, prefs, events_by_id)
+    for d in out:
+        d.uid, d.role = uid, role
+    return out
+
+
+def _match(rows: list[dict], prefs: dict | None, events_by_id: dict | None) -> list[Decision]:
     settings = dict(DEFAULT_SETTINGS)
     settings.update((prefs or {}).get("settings") or {})
     package = settings.get("package") if settings.get("package") in PACKAGES else "normal"
