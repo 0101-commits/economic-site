@@ -219,20 +219,32 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 
 #### 마스터 예비 키도 잃었을 때
 
-마스터 입장 키와 예비 키를 둘 다 잃으면 사이트에서는 들어갈 길이 없습니다. 새 키를 하나 정해 사람 표의 마스터 `uid` 에 직접 연결합니다.
+마스터 입장 키와 예비 키를 둘 다 잃으면 사이트에서는 들어갈 길이 없습니다. 새 키를 하나 정해 마스터 `uid` 에 직접 연결합니다.
+이 키는 **임시**입니다. 아래 「필수 마무리」로 반드시 폐기합니다. 안 지우면 이 키가 영구 마스터 키로 남습니다.
 
 ```sh
-# 1) 새 키의 해시 계산 — ECOM-XXXX-XXXX-XXXX 모양이 아니어도 되지만 12자 이상으로 정합니다
+# 1) 새 키의 해시 계산 — ECOM-XXXX-XXXX-XXXX 형식(대문자·하이픈)으로 정합니다
 node -e "console.log(require('crypto').createHash('sha256').update(process.argv[1].trim()).digest('hex'))" "ECOM-ABCD-2345-WXYZ"
 # 2) 마스터 uid 찾기 — users:index 의 uid 중 user:<uid> 의 role 이 owner 인 칸
 npx wrangler kv key get  --binding ECON_PORTFOLIO --remote users:index
 npx wrangler kv key get  --binding ECON_PORTFOLIO --remote "user:<uid>"
 # 3) 새 키 해시가 마스터 uid 를 가리키게 쓰기 (1 에서 나온 해시 그대로)
 npx wrangler kv key put  --binding ECON_PORTFOLIO --remote "ukey:<1 에서 나온 해시>" "<마스터 uid>"
+# 4) 2 에서 읽은 user:<uid> JSON 의 backupKeyHash 만 1 의 해시로 바꿔 다시 저장
+#    (쓰기는 기록의 keyHash·backupKeyHash 와 같은 키로만 통과합니다)
+npx wrangler kv key put  --binding ECON_PORTFOLIO --remote "user:<uid>" '<backupKeyHash 만 바꾼 JSON 한 줄>'
 ```
 
-이 새 키로 사이트에 들어가 「예비 키 발급」을 다시 하고, 쓴 키는 따로 보관합니다. 같은 `ukey:` 칸을 지우면(`kv key delete`) 그 키는 즉시 막힙니다.
-입장 키 모양이 `ECOM-` 형식이면 해시 전에 대문자·하이픈 정리(`ECOM-XXXX-XXXX-XXXX`)가 서버와 같아야 하므로 형식 그대로 넣습니다. 서버 캐시는 최대 60초 뒤 반영됩니다.
+(위 `<…>` 자리는 실제 값으로 바꿔 입력합니다. 그대로 실행하면 이름이 `<…>` 인 쓸모없는 칸이 만들어집니다.)
+
+**필수 마무리 — 임시 키 폐기 (모두 반드시)**
+
+1. 임시 키로 사이트에 들어가 마스터 키를 바꿉니다: `POST /admin/users/<마스터 uid>/rekey` (또는 「멤버 관리」 화면). 새 키는 따로 보관합니다.
+2. 예비 키를 새로 발급합니다: `POST /admin/backup-key`. 이때 옛 예비 키(= 임시 키)의 `ukey:` 칸도 함께 지워집니다.
+3. 남아 있지 않은지 확인하며 직접 지웁니다(이미 없어도 무방):
+   `npx wrangler kv key delete --binding ECON_PORTFOLIO --remote "ukey:<1 에서 나온 해시>"`
+
+변경은 서버 캐시와 KV 전파 때문에 약 60초 안에 반영됩니다(쓰기는 곧바로 막히지만 읽기는 그 사이 통과할 수 있습니다).
 
 ### KV 키 형식(`ECON_PORTFOLIO`, id `49d7bd1ee2874995a7bf0439c4e297b3`)
 

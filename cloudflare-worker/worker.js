@@ -439,7 +439,7 @@ async function handleAiSummary(request, env, ctx) {
   // [A1] /ai 도 sync-key 인증 — LLM 비용 경로 무단 사용(특히 Origin 없는 서버측 호출)을 차단.
   //   keyHash 는 본문(payload.keyHash, SHA-256 hex)으로 받는다. 키 미설정→503, 불일치→401.
   //   (프론트 호출처: 대시보드 AI 브리핑 하단 질문창(aiQaAsk) — 동기화 키 보유 기기 전용.)
-  const auth = await _authUser(request, env, payload && payload.keyHash, ctx);
+  const auth = await _authUser(request, env, payload && payload.keyHash, ctx, true);
   if (auth.resp) return auth.resp;
   // (a) 최상위 키 개수 제한 — 정상 페이로드는 snapshot/model/geminiModel/cfModel/keyHash 등 소수 키뿐.
   if (Object.keys(payload).length > 20) return jsonResponse({ error: 'too_many_fields' }, 400);
@@ -879,7 +879,20 @@ function _noKeyConfigured() {
              'wrangler secret put ALERTS_SYNC_KEY 로 설정 후 프론트 🔑 버튼에 동일 키를 입력하세요.',
   }, 503);
 }
-async function _authUser(request, env, keyHashIn, ctx) {
+// 쓰기 직전 재확인 — 캐시(최대 60초)가 방금 지운·멈춘·키를 바꾼 사람의 쓰기를 통과시키지 않게, user 기록을 캐시 없이 다시 읽어
+//   기록이 있고 · active 이고 · 내민 키 해시가 keyHash 또는 backupKeyHash 와 같은지(상수 시간) 본다. 아니면 resolver 와 같은 401/403.
+async function _freshWriteCheck(env, user, keyHash) {
+  let rec;
+  try { rec = await env.ECON_PORTFOLIO.get('user:' + user.uid, 'json'); }
+  catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
+  if (!rec) return jsonResponse({ error: 'unauthorized' }, 401);
+  if (rec.status === 'paused') return jsonResponse({ error: 'paused' }, 403);
+  if (rec.status !== 'active') return jsonResponse({ error: 'unauthorized' }, 401);
+  const ok = (typeof rec.keyHash === 'string' && _hexEq(keyHash, rec.keyHash)) ||
+             (typeof rec.backupKeyHash === 'string' && _hexEq(keyHash, rec.backupKeyHash));
+  return ok ? null : jsonResponse({ error: 'unauthorized' }, 401);
+}
+async function _authUser(request, env, keyHashIn, ctx, write) {
   const keyHash = String(keyHashIn || '').toLowerCase();
   let legacy;
   try { legacy = env ? await _expectedSyncKeyHash(env) : ''; }
@@ -903,6 +916,10 @@ async function _authUser(request, env, keyHashIn, ctx) {
     } catch (_) { return { resp: jsonResponse({ error: 'kv_read_failed' }, 503) }; }
   }
   if (!r.user) return { resp: jsonResponse({ error: r.error || 'unauthorized' }, r.status || 401) };
+  if (write && !r.user.legacy) {
+    const bad = await _freshWriteCheck(env, r.user, keyHash);
+    if (bad) return { resp: bad };
+  }
   if (!r.user.legacy && ctx && ctx.waitUntil) {
     ctx.waitUntil(touchSeen(env, r.user, new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)).catch(() => {}));
   }
@@ -952,7 +969,7 @@ async function handleSyncKey(request, env, ctx) {
   const cur = typeof body.currentKey === 'string' ? normalizeEntryKey(body.currentKey) : '';
   const nk = typeof body.newKey === 'string' ? normalizeEntryKey(body.newKey) : '';
   const oh = cur ? await _sha256Hex(cur) : '';
-  const auth = await _authUser(request, env, oh, ctx);
+  const auth = await _authUser(request, env, oh, ctx, true);
   if (auth.resp) return auth.resp;
   if (nk.length < 12 || nk === cur) return jsonResponse({ error: 'weak_new_key' }, 400);
   if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
@@ -983,7 +1000,7 @@ async function handlePortfolioPost(request, env, ctx) {
   if (raw.length > 120000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let body;
   try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
-  const auth = await _authUser(request, env, body && body.keyHash, ctx);
+  const auth = await _authUser(request, env, body && body.keyHash, ctx, true);
   if (auth.resp) return auth.resp;
   const user = auth.user;
   // 🔔 알림 조건 — body.alerts 가 배열로 '있을 때만' 갱신, 없으면 기존 저장본을 보존(settings·tracking 과 같은 원칙).
@@ -1236,7 +1253,7 @@ function _sanitizePushSub(raw) {
 
 // 인증(_authUser) 뒤 이 사용자 공간의 KV 키를 정한다(legacy = 키 해시 앞 16자, 사람 표 = uid). 인증된 사용자만 쓰이므로 공간이 섞이지 않는다.
 async function _userKvKey(request, env, prefix, ctx) {
-  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx);
+  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx, request.method !== 'GET');
   if (auth.resp) return { denied: auth.resp };
   if (!env.ECON_PORTFOLIO) return { denied: jsonResponse({ error: 'kv_not_configured' }, 503) };
   return { kvKey: prefix + _space(auth.user), user: auth.user };
@@ -1462,7 +1479,7 @@ async function handleMemberRoute(request, env, path, ctx) {
 
 async function _memberRoute(request, env, path, ctx) {
   const method = request.method;
-  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx);
+  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx, method !== 'GET');
   if (auth.resp) return auth.resp;
   if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
   const user = auth.user;
@@ -1550,14 +1567,14 @@ async function handleMigrate(request, env) {
   if (request.method !== 'POST') return jsonResponse({ error: 'method_not_allowed', allow: ['POST'] }, 405, _NC);
   const secret = String(env.PUSH_READ_KEY || '').trim();
   if (!secret) return jsonResponse({ error: 'push_read_not_configured' }, 503, _NC);
-  const hdrOk = _hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret);
+  // 머리가 틀리면 본문·KV 를 읽기 전에 거절한다.
+  if (!_hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret)) return jsonResponse({ error: 'unauthorized' }, 401, _NC);
   const b = await _readJsonBody(request, 4096);
-  if (b.err) return b.err;
+  if (b.err) return _withCors(b.err, _NC);
   let legacy = '';
   try { legacy = await _expectedSyncKeyHash(env); } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
   const kh = _isObj(b.body) && typeof b.body.keyHash === 'string' ? b.body.keyHash.toLowerCase() : '';
-  const bodyOk = !!legacy && _hexEq(kh, legacy);
-  if (!hdrOk || !bodyOk) return jsonResponse({ error: 'unauthorized' }, 401, _NC);
+  if (!legacy || !_hexEq(kh, legacy)) return jsonResponse({ error: 'unauthorized' }, 401, _NC);
   if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, _NC);
   try { return jsonResponse(await migrateOwner(env, legacy), 200, _NC); }
   catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, _NC); }
@@ -1594,7 +1611,7 @@ async function handleFiredWrite(request, env) {
   if (!_hexEq(String(request.headers.get('X-Push-Write-Key') || '').trim(), secret)) return jsonResponse({ error: 'forbidden' }, 403, _NC);
   if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, _NC);
   const b = await _readJsonBody(request, 8192);
-  if (b.err) return b.err;
+  if (b.err) return _withCors(b.err, _NC);
   const uid = _isObj(b.body) ? b.body.uid : null, item = _isObj(b.body) ? b.body.item : null;
   if (typeof uid !== 'string' || !UID_RE.test(uid)) return jsonResponse({ error: 'not_found' }, 404, _NC);
   if (!_isObj(item) || Array.isArray(item)) return jsonResponse({ error: 'item_required' }, 400, _NC);
@@ -1603,6 +1620,7 @@ async function handleFiredWrite(request, env) {
     if (await getOwner(env)) {
       if (!(await env.ECON_PORTFOLIO.get('user:' + uid, 'json'))) return jsonResponse({ error: 'not_found' }, 404, _NC);
     } else {
+      if ((await env.ECON_PORTFOLIO.get('auth:migrated')) === '1') return jsonResponse({ error: 'users_index_missing' }, 503, _NC);   // 닫힌 채 실패
       const h = await _expectedSyncKeyHash(env);   // 이전 전 — 옛 공간(키 해시 앞 16자) 하나뿐
       if (!h || uid !== h.slice(0, 16)) return jsonResponse({ error: 'not_found' }, 404, _NC);
     }

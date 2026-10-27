@@ -205,6 +205,7 @@ export async function migrateOwner(env, legacyHash) {
   const h16 = legacyHash.slice(0, 16);
   await copyKey(env, `prefs:${h16}`, `prefs:${uid}`);
   await copyKey(env, `push:${h16}`, `push:${uid}`);
+  await copyKey(env, `fired:${h16}`, `fired:${uid}`);
   await copyKey(env, "portfolio:encHoldings", `hold:${uid}`);
   const kstNow = Date.now() + 9 * 3600 * 1000;
   for (let i = 0; i < 30; i++) {

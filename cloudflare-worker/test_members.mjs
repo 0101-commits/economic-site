@@ -237,6 +237,41 @@ console.log('새 경로 — /me · /admin/* · CI 복수 읽기 · /fired');
   check('51번 쓰면 50건 · 최신이 앞', [fl.j.items.length, fl.j.items[0].n, fl.j.items[49].n], [50, 51, 2]);
   check('멤버 GET /fired 는 자기 칸(비어 있음)', (await call('GET', '/fired', { hash: hM })).j, { items: [] });
 
+  console.log('  보강 — 캐시된 인증으로 쓰기 · 권한 상승 · 잘못된 uid');
+  {
+    // 사람 표를 날것 KV 로 고쳐 users.js 캐시를 비우지 않는다 = 다른 isolate 의 낡은 캐시를 흉내.
+    const D = await createUser(env, { name: '정' }), hD = sha(normalizeEntryKey(D.key));
+    const E = await createUser(env, { name: '무' }), hE = sha(normalizeEntryKey(E.key));
+    const F = await createUser(env, { name: '기' }), hF = sha(normalizeEntryKey(F.key));
+    for (const h of [hD, hE, hF]) await call('GET', '/prefs', { hash: h }); // 캐시 데우기
+    const putP = h => call('PUT', '/prefs', { hash: h, body: { watch: [{ id: '005930', kind: 'stock' }] } });
+    kv.delete('user:' + D.user.uid);
+    const rE = JSON.parse(kv.get('user:' + E.user.uid)); rE.status = 'paused'; kv.set('user:' + E.user.uid, JSON.stringify(rE));
+    const rF = JSON.parse(kv.get('user:' + F.user.uid)); rF.keyHash = 'f'.repeat(64); kv.set('user:' + F.user.uid, JSON.stringify(rF));
+    const wd = await putP(hD), we = await putP(hE), wf = await putP(hF);
+    check('지운 사람 PUT /prefs 401 · 칸 안 생김', [wd.status, kv.has('prefs:' + D.user.uid)], [401, false]);
+    check('멈춘 사람 PUT /prefs 403 · 칸 안 생김', [we.status, we.j.error, kv.has('prefs:' + E.user.uid)], [403, 'paused', false]);
+    check('키가 바뀐 사람 PUT /prefs 401', [wf.status, kv.has('prefs:' + F.user.uid)], [401, false]);
+    check('지운 사람 POST /portfolio 401', (await post('/portfolio', hD, { encHoldings: enc(5) })).status, 401);
+    check('멈춘 사람 POST /ai 403 · 모델 안 부름', await (async () => { aiCalls = 0; const r = await post('/ai', hE, { snapshot: {} }); return [r.status, aiCalls]; })(), [403, 0]);
+    check('지운 사람 PUT /push/subscribe 401', (await call('PUT', '/push/subscribe', { hash: hD, body: {} })).status, 401);
+    check('낡은 캐시여도 읽기는 통과(GET /prefs)', (await call('GET', '/prefs', { hash: hD })).status, 200);
+    kv.set('user:' + F.user.uid, JSON.stringify({ ...rF, keyHash: hF })); // 되돌림 — 같은 키면 쓰기 통과
+    check('제 키 해시가 기록과 같으면 PUT 통과', (await putP(hF)).status, 200);
+
+    const mem = await createUser(env, { name: '권' });
+    const pr = await call('PATCH', '/admin/users/' + mem.user.uid, { body: { role: 'owner', name: 'x' } });
+    check('PATCH role 은 무시 — 멤버 그대로', [pr.status, pr.j.user.role, pr.j.user.name, JSON.parse(kv.get('user:' + mem.user.uid)).role], [200, 'member', 'x', 'member']);
+    const before = kv.size;
+    for (const bad of ['a:b', '..', 'A_B']) {
+      const r = await fcall(WK, { uid: bad, item: { n: 1 } });
+      check(`/fired uid ${bad} 는 404 · KV 안 씀`, [r.status, kv.size], [404, before]);
+    }
+    const savedRead = env.PUSH_READ_KEY; delete env.PUSH_READ_KEY;
+    check('migrate 는 PUSH_READ_KEY 없으면 503', (await rawPost('/admin/migrate', {}, { keyHash: KEY })).status, 503);
+    env.PUSH_READ_KEY = savedRead;
+  }
+
   console.log('  사람 표 이전 전(legacy) 모양');
   const snap = new Map(kv);
   kv.clear(); _clearUserCache();
@@ -253,6 +288,7 @@ console.log('새 경로 — /me · /admin/* · CI 복수 읽기 · /fired');
   check('legacy GET /fired', (await call('GET', '/fired')).j.items.length, 1);
   const mig = await rawPost('/admin/migrate', RK, { keyHash: KEY });
   check('migrate 로 사람 표 생성', [mig.status, mig.j.created, kv.has('users:index')], [200, true, true]);
+  check('migrate 가 fired:<h16> → fired:<uid> 복사', JSON.parse(kv.get('fired:' + mig.j.uid)), [{ a: 1 }]);
   kv.clear(); for (const [k, v] of snap) kv.set(k, v); _clearUserCache();
 }
 
@@ -261,6 +297,12 @@ kv.delete('users:index');
 _clearUserCache();
 const gone = await call('GET', '/prefs');
 check('503 users_index_missing', [gone.status, gone.j.error], [503, 'users_index_missing']);
+{
+  const WK = { 'X-Push-Write-Key': 'fake-push-write-key' };
+  const f = await call('POST', '/fired', { hash: null, headers: WK, body: { uid: 'whoever1', item: { n: 1 } } });
+  check('index 없으면 POST /fired 503 users_index_missing', [f.status, f.j.error], [503, 'users_index_missing']);
+  delete env.PUSH_WRITE_KEY; // 이 시험이 켠 시크릿을 되돌림
+}
 
 if (fails) { console.log(`\n${fails}건 실패`); process.exit(1); }
 console.log('\n전부 통과');
