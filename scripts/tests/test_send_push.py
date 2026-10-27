@@ -67,7 +67,7 @@ def test_queue_parsing(write_queue):
     check("{items:[…]} 모양도 받음", [x["id"] for x in sp.load_queue()], ["d"])
     write_queue([{"id": str(i), "title": "t"} for i in range(30)])
     q = sp.load_queue()
-    check(f"상한 {sp.MAX_ITEMS}건 · 최신 것", (len(q), q[0]["id"], q[-1]["id"]), (sp.MAX_ITEMS, "10", "29"))
+    check("큐 읽기엔 상한 없음(사람마다 plan_deliveries 가 건다)", (len(q), q[0]["id"], q[-1]["id"]), (30, "0", "29"))
     p = json.loads(sp.payload({"id": "x" * 99, "title": "제" * 300, "body": "b", "url": "#/a", "ts": 5}))
     check("내용 자름", (len(p["id"]), len(p["title"]), p["url"], p["ts"]), (64, 120, "#/a", 5))
 
@@ -121,8 +121,14 @@ def push_main(monkeypatch, write_queue):
     m = M()
     m.http = []
     m.doc = {"subs": [sub(1), sub(2)], "quiet": None}
+    m.all_users = None          # None → /all 실패(옛 경로)  ·  목록이면 /push/subscriptions/all 이 그걸 준다
     m.write_queue = write_queue
-    monkeypatch.setattr(sp.requests, "get", lambda url, headers, timeout: (m.http.append(("GET", url, headers)), Resp(m.doc))[1])
+    def get(url, headers, timeout):
+        m.http.append(("GET", url, headers))
+        if url.endswith("/all"):
+            return Resp({"users": m.all_users}) if m.all_users is not None else Resp({"error": "x"}, 503)
+        return Resp(m.doc)
+    monkeypatch.setattr(sp.requests, "get", get)
     monkeypatch.setattr(sp.requests, "put", lambda url, headers, json, timeout: (
         m.http.append(("PUT", url, json)), Resp({"removed": len(json["endpoints"])}))[1])
     m.push, m.calls = fake_push({"2": 410})
@@ -148,10 +154,11 @@ def test_main_empty_queue_sends_nothing(push_main):
 def test_main_happy_path_sends_prunes_and_clears_queue(push_main):
     for k, v in ENV.items():
         push_main.monkeypatch.setenv(k, v)
+    push_main.all_users = [{"uid": "o" * 16, "role": "owner", "quiet": None, "subs": [sub(1), sub(2)]}]
     push_main.write_queue([{"id": "a", "title": "가"}])
     check("정상 → 0", sp.main(), 0)
-    check("구독 읽기 = 발송기 키 헤더", push_main.http[0], ("GET", "https://w.test/push/subscriptions", {"X-Push-Read-Key": "rk"}))
-    check("410 받은 구독 정리 요청", push_main.http[1], ("PUT", "https://w.test/push/prune", {"endpoints": [sub(2)["endpoint"]]}))
+    check("구독 읽기 = 발송기 키 헤더(/all 먼저)", push_main.http[0], ("GET", "https://w.test/push/subscriptions/all", {"X-Push-Read-Key": "rk"}))
+    check("410 받은 구독 정리 요청", push_main.http[-1], ("PUT", "https://w.test/push/prune", {"uid": "o" * 16, "endpoints": [sub(2)["endpoint"]]}))
     check("pywebpush 로 2대에 보냄", len(push_main.calls), 2)
     check("보낸 뒤 큐 비움", os.path.exists(sp.QUEUE), False)
 
@@ -159,7 +166,7 @@ def test_main_happy_path_sends_prunes_and_clears_queue(push_main):
 def test_main_quiet_hours_do_not_send_but_clear_queue(push_main):
     for k, v in ENV.items():
         push_main.monkeypatch.setenv(k, v)
-    push_main.doc["quiet"] = {"from": "00:00", "to": "23:59"}
+    push_main.all_users = [{"uid": "o" * 16, "role": "owner", "quiet": {"from": "00:00", "to": "23:59"}, "subs": [sub(1), sub(2)]}]
     push_main.write_queue([{"id": "a", "title": "가"}])
     check("조용한 시간 → 0 · 보내지 않음", (sp.main(), len(push_main.calls), [h[0] for h in push_main.http]), (0, 0, ["GET"]))
     check("조용한 시간에도 큐 비움", os.path.exists(sp.QUEUE), False)
@@ -170,7 +177,7 @@ def test_main_quiet_hours_let_alarm_through(push_main):
     디스코드 @everyone 이 밤 경보를 울리던 길이 없어져 푸시가 유일한 울림이다(2026-10-13)."""
     for k, v in ENV.items():
         push_main.monkeypatch.setenv(k, v)
-    push_main.doc["quiet"] = {"from": "00:00", "to": "23:59"}
+    push_main.all_users = [{"uid": "o" * 16, "role": "owner", "quiet": {"from": "00:00", "to": "23:59"}, "subs": [sub(1), sub(2)]}]
     push_main.write_queue([{"id": "a", "title": "알림"}, {"id": "b", "title": "경보", "pierceQuiet": True}])
     check("조용한 시간 경보 → 0", sp.main(), 0)
     check("경보만 보냄", sorted({json.loads(c["data"])["id"] for c in push_main.calls}), ["b"])
@@ -183,3 +190,109 @@ def test_main_subscription_list_401_sends_nothing(push_main):
     push_main.monkeypatch.setattr(sp.requests, "get", lambda url, headers, timeout: Resp({"error": "unauthorized"}, 401))
     push_main.write_queue([{"id": "a", "title": "가"}])
     check("구독 목록 401 → 0 · 발송 없음", (sp.main(), len(push_main.calls)), (0, 0))
+
+
+# ── 사람별 발송 (Task 14) ────────────────────────────────────────────────
+OWN, M1, M2 = "o" * 16, "a" * 16, "b" * 16
+NIGHT = {"from": "00:00", "to": "23:59"}          # 항상 조용한 시간
+
+
+def three(push_main, m1_quiet=None):
+    push_main.all_users = [
+        {"uid": OWN, "role": "owner", "quiet": None, "subs": [sub(1)]},
+        {"uid": M1, "role": "member", "quiet": m1_quiet, "subs": [sub(5), sub(6)]},
+        {"uid": M2, "role": "member", "quiet": None, "subs": [sub(7)]},
+    ]
+    for k, v in ENV.items():
+        push_main.monkeypatch.setenv(k, v)
+
+
+def by_ep(push_main):
+    out = {}
+    for c in push_main.calls:
+        out.setdefault(c["subscription_info"]["endpoint"][-2:], []).append(json.loads(c["data"])["title"])
+    return out
+
+
+def test_member_items_only_to_that_member(push_main):
+    three(push_main)
+    push_main.write_queue([{"id": "a", "uid": OWN, "title": "주인"}, {"id": "b", "uid": M1, "title": "멤버1"},
+                           {"id": "c", "uid": M2, "title": "멤버2"}, {"id": "d", "title": "옛 항목(uid 없음)"}])
+    check("정상 → 0", sp.main(), 0)
+    got = by_ep(push_main)
+    check("주인 기기엔 주인 것 + uid 없는 것만", sorted(got["x1"]), ["옛 항목(uid 없음)", "주인"])
+    check("멤버1 두 기기엔 멤버1 것만", (got["x5"], got["x6"]), (["멤버1"], ["멤버1"]))
+    check("멤버2 기기엔 멤버2 것만", got["x7"], ["멤버2"])
+    check("GET 은 /all 한 번뿐", [h[1] for h in push_main.http if h[0] == "GET"], ["https://w.test/push/subscriptions/all"])
+
+
+def test_unknown_uid_dropped_and_log_has_no_uid(push_main, capsys):
+    three(push_main)
+    push_main.write_queue([{"id": "z", "uid": "f" * 16, "title": "지운 멤버 비밀제목"}, {"id": "b", "uid": M1, "title": "멤버1"}])
+    sp.main()
+    check("모르는 uid 는 안 보냄", sorted(by_ep(push_main)), ["x5", "x6"])
+    out = capsys.readouterr().out
+    assert "받을 사람이 없는 알림 1건" in out and "멤버 1명 · 1건" in out, out
+    assert "f" * 16 not in out and M1 not in out and "비밀제목" not in out, out
+
+
+def test_dedupe_by_uid_and_id(push_main):
+    three(push_main)
+    push_main.write_queue([{"id": "BUNDLE:d:0900", "uid": M1, "title": "m1-첫"}, {"id": "BUNDLE:d:0900", "uid": M1, "title": "m1-중복"},
+                           {"id": "BUNDLE:d:0900", "uid": M2, "title": "m2"}, {"id": "BUNDLE:d:0900", "uid": OWN, "title": "own"}])
+    sp.main()
+    got = by_ep(push_main)
+    check("같은 id 도 사람이 다르면 각자 한 번", (got["x5"], got["x7"], got["x1"]), (["m1-첫"], ["m2"], ["own"]))
+
+
+def test_per_person_limit_keeps_owner(push_main):
+    three(push_main)
+    push_main.write_queue([{"id": f"m{i}", "uid": M1, "title": f"m{i}"} for i in range(30)] + [{"id": "o1", "uid": OWN, "title": "own"}])
+    sp.main()
+    got = by_ep(push_main)
+    check("멤버는 최신 20건", (len(got["x5"]), got["x5"][0], got["x5"][-1]), (sp.MAX_ITEMS, "m10", "m29"))
+    check("주인 항목은 밀려나지 않음", got["x1"], ["own"])
+
+
+def test_quiet_per_person(push_main):
+    three(push_main, m1_quiet=NIGHT)
+    push_main.write_queue([{"id": "a", "uid": M1, "title": "보통"}, {"id": "b", "uid": M1, "title": "경보", "pierceQuiet": True},
+                           {"id": "c", "uid": M2, "title": "m2 보통"}, {"id": "d", "uid": OWN, "title": "own 보통"}])
+    sp.main()
+    got = by_ep(push_main)
+    check("멤버1 은 경보만", got["x5"], ["경보"])
+    check("다른 사람은 영향 없음", (got["x7"], got["x1"]), (["m2 보통"], ["own 보통"]))
+
+
+def test_all_failure_falls_back_to_owner_only(push_main):
+    for k, v in ENV.items():
+        push_main.monkeypatch.setenv(k, v)
+    push_main.all_users = None                          # /all 503
+    push_main.doc = {"subs": [sub(1)], "quiet": None}
+    push_main.write_queue([{"id": "a", "uid": M1, "title": "멤버"}, {"id": "b", "title": "옛 항목"}])
+    check("정상 → 0", sp.main(), 0)
+    check("주인 기기엔 uid 없는 것만", by_ep(push_main), {"x1": ["옛 항목"]})
+    # 옛 경로가 주인 uid 를 알려 주면 그 uid 항목도 주인 것
+    push_main.calls.clear()
+    push_main.doc = {"subs": [sub(1)], "quiet": None, "uid": OWN}
+    push_main.write_queue([{"id": "a", "uid": M1, "title": "멤버"}, {"id": "b", "uid": OWN, "title": "주인"}])
+    sp.main()
+    check("주인 uid 항목만", by_ep(push_main), {"x1": ["주인"]})
+
+
+def test_prune_per_uid_and_sent_file_owner_only(push_main):
+    three(push_main)
+    push_main.all_users[0]["subs"] = [sub(1), sub(2)]    # 주인 2번 = 410
+    push_main.all_users[1]["subs"] = [sub(5)]
+    push_main.all_users[2]["subs"] = [sub(7), sub(3)]    # 멤버2 3번 = 404
+    push_main.push, push_main.calls = fake_push({"2": 410, "3": 404})
+    push_main.monkeypatch.setitem(sys.modules, "pywebpush", types.SimpleNamespace(webpush=push_main.push))
+    push_main.write_queue([{"id": "own-id", "uid": OWN, "title": "주인제목"}, {"id": "mem-id", "uid": M1, "title": "멤버제목"},
+                           {"id": "mem2-id", "uid": M2, "title": "m2"}])
+    sp.main()
+    puts = [h[2] for h in push_main.http if h[0] == "PUT"]
+    check("사람별 prune", sorted(puts, key=lambda p: p["uid"]), sorted(
+        [{"uid": OWN, "endpoints": [sub(2)["endpoint"]]}, {"uid": M2, "endpoints": [sub(3)["endpoint"]]}], key=lambda p: p["uid"]))
+    raw = open(os.path.join(os.path.dirname(sp.QUEUE), "push_sent.json"), encoding="utf-8").read()
+    check("push_sent.json = 주인 id 만", json.loads(raw), ["own-id"])
+    assert M1 not in raw and M2 not in raw and "멤버" not in raw and "mem" not in raw, raw
