@@ -64,6 +64,7 @@ export async function resolveUser(env, keyHash, legacyHash) {
 async function resolveUncached(env, keyHash, legacyHash) {
   const index = await readIndex(env);
   if (!Array.isArray(index)) {
+    if (await kvGetRaw(env, 'auth:migrated')) return { status: 503, error: 'users_index_missing' }; // 닫힌 채로 실패
     if (keyHash && legacyHash && keyHash === legacyHash) {
       return { user: { uid: keyHash.slice(0, 16), role: 'owner', status: 'active', name: '마스터', legacy: true } };
     }
@@ -77,8 +78,7 @@ async function resolveUncached(env, keyHash, legacyHash) {
   return { user: { ...rec, viaBackup: !!rec.backupKeyHash && keyHash === rec.backupKeyHash } };
 }
 
-async function insertUser(env, { name, role, keyHash }) {
-  const uid = newUid();
+async function insertUser(env, { name, role, keyHash, uid = newUid() }) {
   const user = {
     uid, name, role, status: 'active', keyHash, createdAt: new Date().toISOString(),
     lastSeenDay: null, aiDay: null, aiCount: 0,
@@ -95,6 +95,7 @@ async function insertUser(env, { name, role, keyHash }) {
 export async function createUser(env, { name, role = 'member' }) {
   const key = newEntryKey();
   const keyHash = await sha256Hex(normalizeEntryKey(key));
+  if (!Array.isArray(await readIndex(env))) return { status: 409, error: "no_owner" };
   const user = await insertUser(env, { name, role, keyHash });
   return { user, key };
 }
@@ -109,7 +110,12 @@ export async function listUsers(env) {
 export async function patchUser(env, uid, { name, status } = {}) {
   const u = await kvGet(env, `user:${uid}`);
   if (!u) return { status: 404, error: 'not_found' };
-  if (name !== undefined) u.name = name;
+  if (status !== undefined && status !== "active" && status !== "paused") return { status: 400, error: "bad_patch" };
+  if (name !== undefined) {
+    const n = typeof name === "string" ? name.trim() : "";
+    if (n.length < 1 || n.length > 20) return { status: 400, error: "bad_patch" };
+    u.name = n;
+  }
   if (status !== undefined) u.status = status;
   await kvPut(env, `user:${uid}`, u);
   _clearUserCache();
@@ -121,10 +127,12 @@ export async function rekeyUser(env, uid) {
   if (!u) return { status: 404, error: 'not_found' };
   const key = newEntryKey();
   const keyHash = await sha256Hex(normalizeEntryKey(key));
-  await kvDel(env, `ukey:${u.keyHash}`);
+  // 예비 키(backupKeyHash)는 별도 자격이라 rekeyUser 가 건드리지 않는다(재발급은 issueBackupKey).
+  const oldHash = u.keyHash;
   u.keyHash = keyHash;
-  await kvPut(env, `user:${uid}`, u);
   await kvPut(env, `ukey:${keyHash}`, uid);
+  await kvPut(env, `user:${uid}`, u);
+  await kvDel(env, `ukey:${oldHash}`);
   _clearUserCache();
   return { key };
 }
@@ -148,10 +156,11 @@ export async function issueBackupKey(env, ownerUid) {
   if (!u || u.role !== 'owner') return { status: 404, error: 'not_found' };
   const key = newEntryKey();
   const keyHash = await sha256Hex(normalizeEntryKey(key));
-  if (u.backupKeyHash) await kvDel(env, `ukey:${u.backupKeyHash}`);
+  const oldBackup = u.backupKeyHash;
   u.backupKeyHash = keyHash;
-  await kvPut(env, `user:${ownerUid}`, u);
   await kvPut(env, `ukey:${keyHash}`, ownerUid);
+  await kvPut(env, `user:${ownerUid}`, u);
+  if (oldBackup) await kvDel(env, `ukey:${oldBackup}`); // 이전 예비 키 폐기
   _clearUserCache();
   return { key };
 }
@@ -162,28 +171,41 @@ export async function touchSeen(env, user, kstDay) {
   if (!rec) return;
   user.lastSeenDay = kstDay;
   if (rec.lastSeenDay === kstDay) return;
-  rec.lastSeenDay = kstDay;
-  await kvPut(env, `user:${user.uid}`, rec);
+  const fresh = await kvGet(env, `user:${user.uid}`); // 동시 patch 를 덮지 않도록 쓰기 직전에 다시 읽는다
+  if (!fresh || fresh.lastSeenDay === kstDay) return;
+  fresh.lastSeenDay = kstDay;
+  await kvPut(env, `user:${user.uid}`, fresh);
 }
 
-async function copyKey(env, from, to) {
+async function copyKey(env, from, to, opts) {
   const v = await kvGetRaw(env, from);
-  if (v != null) await env.ECON_PORTFOLIO.put(to, v);
+  if (v != null) await (opts ? env.ECON_PORTFOLIO.put(to, v, opts) : env.ECON_PORTFOLIO.put(to, v));
 }
 
+// 복사를 모두 끝낸 뒤 user · ukey · users:index 를 마지막에 쓴다(index = "이전 끝" 표시).
+// 중간에 실패하면 다음 호출이 처음부터 다시 복사한다(같은 값 덮어쓰기라 안전).
 export async function migrateOwner(env, legacyHash) {
-  const existing = await kvGetRaw(env, `ukey:${legacyHash}`);
-  if (existing) return { uid: existing, created: false };
-  const user = await insertUser(env, { name: '마스터', role: 'owner', keyHash: legacyHash });
-  const uid = user.uid;
+  const idx = await readIndex(env);
+  if (Array.isArray(idx)) {
+    let uid = await kvGetRaw(env, `ukey:${legacyHash}`);
+    if (!uid) { const o = (await listUsers(env)).find(u => u.role === 'owner'); uid = o && o.uid; }
+    if (uid) {
+      if (!(await kvGetRaw(env, 'auth:migrated'))) await kvPut(env, 'auth:migrated', '1');
+      return { uid, created: false };
+    }
+  }
+  const uid = newUid();
   const h16 = legacyHash.slice(0, 16);
   await copyKey(env, `prefs:${h16}`, `prefs:${uid}`);
   await copyKey(env, `push:${h16}`, `push:${uid}`);
-  await copyKey(env, 'portfolio:encHoldings', `hold:${uid}`);
+  await copyKey(env, "portfolio:encHoldings", `hold:${uid}`);
   const kstNow = Date.now() + 9 * 3600 * 1000;
   for (let i = 0; i < 30; i++) {
     const day = new Date(kstNow - i * 86400000).toISOString().slice(0, 10);
-    await copyKey(env, `portfolio:encHoldings:prev:${day}`, `hold:${uid}:prev:${day}`);
+    const expirationTtl = Math.max(1, 30 - i) * 86400;
+    await copyKey(env, `portfolio:encHoldings:prev:${day}`, `hold:${uid}:prev:${day}`, { expirationTtl });
   }
+  await insertUser(env, { name: "마스터", role: "owner", keyHash: legacyHash, uid });
+  await kvPut(env, 'auth:migrated', '1'); // index 다음 — 영구 이전 표시
   return { uid, created: true };
 }

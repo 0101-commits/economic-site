@@ -7,9 +7,10 @@ import {
 
 const kv = new Map();
 let puts = 0;
+const ttls = new Map();
 const KV = {
   get: async (k, t) => { const v = kv.get(k); return v == null ? null : (t === 'json' ? JSON.parse(v) : v); },
-  put: async (k, v) => { puts++; kv.set(k, v); },
+  put: async (k, v, o) => { puts++; kv.set(k, v); if (o) ttls.set(k, o.expirationTtl); },
   delete: async k => { kv.delete(k); },
 };
 const env = { ECON_PORTFOLIO: KV };
@@ -48,6 +49,31 @@ const LEG = await sha256Hex('fake-legacy-secret');
   check('틀린 해시 401', [w.status, w.error], [401, 'unauthorized']);
 }
 
+console.log('이전 전 createUser 거절 · 중간 실패 복구');
+{
+  const r = await createUser(env, { name: '먼저' });
+  check('owner 없이 createUser → 409', [r.status, r.error], [409, 'no_owner']);
+  check('아무것도 안 씀', kv.has('users:index'), false);
+  const kv2 = new Map(); let n = 0, failAt = 3, p2 = 0;
+  const env2 = { ECON_PORTFOLIO: {
+    get: async (k, t) => { const v = kv2.get(k); return v == null ? null : (t === 'json' ? JSON.parse(v) : v); },
+    put: async (k, v) => { if (++n === failAt) throw new Error('boom'); p2++; kv2.set(k, v); },
+    delete: async k => { kv2.delete(k); } } };
+  const h = await sha256Hex('crash-key'), h16 = h.slice(0, 16);
+  kv2.set(`prefs:${h16}`, 'P'); kv2.set(`push:${h16}`, 'S'); kv2.set('portfolio:encHoldings', 'H');
+  let threw = false;
+  try { await migrateOwner(env2, h); } catch (_) { threw = true; }
+  check('중간 put 실패 → 예외', threw, true);
+  check('index 아직 없음', kv2.has('users:index'), false);
+  const m = await migrateOwner(env2, h);
+  check('재시도 created:true', m.created, true);
+  check('복사 3종 완료', [kv2.get(`prefs:${m.uid}`), kv2.get(`push:${m.uid}`), kv2.get(`hold:${m.uid}`)], ['P', 'S', 'H']);
+  check('auth:migrated 표시', kv2.get('auth:migrated'), '1');
+  const b = p2;
+  const m3 = await migrateOwner(env2, h);
+  check('세 번째 created:false · 쓰기 0', [m3.created, m3.uid, p2 - b], [false, m.uid, 0]);
+}
+
 console.log('migrateOwner');
 {
   const h16 = LEG.slice(0, 16);
@@ -67,6 +93,7 @@ console.log('migrateOwner');
   check('hold 복사', kv.get(`hold:${uid}`), 'ENC-NOW');
   check('prev 오늘', kv.get(`hold:${uid}:prev:${day(0)}`), 'ENC-P0');
   check('prev 29일 전', kv.get(`hold:${uid}:prev:${day(29)}`), 'ENC-P29');
+  check('prev TTL 30일 창 남은 일수', [ttls.get(`hold:${uid}:prev:${day(0)}`), ttls.get(`hold:${uid}:prev:${day(29)}`)], [30 * 86400, 86400]);
   check('prev 30일 전은 안 옮김', kv.get(`hold:${uid}:prev:${day(30)}`), undefined);
   check('옛 칸 유지', [kv.get(`prefs:${h16}`), kv.get('portfolio:encHoldings')], ['{"a":1}', 'ENC-NOW']);
   const before = puts;
@@ -76,6 +103,19 @@ console.log('migrateOwner');
   _clearUserCache();
   const r = await resolveUser(env, LEG, LEG);
   check('이전 뒤 owner 해석(legacy 아님)', [r.user?.role, r.user?.uid, !!r.user?.legacy], ['owner', uid, false]);
+}
+
+console.log('닫힌 채 실패');
+{
+  const h = LEG;
+  const idx = kv.get('users:index'); kv.delete('users:index'); _clearUserCache();
+  const r = await resolveUser(env, h, LEG);
+  check('index 없음 + migrated → 503', [r.status, r.error], [503, 'users_index_missing']);
+  kv.set('users:index', idx); _clearUserCache();
+  const kvL = new Map();
+  const envL = { ECON_PORTFOLIO: { get: async (k, t) => { const v = kvL.get(k); return v == null ? null : (t === 'json' ? JSON.parse(v) : v); }, put: async (k, v) => { kvL.set(k, v); }, delete: async k => { kvL.delete(k); } } };
+  const rl = await resolveUser(envL, h, LEG);
+  check('둘 다 없음 → legacy', !!rl.user?.legacy, true);
 }
 
 console.log('createUser / patch / rekey / delete');
@@ -94,6 +134,9 @@ console.log('createUser / patch / rekey / delete');
   r = await resolveUser(env, await hash(key), LEG);
   check('patch 뒤 즉시 반영', [r.user?.status, r.user?.name], ['active', '민수2']);
 
+  check('patch 잘못된 status → 400', (await patchUser(env, user.uid, { status: 'x' })).status, 400);
+  check('patch 빈 이름 → 400', (await patchUser(env, user.uid, { name: '  ' })).error, 'bad_patch');
+  check('patch 21자 이름 → 400', (await patchUser(env, user.uid, { name: '가'.repeat(21) })).status, 400);
   const { key: k2 } = await rekeyUser(env, user.uid);
   r = await resolveUser(env, await hash(key), LEG);
   check('옛 키 401', r.status, 401);
@@ -118,11 +161,17 @@ console.log('issueBackupKey / touchSeen');
 {
   const owner = (await listUsers(env)).find(u => u.role === 'owner');
   const { key } = await issueBackupKey(env, owner.uid);
-  const r = await resolveUser(env, await sha256Hex(normalizeEntryKey(key)), LEG);
+  const { key: key2 } = await issueBackupKey(env, owner.uid);
+  check('이전 예비 키 폐기', (await resolveUser(env, await sha256Hex(normalizeEntryKey(key)), LEG)).status, 401);
+  const r = await resolveUser(env, await sha256Hex(normalizeEntryKey(key2)), LEG);
   check('예비 키로 owner + viaBackup', [r.user?.role, r.user?.viaBackup], ['owner', true]);
   const r0 = await resolveUser(env, LEG, LEG);
   check('주 키는 viaBackup false', [r0.user?.role, r0.user?.viaBackup], ['owner', false]);
   await touchSeen(env, r0.user, '2026-10-27');
+  await patchUser(env, owner.uid, { name: '마스터2' });
+  await touchSeen(env, { ...r0.user, lastSeenDay: null }, '2026-10-28');
+  check('touchSeen 이 patch 를 안 덮음', (await KV.get(`user:${owner.uid}`, 'json')).name, '마스터2');
+  await touchSeen(env, { ...r0.user, lastSeenDay: null }, '2026-10-27');
   const b = puts;
   await touchSeen(env, { ...r0.user, lastSeenDay: '2026-10-27' }, '2026-10-27');
   check('같은 날 touchSeen 쓰기 0', puts - b, 0);
