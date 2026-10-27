@@ -778,12 +778,12 @@ function _sanitizeTracking(raw) {
 //   암호문이라도 공개 저장소에 두면 대입 공격 재료가 되므로 alerts_config.json 에는 쓰지 않는다.
 function _sanitizeEncHoldings(raw) { return _sanitizeEncBlob(raw); }
 // 보유(hold)와 스냅샷(snaps)이 같은 형식·같은 한도를 쓴다 — 서버는 형태만 본다.
-function _sanitizeEncBlob(raw) {
+function _sanitizeEncBlob(raw, maxField = 60000) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.alg !== 'AES-256-GCM' || raw.kdf !== 'PBKDF2-SHA256') return null;
   const iter = Number(raw.iter);
   if (!Number.isInteger(iter) || iter < 1 || iter > 2000000) return null;
-  const b64 = s => typeof s === 'string' && s.length >= 1 && s.length <= 60000 && /^[A-Za-z0-9+/=]+$/.test(s);
+  const b64 = s => typeof s === 'string' && s.length >= 1 && s.length <= maxField && /^[A-Za-z0-9+/=]+$/.test(s);
   if (!b64(raw.salt) || !b64(raw.iv) || !b64(raw.ciphertext)) return null;
   return { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter, salt: raw.salt, iv: raw.iv, ciphertext: raw.ciphertext };
 }
@@ -1365,17 +1365,19 @@ async function handlePushSubscribe(request, env, ctx) {
 // GET · PUT /snaps — 사람 칸 snaps:<uid> 에 매일 평가액 기록(스냅샷)의 암호 덩어리 하나. 보유와 같은 형식(_sanitizeEncBlob).
 //   GET → { encSnaps: 덩어리 | null }. PUT 본문 { encSnaps: 덩어리 } (덩어리만 보내도 받는다). 크기 상한 SNAPS_MAX_BYTES.
 //   브라우저 전용(키 해시) — CI 는 아래 handleOwnerBlob 으로만 읽고 쓴다.
-const SNAPS_MAX_BYTES = 65536;
+// 730건 × ~63B ≈ 46KB 평문 → base64 ~61K 자라 보유 한도(60000자)를 넘는다 — 스냅샷만 따로 넉넉히(보유 한도는 그대로).
+const SNAPS_MAX_BYTES = 131072, SNAPS_MAX_FIELD = 120000;
+const _sanitizeSnaps = raw => _sanitizeEncBlob(raw, SNAPS_MAX_FIELD);
 async function handleSnaps(request, env, ctx) {
   const a = await _userKvKey(request, env, 'snaps:', ctx);
   if (a.denied) return a.denied;
   if (request.method === 'GET') {
-    try { return jsonResponse({ ok: true, encSnaps: _sanitizeEncBlob(await env.ECON_PORTFOLIO.get(a.kvKey, 'json')) }); }
+    try { return jsonResponse({ ok: true, encSnaps: _sanitizeSnaps(await env.ECON_PORTFOLIO.get(a.kvKey, 'json')) }); }
     catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
   }
   const b = await _readJsonBody(request, SNAPS_MAX_BYTES);
   if (b.err) return b.err;
-  const blob = _sanitizeEncBlob(_isObj(b.body) && 'encSnaps' in b.body ? b.body.encSnaps : b.body);
+  const blob = _sanitizeSnaps(_isObj(b.body) && 'encSnaps' in b.body ? b.body.encSnaps : b.body);
   if (!blob) return jsonResponse({ error: 'invalid_snaps' }, 400);
   try { await env.ECON_PORTFOLIO.put(a.kvKey, JSON.stringify(blob)); }
   catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
@@ -1387,6 +1389,13 @@ async function handleSnaps(request, env, ctx) {
 //   읽기 키로는 쓸 수 없다. 사람 표가 있으면 주인 uid 칸(hold:<uid> · snaps:<uid>), 없으면(이전 전) 보유는 옛 칸
 //   portfolio:encHoldings, 스냅샷은 snaps:<키 해시 앞 16자>. 덩어리는 서버가 풀 수 없다(열쇠 없음).
 async function handleOwnerBlob(request, env, path) {
+  try { return await _ownerBlob(request, env, path); }
+  catch (e) {
+    console.log('[owner-blob] 예외:', String((e && e.message) || e));
+    return jsonResponse({ error: 'internal_error' }, 500, _NC);
+  }
+}
+async function _ownerBlob(request, env, path) {
   const isHold = path === '/hold/owner';
   const want = path === '/snaps/owner' && request.method === 'PUT' ? 'PUT' : 'GET';
   if (request.method !== want) return jsonResponse({ error: 'method_not_allowed', allow: isHold ? ['GET'] : ['GET', 'PUT'] }, 405, _NC);
@@ -1416,13 +1425,14 @@ async function handleOwnerBlob(request, env, path) {
   const kvKey = isHold ? (legacy ? ENC_HOLDINGS_KV_KEY : 'hold:' + space) : 'snaps:' + space;
   if (want === 'GET') {
     try {
-      const blob = _sanitizeEncBlob(await env.ECON_PORTFOLIO.get(kvKey, 'json'));
+      const raw = await env.ECON_PORTFOLIO.get(kvKey, 'json');
+      const blob = isHold ? _sanitizeEncHoldings(raw) : _sanitizeSnaps(raw);
       return jsonResponse(isHold ? { ok: true, encHoldings: blob } : { ok: true, encSnaps: blob }, 200, _NC);
     } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
   }
   const b = await _readJsonBody(request, SNAPS_MAX_BYTES);
   if (b.err) return _withCors(b.err, _NC);
-  const blob = _sanitizeEncBlob(_isObj(b.body) && 'encSnaps' in b.body ? b.body.encSnaps : b.body);
+  const blob = _sanitizeSnaps(_isObj(b.body) && 'encSnaps' in b.body ? b.body.encSnaps : b.body);
   if (!blob) return jsonResponse({ error: 'invalid_snaps' }, 400, _NC);
   try { await env.ECON_PORTFOLIO.put(kvKey, JSON.stringify(blob)); }
   catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, _NC); }

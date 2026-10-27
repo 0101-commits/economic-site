@@ -297,6 +297,9 @@ def compute_days(entries, days, series, fx):
             continue
         price = lambda e, _d=day: carry(series[(e["m"], e["s"])], _d) if (e["m"], e["s"]) in series else None
         fxn = carry(fx, day) if fx else None
+        # 그날 시세(또는 달러원)가 없는 보유가 하나라도 있으면 그날은 건너뛴다 — 일부만 더하면 ev 가 틀어진다.
+        if any(e["q"] and e["q"] > 0 and (price(e) is None or (e["m"] == "US" and fxn is None)) for e in entries):
+            continue
         s = snap_of(day, entries, price, fxn)
         if s:
             out.append(s)
@@ -353,7 +356,7 @@ def run(env=None, now=None, fetch=_yahoo):
     series, fx, failed = fetch_series(entries, fetch)
     log(f"계산할 날 {len(days)}일 · 시세 받은 종목 {len(series)}개 · 못 받은 종목 {failed}개")
     if failed:
-        log("건너뜀: 시세를 못 받은 종목이 있어 일부만 더하면 값이 틀어진다")
+        log(f"건너뜀: 시세를 못 받은 종목 {failed}개 — 일부만 더하면 값이 틀어진다(계속되면 Yahoo 심볼 확인)")
         return 0
     if any(e["m"] == "US" and e["q"] and e["q"] > 0 for e in entries) and not fx:
         log("건너뜀: 달러원 종가를 못 받았다")
@@ -363,7 +366,7 @@ def run(env=None, now=None, fetch=_yahoo):
         log("건너뜀: 계산된 날이 없다(휴장 등)")
         return 0
     merged = merge_snaps(existing, new)
-    if merged == clean_snaps(existing):
+    if merged == merge_snaps(existing, []):
         log(f"변경 없음: 새로 계산한 {len(new)}일이 서버 값과 같다")
         return 0
     at = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -286,3 +286,29 @@ def test_workflow_file_shape():
     for k in ("MASTER_HOLD_KEY", "PUSH_READ_KEY", "PUSH_WRITE_KEY"):
         assert f"{k}: ${{{{ secrets.{k} }}}}" in y
     assert "git commit" not in y and "git push" not in y and "contents: read" in y
+
+
+def test_compute_days_skips_day_without_fx_or_price():
+    es = [{"s": "K", "m": "KR", "a": 100.0, "q": 1.0, "fx": None}, {"s": "U", "m": "US", "a": 1.0, "q": 1.0, "fx": None}]
+    series = {("KR", "K"): {"2026-10-20": 100.0, "2026-10-21": 100.0}, ("US", "U"): {"2026-10-20": 5.0, "2026-10-21": 5.0}}
+    fx = {"2026-10-21": 1400.0}   # 10-20 에는 이 날 이전 환율 봉이 없다
+    got = M.compute_days(es, ["2026-10-20", "2026-10-21"], series, fx)
+    assert [s["d"] for s in got] == ["2026-10-21"]
+    series[("US", "U")] = {"2026-10-21": 5.0}   # 10-20 에는 US 시세 봉이 없다(이전도 없음)
+    fx = {"2026-10-19": 1400.0, "2026-10-21": 1400.0}
+    assert [s["d"] for s in M.compute_days(es, ["2026-10-20", "2026-10-21"], series, fx)] == ["2026-10-21"]
+
+
+def test_run_logs_distinct_reason_when_symbol_unpriced(fake_net, capsys):
+    f = lambda sym: {} if sym == "AAPL" else _fake_fetch(sym)
+    assert M.run(env=ENV, now=NOW, fetch=f) == 0
+    out = capsys.readouterr().out
+    assert "시세를 못 받은 종목 1개" in out and "AAPL" not in out and fake_net["puts"] == []
+
+
+def test_run_no_write_when_server_blob_out_of_order(fake_net):
+    assert M.run(env=ENV, now=NOW, fetch=_fake_fetch) == 0
+    snaps = M.decrypt_blob(fake_net["puts"][0]["encSnaps"], PASS)["snaps"]
+    fake_net["snaps"] = M.encrypt_blob({"v": 1, "at": "x", "snaps": list(reversed(snaps))}, PASS)
+    assert M.run(env=ENV, now=NOW, fetch=_fake_fetch) == 0
+    assert len(fake_net["puts"]) == 1

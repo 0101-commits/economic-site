@@ -85,7 +85,7 @@ check('base64 아님', await bad({ encSnaps: { ...enc(1), ciphertext: '<script>'
 check('필드 빠짐', await bad({ encSnaps: { alg: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iter: 10, salt: 'YQ==' } }), 400);
 check('문자열 덩어리', await bad({ encSnaps: 'plain' }), 400);
 check('깨진 JSON', (await call('PUT', '/snaps', { raw: '{nope' })).status, 400);
-check('너무 큼 413', (await call('PUT', '/snaps', { body: { encSnaps: { ...enc(1), ciphertext: 'A'.repeat(70000) } } })).status, 413);
+check('너무 큼 413', (await call('PUT', '/snaps', { body: { encSnaps: { ...enc(1), ciphertext: 'A'.repeat(140000) } } })).status, 413);
 check('owner PUT 도 거절', (await call('PUT', '/snaps/owner', { hash: null, headers: WK, body: { encSnaps: { ...enc(1), iv: '' } } })).status, 400);
 const dirty = await call('PUT', '/snaps', { hash: hA, body: { encSnaps: { ...enc('SA2'), extra: '<b>x</b>', note: 'amount 1000' } } });
 check('여분 필드는 버리고 저장', [dirty.status, Object.keys(JSON.parse(kv.get('snaps:' + A.user.uid))).sort()], [200, ['alg', 'ciphertext', 'iter', 'iv', 'kdf', 'salt']]);
@@ -103,6 +103,18 @@ check('삭제 전 snaps:<uidA> 있음', kv.has('snaps:' + A.user.uid), true);
 check('deleteUser', (await deleteUser(env, A.user.uid)).ok, true);
 check('snaps:<uidA> · hold:<uidA> 지워짐', [kv.has('snaps:' + A.user.uid), kv.has('hold:' + A.user.uid)], [false, false]);
 check('남의 snaps 는 그대로', [kv.has('snaps:' + U), JSON.parse(kv.get('snaps:' + U)).ciphertext], [true, 'Y3QS4']);
+
+console.log('730건 크기 덩어리');
+const big = { ...enc('BIG'), ciphertext: 'A'.repeat(62000) };   // ~46KB 평문의 base64 ≈ 61K — 보유 한도(60000) 초과
+check('PUT /snaps 62000자 200', (await call('PUT', '/snaps', { body: { encSnaps: big } })).status, 200);
+check('GET /snaps 그대로 돌려줌', (await call('GET', '/snaps')).j.encSnaps.ciphertext.length, 62000);
+check('PUT /snaps/owner 62000자 200', (await call('PUT', '/snaps/owner', { hash: null, headers: WK, body: { encSnaps: big } })).status, 200);
+check('GET /snaps/owner 그대로', (await call('GET', '/snaps/owner', { hash: null, headers: RK })).j.encSnaps.ciphertext.length, 62000);
+kv.set('hold:' + U, JSON.stringify(big));
+check('GET /hold/owner 도 60000자 한도', (await call('GET', '/hold/owner', { hash: null, headers: RK })).j.encHoldings, null);
+check('상한 120000자는 통과', (await call('PUT', '/snaps', { body: { encSnaps: { ...enc(1), ciphertext: 'A'.repeat(120000) } } })).status, 200);
+check('120001자는 400', (await call('PUT', '/snaps', { body: { encSnaps: { ...enc(1), ciphertext: 'A'.repeat(120001) } } })).status, 400);
+
 
 if (fails) { console.log(`\n${fails}건 실패`); process.exit(1); }
 console.log('\n전부 통과');
