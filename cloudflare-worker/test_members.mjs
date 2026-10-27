@@ -183,8 +183,14 @@ console.log('새 경로 — /me · /admin/* · CI 복수 읽기 · /fired');
   check('PATCH 멈춤 → 그 사람 403', [(await ownerCall('PATCH', '/admin/users/' + nuid, { status: 'paused' })).status, (await call('GET', '/me', { hash: nh })).status], [200, 403]);
   check('없는 uid PATCH 404', (await ownerCall('PATCH', '/admin/users/zzzz', { name: 'q' })).status, 404);
   check('주인 멈춤 금지 403', (await ownerCall('PATCH', '/admin/users/' + U, { status: 'paused' })).status, 403);
+  await ownerCall('PATCH', '/admin/users/' + nuid, { status: 'active' });
   const rk = await ownerCall('POST', '/admin/users/' + nuid + '/rekey');
   check('rekey 새 key · 옛 키 401', [/^ECOM-/.test(rk.j.key), (await call('GET', '/me', { hash: nh })).status], [true, 401]);
+  check('rekey 는 그 사람 폰 알림 구독(push:<uid>)을 지움', kv.has('push:' + nuid), false);
+  kv.set('ukey:' + nh, nuid); _clearUserCache();   // 옛 ukey: 지우기가 실패해 남았다고 치고
+  check('남은 옛 ukey: 로 읽기 → 401', [(await call('GET', '/me', { hash: nh })).status, (await call('GET', '/prefs', { hash: nh })).status, (await call('GET', '/fired', { hash: nh })).status], [401, 401, 401]);
+  kv.delete('ukey:' + nh); _clearUserCache();
+  check('새 키 /me 200', (await call('GET', '/me', { hash: sha(normalizeEntryKey(rk.j.key)) })).status, 200);
   const bk = await ownerCall('POST', '/admin/backup-key');
   check('예비 키로 /me viaBackup', (await call('GET', '/me', { hash: sha(normalizeEntryKey(bk.j.key)) })).j.viaBackup, true);
   check('멤버 DELETE 403', (await call('DELETE', '/admin/users/' + nuid, { hash: hM })).status, 403);

@@ -189,8 +189,12 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 | `GET /push/subscriptions` | 없음 | `{ subs: [구독…], quiet }`. `quiet` 는 같은 공간 `/prefs` 의 `settings.quiet`(없으면 `null`) — 발송기는 이 시간엔 보내지 않습니다. |
 | `PUT /push/prune` | `{ "endpoints": ["…"] }` | `{ ok, removed, count }`. 푸시 서비스가 410·404 로 답한 주소를 지웁니다. |
 
-대상은 **지금 유효한 동기화 키의 공간 하나**(`push:<기대 해시 앞 16자>`)뿐입니다. 키를 바꾸면 옛 키 공간의 구독에는 보내지 않습니다.
-옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게 하려는 것입니다. 키를 바꾼 뒤에는 기기마다 「폰 알림」을 다시 켭니다.
+사람 표 이전 전(legacy)에는 대상이 **지금 유효한 동기화 키의 공간 하나**(`push:<기대 해시 앞 16자>`)뿐이라, 키를 바꾸면 옛 키 공간의 구독에는 보내지 않습니다.
+사람 표 이후에는 구독 칸이 사람마다 `push:<uid>` 하나이고, 단수 경로는 마스터 칸을 읽습니다. 키가 바뀔 때 구독은 이렇게 됩니다.
+
+- **운영자 재발급**(`POST /admin/users/<uid>/rekey` — 키를 잃었거나 도난당함): 그 사람의 `push:<uid>` 를 지웁니다. 옛 키를 알던 사람이 넣어 둔 구독이 알림 내용을 계속 받지 않게 하려는 것입니다. 재발급 뒤에는 기기마다 「폰 알림」을 다시 켭니다.
+- **본인 「입장 키 바꾸기」**(`POST /sync-key`): 구독을 그대로 둡니다(같은 사람이 키만 바꾼 것).
+- 앱은 서버가 401(키가 안 맞음)로 답하면 그 기기의 폰 알림 구독도 브라우저에서 끊습니다(가능한 경우).
 
 ### 사람 표 이후의 새 경로 — `/me` · `/admin/*` · 복수 읽기 · `/fired`
 
@@ -203,7 +207,7 @@ Worker 시크릿 `VAPID_PUBLIC_KEY` 가 없으면 인증(401)을 통과한 요�
 | `GET /admin/users` | 브라우저 · 마스터만 | 없음 | `{ users: [{ uid, name, role, status, lastSeenDay, pushCount }] }` (키 해시 없음) |
 | `POST /admin/users` | 브라우저 · 마스터만 | `{ name }` (1~20자) | `{ user, key }` — 키는 이 응답에서만 보입니다 |
 | `PATCH /admin/users/<uid>` | 브라우저 · 마스터만 | `{ name?, status? }` (`active`·`paused`) | `{ user }` |
-| `POST /admin/users/<uid>/rekey` | 브라우저 · 마스터만 | 없음 | `{ key }` |
+| `POST /admin/users/<uid>/rekey` | 브라우저 · 마스터만 | 없음 | `{ key }` — 옛 키는 바로 막히고 그 사람의 폰 알림 구독(`push:<uid>`)도 지웁니다 |
 | `DELETE /admin/users/<uid>` | 브라우저 · 마스터만 | 없음 | `{ ok: true }` (마스터는 지울 수 없음 403) |
 | `POST /admin/backup-key` | 브라우저 · 마스터만 | 없음 | `{ key }` (이전 예비 키는 폐기) |
 | `GET /fired` | 브라우저 · 키 해시 | 없음 | `{ items }` — 내 칸 `fired:<uid>` |

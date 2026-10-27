@@ -84,8 +84,11 @@ async function resolveUncached(env, keyHash, legacyHash) {
   if (!uid) return { status: 401, error: 'unauthorized' };
   const rec = await kvGet(env, `user:${uid}`);
   if (!rec) return { status: 401, error: 'unauthorized' };
+  // ukey: 칸만 믿지 않는다 — 재발급 · 예비 키 재발급 중 옛 ukey: 지우기가 실패해 남아도, 기록의 키와 맞지 않으면 401.
+  const viaBackup = !!rec.backupKeyHash && hexEq(keyHash, rec.backupKeyHash);
+  if (!hexEq(keyHash, rec.keyHash) && !viaBackup) return { status: 401, error: 'unauthorized' };
   if (rec.status === 'paused') return { status: 403, error: 'paused' };
-  return { user: { ...rec, viaBackup: !!rec.backupKeyHash && keyHash === rec.backupKeyHash } };
+  return { user: { ...rec, viaBackup } };
 }
 
 async function insertUser(env, { name, role, keyHash, uid = newUid() }) {
@@ -142,6 +145,9 @@ export async function rekeyUser(env, uid) {
   await kvPut(env, `ukey:${keyHash}`, uid);
   await kvPut(env, `user:${uid}`, u);
   await kvDel(env, `ukey:${oldHash}`);
+  // 운영자 재발급 = 키를 잃었거나 도난당함 → 그 키로 넣어 둔 폰 알림 구독도 끊는다(새 키로 기기마다 다시 켠다).
+  // 본인 「입장 키 바꾸기」(setUserKeyHash)는 구독을 그대로 둔다.
+  await kvDel(env, `push:${uid}`);
   _clearUserCache();
   return { key };
 }

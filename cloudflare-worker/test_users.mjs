@@ -137,15 +137,36 @@ console.log('createUser / patch / rekey / delete');
   check('patch 잘못된 status → 400', (await patchUser(env, user.uid, { status: 'x' })).status, 400);
   check('patch 빈 이름 → 400', (await patchUser(env, user.uid, { name: '  ' })).error, 'bad_patch');
   check('patch 21자 이름 → 400', (await patchUser(env, user.uid, { name: '가'.repeat(21) })).status, 400);
+  kv.set(`push:${user.uid}`, '[{"endpoint":"e1"}]');
   const { key: k2 } = await rekeyUser(env, user.uid);
   r = await resolveUser(env, await hash(key), LEG);
   check('옛 키 401', r.status, 401);
   r = await resolveUser(env, await hash(k2), LEG);
   check('새 키 성공', r.user?.uid, user.uid);
+  check('운영자 재발급은 push:<uid> 를 지움', kv.has(`push:${user.uid}`), false);
+
+  // 옛 ukey: 지우기가 실패해 남은 경우(재발급 중 실패 등) — 기록의 keyHash 와 맞지 않으면 401
+  const oldH = await hash(key);
+  kv.set(`ukey:${oldH}`, user.uid); _clearUserCache();
+  r = await resolveUser(env, oldH, LEG);
+  check('남은 옛 ukey: → 401(기록과 대조)', [r.status, r.error], [401, 'unauthorized']);
+  r = await resolveUser(env, await hash(k2), LEG);
+  check('새 키는 그대로 성공', r.user?.uid, user.uid);
+  kv.delete(`ukey:${oldH}`); _clearUserCache();
+
+  // 본인 키 바꾸기(setUserKeyHash)는 구독을 그대로 둔다
+  kv.set(`push:${user.uid}`, '[{"endpoint":"e2"}]');
+  const selfH = await sha256Hex('self-chosen-key-1234');
+  await setUserKeyHash(env, user.uid, selfH);
+  check('본인 키 바꾸기는 push:<uid> 유지', kv.get(`push:${user.uid}`), '[{"endpoint":"e2"}]');
+  const { key: k3 } = await rekeyUser(env, user.uid);
+  check('재발급 뒤 본인 키 401', (await resolveUser(env, selfH, LEG)).status, 401);
+  r = await resolveUser(env, await hash(k3), LEG);
+  check('재발급 키 성공', r.user?.uid, user.uid);
 
   const d = await deleteUser(env, user.uid);
   check('삭제 ok', !!d && !d.error, true);
-  r = await resolveUser(env, await hash(k2), LEG);
+  r = await resolveUser(env, await hash(k3), LEG);
   check('삭제 후 401', r.status, 401);
   check('칸 4종 없음', ['prefs', 'push', 'hold', 'fired'].map(p => kv.has(`${p}:${user.uid}`)), [false, false, false, false]);
   check('user 칸 없음', kv.has(`user:${user.uid}`), false);
@@ -165,6 +186,11 @@ console.log('issueBackupKey / touchSeen');
   check('이전 예비 키 폐기', (await resolveUser(env, await sha256Hex(normalizeEntryKey(key)), LEG)).status, 401);
   const r = await resolveUser(env, await sha256Hex(normalizeEntryKey(key2)), LEG);
   check('예비 키로 owner + viaBackup', [r.user?.role, r.user?.viaBackup], ['owner', true]);
+  // 예비 키 재발급 중 옛 ukey: 지우기가 실패해 남은 경우 — 기록의 backupKeyHash 와 다르면 401
+  const oldBk = await sha256Hex(normalizeEntryKey(key));
+  kv.set(`ukey:${oldBk}`, owner.uid); _clearUserCache();
+  check('남은 옛 예비 ukey: → 401', (await resolveUser(env, oldBk, LEG)).status, 401);
+  kv.delete(`ukey:${oldBk}`); _clearUserCache();
   const r0 = await resolveUser(env, LEG, LEG);
   check('주 키는 viaBackup false', [r0.user?.role, r0.user?.viaBackup], ['owner', false]);
   await touchSeen(env, { ...r0.user }, '2026-10-27');

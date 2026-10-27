@@ -1,7 +1,7 @@
 // 자가검사: npm test --prefix app — PIN 실패 대기(5~9번째 30초 · 10번째부터 5분) · 맞히면 초기화 · PIN 잊음
 import { test, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkPin, clearPin, failDelay, hasPin, isUnlocked, readFail, samePin, setPin, waitMs } from './pin.ts'
+import { checkPin, clearPin, failDelay, hasPin, isUnlocked, pinResetAllowed, readFail, samePin, setPin, waitMs } from './pin.ts'
 
 /** localStorage · sessionStorage 모의 — 시험마다 비운다. */
 function fakeStorage() {
@@ -103,4 +103,15 @@ test('checkPin: 저장소에 못 쓰면 이 탭 메모리에 세고, 맞히면 �
   assert.equal(await checkPin(PIN, t0 + 1_000), false, '대기가 저장 실패로 풀리지 않는다')
   assert.equal(await checkPin(PIN, t0 + 30_000), true)
   assert.deepEqual(readFail(), { n: 0, until: 0 })
+})
+
+test('pinResetAllowed: PIN 만 지우기는 마스터가 자기 키를 넣고 서버도 맞다고 할 때뿐', () => {
+  const O = 'a'.repeat(64), M = 'b'.repeat(64)
+  assert.equal(pinResetAllowed({ typedHash: O, currentHash: O, role: 'owner', serverOk: true }), 'clear')
+  assert.equal(pinResetAllowed({ typedHash: M, currentHash: M, role: 'member', serverOk: true }), 'wipe-only', '멤버가 자기 키')
+  assert.equal(pinResetAllowed({ typedHash: M, currentHash: O, role: 'owner', serverOk: true }), 'wipe-only', '마스터로 들어온 기기에 다른 사람 키')
+  assert.equal(pinResetAllowed({ typedHash: null, currentHash: O, role: 'owner', serverOk: false }), 'wipe-only', '키 없음')
+  assert.equal(pinResetAllowed({ typedHash: O, currentHash: O, role: 'owner', serverOk: false }), 'wipe-only', '서버가 맞다고 하지 않음')
+  assert.equal(pinResetAllowed({ typedHash: O, currentHash: null, role: 'owner', serverOk: true }), 'wipe-only', '들어온 키 없음')
+  assert.equal(pinResetAllowed({ typedHash: O, currentHash: O, role: undefined, serverOk: true }), 'wipe-only', '들어온 사람 모름')
 })

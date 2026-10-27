@@ -802,9 +802,12 @@ function pfExportCsv() {
     }).then(function(buf) { return toHex(new Uint8Array(buf)); });
   }
   // 동기화 키 확인만 — 헤더 해시 + 본문에 newKey 가 없으면 Worker 는 아무것도 바꾸지 않는다. 반환: HTTP 상태
+  // 키가 맞아도 마스터 키가 아니면(GET /me role ≠ owner) -2 — 멤버 키로 마스터 PIN 을 지우지 못하게 한다.
   function checkSyncKey(k) {
     var base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
+    var hash = '';
     return pfSha256Hex(k).then(function(h) {
+      hash = h;
       return fetch(base + '/sync-key', {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'X-Sync-Key-Hash': h },
@@ -815,6 +818,11 @@ function pfExportCsv() {
       if(!r.ok) return r.status;
       // 2xx 인데 본문에 ok:true 가 없으면 확인된 것이 아니다 — 이때 PIN 을 지우면 안 된다(-1)
       return r.json().catch(function() { return {}; }).then(function(j) { return (j && j.ok === true) ? 200 : -1; });
+    }).then(function(st) {
+      if(st !== 200) return st;
+      return fetch(base + '/me', { headers: { 'X-Sync-Key-Hash': hash }, cache: 'no-store', signal: AbortSignal.timeout(15000) })
+        .then(function(r) { return r.ok ? r.json().catch(function() { return {}; }) : {}; })
+        .then(function(j) { return (j && j.role === 'owner') ? 200 : -2; });
     });
   }
 
@@ -914,6 +922,7 @@ function pfExportCsv() {
               writeFail(null);
               render('setup', '동기화 키가 맞습니다 — 이 기기 PIN 을 지웠습니다.');
             } else if(st === 401) fail('동기화 키가 맞지 않습니다.');
+            else if(st === -2) fail('마스터 키로만 PIN 을 지울 수 있습니다.');
             else if(st === 429) fail('시도가 너무 많습니다. 1분 뒤 다시 해 보세요.');
             else if(st === -1) fail('서버 답을 확인하지 못했습니다. 잠시 뒤 다시 해 보세요.');
             else fail('서버 확인에 실패했습니다 (HTTP ' + st + ').');
