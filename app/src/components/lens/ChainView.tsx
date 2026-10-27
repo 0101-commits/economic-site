@@ -100,7 +100,7 @@ export default function ChainView({ b }: { b: LensBundle }) {
                 </ul>
               </details>
             ) : <span className="text-12 text-ink-3">글 {cur.c.n ?? 0}편 · 원문 목록 준비 중</span>}
-            {first && <Link to={`/lens?m=whatif&s=${first}`} className={btn()}>만약에에서 열기</Link>}
+            {first && <Link to={`/lens?m=whatif&s=${first}`} className={btn()}>만약에 보기로 열기</Link>}
           </div>
         </Panel>
 

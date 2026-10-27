@@ -108,7 +108,7 @@ export async function readFile(text: string, pass?: string): Promise<Loaded> {
 
 function unknownKeys(doc: Record<string, unknown>, known: string[]) {
   const extra = Object.keys(doc).filter(k => !known.includes(k))
-  if (extra.length) throw fail(`이 화면이 모르는 항목이 있습니다:${extra.slice(0, 5).join(', ')}`)
+  if (extra.length) throw fail(`이 화면이 모르는 항목이 있습니다: ${extra.slice(0, 5).join(', ')}`)
 }
 
 function legacy(doc: Record<string, any>): Loaded {

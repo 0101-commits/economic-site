@@ -20,9 +20,9 @@ const DIR_TEXT = { up: 'text-up', down: 'text-down', flat: 'text-ink-2' } as con
 const ymd = (d: string) => d.slice(2, 10).replace(/-0?/g, '.')   // 2025-09-16 → 25.9.16
 
 /** 평문 한 줄: 국면 전환(또는 몇 달째) + 돌파·주시 수. 숫자는 묶음에서 센 것만. */
-/** 국면 한 줄 + 지표 셈. 기준선 없음(값은 있음)과 자료 없음(값도 없음)은 따로 센다 — 0 이면 적지 않는다. */
+/** 국면 한 줄 + 지표 셈. 기준 없음(값은 있음)과 자료 없음(값도 없음)은 따로 센다 — 0 이면 적지 않는다. */
 function regimeLine(r: Regime | undefined, total: number, crossed: number, near: number, nolevel = 0, unknown = 0): string {
-  const rest = nolevel + unknown ? ` · 자료 없음 ${nolevel + unknown}개` : ''
+  const rest = [nolevel ? ` · 기준 없음 ${nolevel}개` : '', unknown ? ` · 자료 없음 ${unknown}개` : ''].join('')
   const tail = `지표 ${total}개 중 돌파 ${crossed}개 · 주시 ${near}개${rest}입니다.`
   const i = (r?.months.length ?? 0) - 1
   if (!r || i < 0) return tail

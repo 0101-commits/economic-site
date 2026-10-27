@@ -61,7 +61,7 @@ export async function subscribePush(getKeyHash: GetKeyHash): Promise<void> {
   // 서버 공개키가 바뀌었으면 옛 구독으로는 발송이 403 이 된다 — 다시 구독한다.
   if (sub && !sameKey(sub.options.applicationServerKey, key)) { await sub.unsubscribe(); sub = null }
   sub ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch((e: unknown) => {
-    console.warn('[push] subscribe failed', e)   // 브라우저 원문(영문)은 콘솔에만
+    console.warn('[push] 구독 실패', e)   // 브라우저 원문(영문)은 콘솔에만
     throw new Error('이 브라우저에서 폰 알림을 켜지 못했습니다. 시크릿 창이면 일반 창에서 여세요.')
   })
   await call('PUT', '/push/subscribe', hash, sub.toJSON())

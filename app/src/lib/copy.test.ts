@@ -40,7 +40,8 @@ test('화면 글에 개발 · 영어식 말이 없다(서버 · 스냅샷 · 원
   const hits: string[] = []
   for (const f of files(SRC)) {
     const lines = code(readFileSync(f, 'utf8')).split('\n')
-    lines.forEach((l, i) => { for (const w of BANNED_TERMS) if (l.includes(w)) hits.push(`${f.slice(SRC.length)}:${i + 1} 「${w}」 ${l.trim().slice(0, 80)}`) })
+    lines.forEach((l, i) => { if (/^\s*console\.(warn|error|log)\(/.test(l)) return   // 콘솔 글은 화면에 안 보인다
+      for (const w of BANNED_TERMS) if (l.replace(/'[^']*'\]/g, ']').includes(w)) hits.push(`${f.slice(SRC.length)}:${i + 1} 「${w}」 ${l.trim().slice(0, 80)}`) })
   }
   assert.deepEqual(hits, [])
 })
