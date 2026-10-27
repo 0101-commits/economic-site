@@ -5,22 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <!-- 🛡 Content Security Policy — GitHub Pages 는 응답 헤더를 설정할 수 없어 <meta> 로 적용.
      · script-src 'unsafe-inline': 본 앱은 단일 HTML 인라인 스크립트 + 인라인 onclick 핸들러 구조라 필수.
-       대신 외부 스크립트 출처를 CDN/네이버 지도 도메인으로 한정하고 eval 류('unsafe-eval')는 불허.
+       대신 외부 스크립트 출처를 CDN 도메인으로 한정하고 eval 류('unsafe-eval')는 불허.
      · connect-src: data.json('self') + 전용 Worker + 직접 호출하는 금융 API 만 허용.
        공개 CORS 프록시(allorigins/codetabs/corsproxy)는 제거됨 — 제3자가 응답 본문(시세 숫자)을
        변조할 수 있는 경로라 폴백 가치 대비 리스크가 컸다. 전용 Worker 단일 경로로 일원화.
        (localStorage 'cfProxyBase' 로 다른 프록시를 지정하면 여기에 도메인을 추가해야 함)
-       kr-col-ext.nelo.navercorp.com = 네이버 지도 SDK 가 스스로 보내는 오류 로그 수집처(보내기만 하고 받는 값 없음).
-       막아 두면 부동산 화면을 열 때마다 콘솔 CSP 오류가 찍혀 진짜 오류를 가렸다(2026-09-24 순찰).
      · frame-ancestors 는 meta CSP 에서 무시되므로 클릭재킹 방어는 아래 JS 프레임버스트로 완화. -->
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net;
+  script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com;
   font-src 'self' data: https://fonts.gstatic.com;
   img-src 'self' data: blob: https:;
   media-src 'self' data: blob:;
-  connect-src 'self' https://ecom-dashboard-proxy.e-hcg.workers.dev https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io https://oapi.map.naver.com https://*.pstatic.net https://*.map.naver.net https://kr-col-ext.nelo.navercorp.com;
+  connect-src 'self' https://ecom-dashboard-proxy.e-hcg.workers.dev https://stooq.com https://stooq.pl https://query1.finance.yahoo.com https://query2.finance.yahoo.com https://open.er-api.com https://production.dataviz.cnn.io;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
@@ -119,37 +117,6 @@
 <!-- Leaflet (OpenStreetMap) — 도메인 제한 없음 -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
-<!-- Naver Maps JS API v3 — Client ID 가 0101-commits.github.io/economic-site/ 도메인에 등록됨 -->
-<!-- 2024+ 이후 신규 발급 키는 ncpKeyId, 기존 키는 ncpClientId 사용. 두 형태 모두 시도. -->
-<script>
-  // Naver Maps 로드 실패해도 다른 뷰는 정상 작동하도록 async/defer + 에러 핸들러
-  window._naverMapsLoaded = false;
-  window._naverMapsLoadError = false;
-  window._naverMapsAuthFailed = false;
-  window._naverMapsKeyAttempted = 0;  // 0: ncpKeyId, 1: ncpClientId fallback
-  window._NAVER_CLIENT_ID = '446nx360fc';
-  // Naver Maps 인증 실패 콜백 (도메인 미등록 / 키 무효 시 호출됨)
-  window.navermap_authFailure = function() {
-    // 1차 시도(ncpKeyId)가 실패하면 ncpClientId 로 재시도 (legacy 키 호환)
-    if(window._naverMapsKeyAttempted === 0) {
-      window._naverMapsKeyAttempted = 1;
-      // 기존 naver 객체 폐기 (재로드 위해)
-      try { delete window.naver; } catch(_){}
-      const s = document.createElement('script');
-      s.async = true; s.defer = true;
-      s.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpClientId=' + window._NAVER_CLIENT_ID;
-      s.onload = function(){ window._naverMapsLoaded = true; };
-      s.onerror = function(){ window._naverMapsLoadError = true; };
-      document.head.appendChild(s);
-      return;
-    }
-    window._naverMapsAuthFailed = true;
-    if(typeof onNaverMapsAuthFailure === 'function') onNaverMapsAuthFailure();
-  };
-</script>
-<script async defer src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=446nx360fc"
-  onload="window._naverMapsLoaded=true;"
-  onerror="window._naverMapsLoadError=true;"></script>
 <!-- preconnect — 폰트 파일은 fonts.gstatic.com(별도 오리진)에서 받으므로 DNS+TLS 핸드셰이크를
      선행해 텍스트 렌더 지연을 줄인다. 전용 Worker 도 홈 진입 직후 첫 호출이라 함께 선행. -->
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -4646,21 +4613,13 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             <div class="h-260" style="position:relative"><canvas role="img" aria-label="지역별 아파트 매매가격지수 차트" id="rePriceChart" style="cursor:crosshair;"></canvas></div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">차트 클릭 → 구간 시작점, 다시 클릭 → 끝점 (수익률 자동 계산)</div>
           </div>
-          <!-- 지역별 등락 — Naver 지도 (기본) + 바 차트 토글 -->
+          <!-- 지역별 등락 — 바 차트 -->
           <div class="widget" style="position:relative;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
               <h3 class="widget-title" style="margin-bottom:0;">지역별 등락률 (전월比, %) <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">지역 클릭 → 시군구 상세</span></h3>
-              <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                <button class="active seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="reRegionViewNaver" onclick="setReRegionView('naver',this)" title="Naver 지도" aria-pressed="true" data-checked><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">지도</span></button>
-                <button class="seed-chip__root seed-chip__root--variant_outlineWeak seed-chip__root--size_small seed-chip__root--size_small-layout_withText" id="reRegionViewBar" onclick="setReRegionView('bar',this)" aria-pressed="false"><span class="seed-chip__label seed-chip__label--size_small seed-chip__label--variant_outlineWeak">바 차트</span></button>
-              </div>
             </div>
             <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">2026년 4월 기준 (한국부동산원 R-ONE)</div>
-            <div class="h-260" id="reRegionNaverContainer" style="position:relative">
-              <div id="reRegionNaverMap" style="width:100%;height:100%;border-radius:var(--r-sm);"></div>
-              <div id="reRegionNaverLoading" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:var(--c-surface);border-radius:var(--r-sm);font-size:var(--font-size-sm);color:var(--c-txt-dim);text-align:center;padding:16px;">📡 Naver 지도 로딩 중…</div>
-            </div>
-            <div class="h-260" id="reRegionBarContainer" style="position:relative;display:none"><canvas role="img" aria-label="지역별 부동산 지표 비교 차트" id="reRegionChart"></canvas></div>
+            <div class="h-260" id="reRegionBarContainer" style="position:relative"><canvas role="img" aria-label="지역별 부동산 지표 비교 차트" id="reRegionChart"></canvas></div>
           </div>
         </div>
 

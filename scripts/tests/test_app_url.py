@@ -19,7 +19,6 @@ ALLOW = [
     ("cloudflare-pages/_worker.js", "", "넘김 장치의 원본 주소"),
     ("app/src/lib/refresh.test.ts", "buildOf('https://0101-commits.github.io/", "옛 주소 사본 자산 URL 에서 판 이름을 뽑는 시험 입력"),
     ("scripts/check_links.py", "", "링크 점검기 User-Agent 연락처"),
-    ("index.html", "Naver Maps JS API v3", "네이버 지도 Client ID 가 옛 도메인에 등록됨 — 설명 주석"),
     ("scripts/build_go_page.py", "0101-commits.github.io/sise/", "카카오 도메인 치환 사고 설명 주석"),
     ("scripts/send_kakao_digest.py", "0101-commits.github.io/sise/", "카카오 도메인 치환 사고 설명 주석"),
 ]

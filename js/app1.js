@@ -1689,13 +1689,11 @@ function buildReCharts() {
     registerYoY('rePriceChart', { mode:'periodlabel', dispLabels:labels, fullLabels:_reFullLabels, fullValues:_reFullNat, primary:0, color:window.CUP, tension:0.3 });
     applyYoY('rePriceChart');
   }
-  // 기본 뷰: Naver 지도 (인증 실패 시 onNaverMapsAuthFailure 에서 바로 안내)
-  // 바 차트는 사용자가 토글 시 빌드됨
-  if(_reRegionView === 'bar') buildKoreaRegionMap();
-  else buildNaverRegionMap();
+  // 지역별 등락률 — 바 차트(지도는 제거됨)
+  buildKoreaRegionMap();
 }
 
-// 한국 지역별 부동산 등락 — 17개 시도 (Naver 지도 / 바차트 공용)
+// 한국 지역별 부동산 등락 — 17개 시도 (바 차트)
 // 시도별 아파트 매매가격지수 변동률 (전월比, %) — 2026년 4월 기준 (한국부동산원 R-ONE 전국주택가격동향조사)
 // val: 최신월 변동률(%) / history: 가격지수 추이(스파크라인용)
 const krRegionData = [
@@ -1908,44 +1906,10 @@ const krSubRegionData = {
   },
 };
 
-let _reRegionView = 'naver';  // 'naver' (기본) / 'bar' — SVG/OSM은 제거됨
 let _reRegionTooltipChart = null;
 let _drillCurrentRegion = null;
-let _naverRegionMap = null;
-let _naverRegionMarkers = [];
 let _osmRegionMap = null;
 let _osmRegionMarkers = [];
-
-function setReRegionView(view, btn) {
-  // SVG/OSM 제거 — Naver 지도(기본) + 바 차트 토글만 지원
-  _reRegionView = view === 'bar' ? 'bar' : 'naver';
-  const naverEl = document.getElementById('reRegionNaverContainer');
-  const barEl   = document.getElementById('reRegionBarContainer');
-  if(naverEl) naverEl.style.display = _reRegionView==='naver' ? 'block' : 'none';
-  if(barEl)   barEl.style.display   = _reRegionView==='bar'   ? 'block' : 'none';
-  econChipSelect('#reRegionViewNaver, #reRegionViewBar', btn || document.getElementById(_reRegionView === 'bar' ? 'reRegionViewBar' : 'reRegionViewNaver'));
-  if(_reRegionView === 'naver') {
-    setTimeout(() => buildNaverRegionMap(), 80);
-  } else {
-    setTimeout(() => buildKoreaRegionMap(), 50);  // 바 차트 (canvas: reRegionChart)
-  }
-}
-
-// Naver Maps 인증 실패 → 바 차트로 자동 전환 + 안내
-function onNaverMapsAuthFailure() {
-  const loadingEl = document.getElementById('reRegionNaverLoading');
-  if(loadingEl) {
-    loadingEl.style.display = 'flex';
-    loadingEl.innerHTML = `
-      <div style="font-size:var(--font-size-base);color:var(--c-down,var(--c-error));font-weight:var(--font-weight-semibold);">Naver 지도 인증 실패</div>
-      <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);max-width:360px;line-height:1.5;">
-        Naver 지도 API 인증 실패. 바 차트로 자동 전환합니다.
-      </div>
-      <div style="display:flex;gap:6px;margin-top:4px;">
-        <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);cursor:pointer;">바 차트 사용</button>
-      </div>`;
-  }
-}
 
 // OpenStreetMap (Leaflet) — 도메인 제한 없이 모든 환경에서 작동
 function buildOsmRegionMap() {
@@ -2001,7 +1965,7 @@ function buildOsmRegionMap() {
   });
 }
 
-// 한국 시도별 중심 좌표 (위도, 경도) — Naver 지도 마커용
+// 한국 시도별 중심 좌표 (위도, 경도)
 const krRegionLatLng = {
   '11': {lat: 37.5665, lng: 126.9780, name:'서울'},
   '26': {lat: 35.1796, lng: 129.0756, name:'부산'},
@@ -2022,109 +1986,7 @@ const krRegionLatLng = {
   '50': {lat: 33.4996, lng: 126.5312, name:'제주'},
 };
 
-// Naver Maps 로드 대기 (최대 5초)
-function _waitForNaverMaps(timeoutMs) {
-  return new Promise((resolve, reject) => {
-    const start = Date.now();
-    const tick = () => {
-      if(window._naverMapsAuthFailed) return reject(new Error('Naver Maps 인증 실패 — 도메인 미등록'));
-      if(window.naver && window.naver.maps) return resolve(true);
-      if(window._naverMapsLoadError) return reject(new Error('Naver Maps 스크립트 로드 실패 — 네트워크 확인'));
-      if(Date.now() - start > (timeoutMs || 5000)) return reject(new Error('Naver Maps API 로드 타임아웃'));
-      setTimeout(tick, 100);
-    };
-    tick();
-  });
-}
-
-async function buildNaverRegionMap() {
-  const loadingEl = document.getElementById('reRegionNaverLoading');
-  const mapDiv = document.getElementById('reRegionNaverMap');
-  if(!mapDiv) return;
-  // 이미 인증 실패한 상태면 즉시 안내
-  if(window._naverMapsAuthFailed) {
-    onNaverMapsAuthFailure();
-    return;
-  }
-  if(loadingEl) {
-    loadingEl.style.display = 'flex';
-    loadingEl.innerHTML = `<div>📡 Naver 지도 로딩 중…</div>`;
-  }
-  try {
-    await _waitForNaverMaps(6000);
-  } catch(e) {
-    if(loadingEl) {
-      loadingEl.style.display = 'flex';
-      loadingEl.innerHTML = `
-        <div style="font-size:var(--font-size-base);color:var(--c-down,var(--c-error));font-weight:var(--font-weight-semibold);">${e.message}</div>
-        <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);max-width:360px;line-height:1.5;">
-          이 사이트의 Naver Maps Client ID 는 도메인 <code>0101-commits.github.io</code> 에만 등록되어 있어 다른 환경에서는 작동하지 않습니다.
-        </div>
-        <div style="display:flex;gap:6px;margin-top:4px;">
-          <!-- 구 'osm'/'map' 버튼은 setReRegionView 가 'naver' 로 매핑해 같은 오류 화면으로 되돌아오는 루프였음 — 유일한 탈출구인 바 차트로 교체 -->
-          <button onclick="setReRegionView('bar', document.getElementById('reRegionViewBar'))" style="font-size:var(--font-size-sm);padding:4px 10px;border:1px solid var(--c-accent);background:var(--c-accent);color:var(--c-on-accent);border-radius:var(--r-xs);cursor:pointer;">바 차트로 보기</button>
-        </div>`;
-    }
-    return;
-  }
-  // 로드 후에도 인증 실패가 나면 (시간차) 안내 화면 표시
-  if(window._naverMapsAuthFailed) {
-    onNaverMapsAuthFailure();
-    return;
-  }
-  if(loadingEl) loadingEl.style.display = 'none';
-  const naver = window.naver;
-  // 기존 지도/마커 정리
-  if(_naverRegionMarkers.length) {
-    _naverRegionMarkers.forEach(m => { try { m.setMap(null); } catch(_){} });
-    _naverRegionMarkers = [];
-  }
-  // 지도 생성 (한 번만)
-  if(!_naverRegionMap) {
-    _naverRegionMap = new naver.maps.Map(mapDiv, {
-      center: new naver.maps.LatLng(36.0, 127.8),  // 한반도 중심
-      zoom: 6,
-      minZoom: 5,
-      mapTypeControl: false,
-      logoControl: false,
-      mapDataControl: false,
-      scaleControl: false,
-      zoomControl: true,
-      zoomControlOptions: { position: naver.maps.Position.TOP_RIGHT, style: naver.maps.ZoomControlStyle.SMALL },
-    });
-  } else {
-    // 컨테이너 크기 재계산 (display:none → block 후)
-    naver.maps.Event.trigger(_naverRegionMap, 'resize');
-  }
-  // 각 시도 마커 추가
-  krRegionData.forEach(d => {
-    const ll = krRegionLatLng[d.code];
-    if(!ll) return;
-    const color = _regionColorForVal(d.val);
-    const valStr = _usValStr(d.val);
-    // 커스텀 HTML 마커
-    const marker = new naver.maps.Marker({
-      position: new naver.maps.LatLng(ll.lat, ll.lng),
-      map: _naverRegionMap,
-      icon: {
-        content: `<div style="background:${color};color:${_onFill(color)};padding:4px 8px;border-radius:var(--r-lg);font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);box-shadow:0 2px 6px rgba(0,0,0,0.3);white-space:nowrap;border:1.5px solid #fff;cursor:pointer;line-height:1.2;">
-          <div style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);">${d.label}</div>
-          <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);">${valStr}</div>
-        </div>`,
-        size: new naver.maps.Size(60, 32),
-        anchor: new naver.maps.Point(30, 16),
-      },
-      title: `${d.label} ${valStr}`,
-    });
-    // 마커 클릭 → 시군구 드릴다운 (없으면 시계열 모달)
-    naver.maps.Event.addListener(marker, 'click', () => {
-      _onRegionClick(d);
-    });
-    _naverRegionMarkers.push(marker);
-  });
-}
-
-// SVG 지도/Naver 지도 공통: 클릭 시 시계열 모달 표시 (기존 SVG onclick 로직 추출)
+// 지역 클릭 시 시계열 모달 표시 (기존 SVG onclick 로직 추출)
 function _openRegionHistoryModal(d) {
   if(!d) return;
   const titleStr = `${d.label} 아파트 가격지수`;
