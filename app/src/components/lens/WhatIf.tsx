@@ -9,6 +9,7 @@ import { Card, SegBar } from '../ui'
 import { heatBg, heatInk } from '../charts'
 import { shortDate } from '../../lib/format'
 import { useViewParam } from '../../lib/useViewParam'
+import { storeKey } from '../../lib/personal/who'
 import { LAYERS, links, propagate, shortLabel, type LensBundle, type Sign } from './model'
 import { MAP_BOX, StepNum, TrigPill, asOfText, btn, postUrl, trigValue } from './parts'
 
@@ -22,11 +23,10 @@ type Depth = typeof DEPTHS[number]['key']
 const LAYER_LABEL: Record<string, string> = Object.fromEntries(LAYERS.map(l => [l.key, l.label]))
 
 // 저장: 이 기기 localStorage 만(이름 입력 없이 「시나리오 N」). 못 읽으면 빈 목록.
-const SAVE_KEY = 'econ_scenarios_v1'
 type Saved = { name: string; start: string; dir: Sign; depth: number; at: string }
 function readSaved(): Saved[] {
   try {
-    const v = JSON.parse(localStorage.getItem(SAVE_KEY) || '[]')
+    const v = JSON.parse(localStorage.getItem(storeKey('econ_scenarios_v1')) || '[]')
     return Array.isArray(v) ? v.filter(x => x && typeof x.start === 'string' && (x.dir === 1 || x.dir === -1)) : []
   } catch { return [] }
 }
@@ -75,7 +75,7 @@ export default function WhatIf({ b }: { b: LensBundle }) {
     if (!sel || !dir) return
     const name = `시나리오 ${saved.length + 1}`
     const next = [...saved, { name, start: sel, dir, depth: +depth, at: new Date().toISOString() }]
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(next)); setNote(`${name} 저장`) } catch { setNote('이 기기에 저장하지 못했습니다') }
+    try { localStorage.setItem(storeKey('econ_scenarios_v1'), JSON.stringify(next)); setNote(`${name} 저장`) } catch { setNote('이 기기에 저장하지 못했습니다') }
     setSaved(next)
   }
   const reset = () => { setDir(null); setS(''); setNote('') }

@@ -29,6 +29,8 @@
  *    이 경우 GH_DISPATCH_TOKEN 은 Contents:RW 가 필요해 사실상 과권한 — 분리 토큰 설정을 권장한다.
  *  모든 토큰은 Worker 시크릿(wrangler secret put …)에만 보관하며, 코드/저장소에 하드코딩 금지.
  */
+import { resolveUser, touchSeen, normalizeEntryKey, getOwner, setUserKeyHash, hexEq, _clearUserCache,
+  createUser, listUsers, patchUser, rekeyUser, deleteUser, issueBackupKey, migrateOwner, readSeen } from './users.js';
 
 // 허용 호스트 — 대시보드가 실제로 호출하는 금융 데이터 출처만.
 const ALLOWED_HOSTS = [
@@ -72,7 +74,7 @@ const GET_CORS = {
 };
 const POST_CORS = {
   // GET·PUT·DELETE — /prefs·/push/subscribe(1층 사용자 데이터). GET 은 X-Sync-Key-Hash 때문에 preflight 를 탄다.
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
   // X-Sync-Key-Hash — GET /portfolio 의 키 해시 전달용 커스텀 헤더(아래 handlePortfolioGet 참고).
   //   /portfolio 경로의 preflight 는 이 POST_CORS 를 쓰므로 여기 허용 목록에 함께 둔다.
   // If-Match — PUT /prefs 의 동시 저장 충돌 검사(409).
@@ -94,8 +96,11 @@ const SECURITY_HEADERS = {
 // POST(/ai·/portfolio)는 쓰기/비용이 발생하는 경로 — 자기 사이트 출처만 허용한다.
 // Origin 헤더는 브라우저가 자동 부여하므로 일반 스크립트로는 위조가 곤란하다.
 // Origin 이 아예 없는 서버측 호출(curl 등)은 아래 IP 레이트리밋으로 방어한다.
+// 대시보드 주소 — 디스코드 메시지 링크. (scripts/app_url.py 와 같은 값)
+const APP_URL = 'https://ecom-terminal.pages.dev/';
 const ALLOWED_ORIGINS = new Set([
   'https://0101-commits.github.io',
+  'https://ecom-terminal.pages.dev',
 ]);
 function _originAllowed(request) {
   const o = request.headers.get('Origin');
@@ -421,7 +426,7 @@ async function handleMerBlog(request) {
 // 프론트에서 POST /ai 로 { snapshot: {...} } 를 보내면, Worker 시크릿의 ANTHROPIC_API_KEY
 // 로 Claude 를 호출해 한국어 시황 브리핑 텍스트를 돌려준다. 키 미설정 시 503 → 프론트는
 // 자체 룰기반 요약으로 폴백한다. 비용 보호를 위해 max_tokens 제한 + 본문 크기 제한.
-async function handleAiSummary(request, env) {
+async function handleAiSummary(request, env, ctx) {
   // 본문 크기 가드 (남용/사고 방지) — 스냅샷은 작아야 한다.
   const raw = await request.text();
   if (raw.length > 60000) return jsonResponse({ error: 'payload_too_large' }, 413);
@@ -434,8 +439,8 @@ async function handleAiSummary(request, env) {
   // [A1] /ai 도 sync-key 인증 — LLM 비용 경로 무단 사용(특히 Origin 없는 서버측 호출)을 차단.
   //   keyHash 는 본문(payload.keyHash, SHA-256 hex)으로 받는다. 키 미설정→503, 불일치→401.
   //   (프론트 호출처: 대시보드 AI 브리핑 하단 질문창(aiQaAsk) — 동기화 키 보유 기기 전용.)
-  const denied = await _verifySyncKey(payload, env);
-  if (denied) return denied;
+  const auth = await _authUser(request, env, payload && payload.keyHash, ctx, true);
+  if (auth.resp) return auth.resp;
   // (a) 최상위 키 개수 제한 — 정상 페이로드는 snapshot/model/geminiModel/cfModel/keyHash 등 소수 키뿐.
   if (Object.keys(payload).length > 20) return jsonResponse({ error: 'too_many_fields' }, 400);
   // (b) snapshot 은 object 여야 한다.
@@ -448,6 +453,9 @@ async function handleAiSummary(request, env) {
     return jsonResponse({ error: 'payload_too_deep' }, 400);
   }
   const snapshot = payload.snapshot || payload || {};
+  // 멤버(주인·legacy 아님)는 하루 30회 — 자기 칸 aiq:<uid> 에 센다. 한도 초과면 모델을 부르지 않는다.
+  const quota = await _consumeAiQuota(env, auth.user);
+  if (quota) return quota;
 
   // [Q&A 모드] question(문자열)이 있으면 브리핑 대신 단발 질의응답 — 프롬프트는 서버 고정
   // (클라이언트가 system 프롬프트를 주입할 수 없는 구조 유지). question 없으면 기존 브리핑과 동일.
@@ -810,22 +818,25 @@ async function _readAlertsConfig(env) {
   return { found: true, cfg: JSON.parse(await rr.text()) };
 }
 
-async function handlePortfolioGet(request, env) {
+async function handlePortfolioGet(request, env, ctx) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   // [이슈1] 무인증 조회 차단 — POST 와 동일한 ALERTS_SYNC_KEY 검증 적용. 키 미설정→503,
   //   불일치→401 (_verifySyncKey 동일 패턴).
   // [보안] keyHash 는 커스텀 헤더 X-Sync-Key-Hash 로만 받는다 — 쿼리스트링(?keyHash=…)은
   //   접근 로그·브라우저 히스토리·Referer 에 재사용 가능한 베어러로 남기 때문(2026-09-29 쿼리 폴백 제거).
-  const denied = await _verifySyncKey({ keyHash: request.headers.get('X-Sync-Key-Hash') }, env);
-  if (denied) return denied;
-  let cfgRes;
-  try { cfgRes = await _readAlertsConfig(env); }
+  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx);
+  if (auth.resp) return auth.resp;
+  const user = auth.user;
+  let cfgRes = { found: false, cfg: null };
+  // 알림 설정은 주인의 공개 파일이라 멤버에겐 GitHub 읽기 자체를 하지 않는다(GitHub 장애가 멤버에게 번지지 않게).
+  if (_isOwnerLike(user)) try { cfgRes = await _readAlertsConfig(env); }
   catch (e) { return jsonResponse({ error: 'github_read_failed', detail: String((e && e.message) || e) }, 502); }
   const { found, cfg } = cfgRes;
   let encHoldings = null;
-  try { encHoldings = env.ECON_PORTFOLIO ? _sanitizeEncHoldings(await env.ECON_PORTFOLIO.get(ENC_HOLDINGS_KV_KEY, 'json')) : null; }
+  try { encHoldings = env.ECON_PORTFOLIO ? _sanitizeEncHoldings(await env.ECON_PORTFOLIO.get(_holdKey(user), 'json')) : null; }
   catch (_) { /* KV 장애 → 보유정보만 빠지고 알림 설정은 그대로 준다 */ }
-  if (!found || !cfg) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, encHoldings, updatedAt: null });
+  // 알림 조건·관심목록은 주인 한 사람의 공개 저장소 파일 하나뿐이라 멤버에게는 내주지 않는다(보유정보만).
+  if (!_isOwnerLike(user) || !found || !cfg) return jsonResponse({ ok: true, alerts: [], settings: null, tracking: null, encHoldings, updatedAt: null });
   return jsonResponse({ ok: true, alerts: cfg.alerts || [], settings: cfg.settings || null, tracking: cfg.tracking || null, encHoldings, updatedAt: cfg.updatedAt || null });
 }
 
@@ -858,23 +869,79 @@ function _hexEq(a, b) {
   return d === 0;
 }
 
-// 동기화 키 검증 — 인증이 필요한 모든 경로(/portfolio GET·POST, /portfolio/test, /ai, /sync-key)가 이것만 부른다.
-// fail-closed: 기대 해시가 없으면 503, 불일치 401. 프론트가 보낸 SHA-256 해시(keyHash)만 받는다.
-async function _verifySyncKey(body, env) {
-  let expected;
-  try { expected = env ? await _expectedSyncKeyHash(env) : ''; }
+// 인증 — 인증이 필요한 모든 경로(/portfolio GET·POST·test, /ai, /sync-key, /prefs, /push/subscribe)가 이것만 부른다.
+// 사람 표(users.js)가 없으면 legacy(옛 동기화 키 하나 = 마스터), 있으면 입장 키 → 사람. { user } 또는 { resp }.
+// legacy 에서는 옛 _verifySyncKey 와 똑같이 503 kv_read_failed · 503 sync_key_not_configured · 401 unauthorized 로 답한다.
+function _noKeyConfigured() {
+  return jsonResponse({
+    error: 'sync_key_not_configured',
+    message: 'Worker 시크릿 ALERTS_SYNC_KEY 가 설정되지 않아 저장이 비활성화되어 있습니다. ' +
+             'wrangler secret put ALERTS_SYNC_KEY 로 설정 후 프론트 🔑 버튼에 동일 키를 입력하세요.',
+  }, 503);
+}
+// 쓰기 직전 재확인 — 캐시(최대 60초)가 방금 지운·멈춘·키를 바꾼 사람의 쓰기를 통과시키지 않게, user 기록을 캐시 없이 다시 읽어
+//   기록이 있고 · active 이고 · 내민 키 해시가 keyHash 또는 backupKeyHash 와 같은지(상수 시간) 본다. 아니면 resolver 와 같은 401/403.
+async function _freshWriteCheck(env, user, keyHash) {
+  let rec;
+  try { rec = await env.ECON_PORTFOLIO.get('user:' + user.uid, 'json'); }
   catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
-  if (!expected) {
-    return jsonResponse({
-      error: 'sync_key_not_configured',
-      message: 'Worker 시크릿 ALERTS_SYNC_KEY 가 설정되지 않아 저장이 비활성화되어 있습니다. ' +
-               'wrangler secret put ALERTS_SYNC_KEY 로 설정 후 프론트 🔑 버튼에 동일 키를 입력하세요.',
-    }, 503);
+  if (!rec) return jsonResponse({ error: 'unauthorized' }, 401);
+  if (rec.status === 'paused') return jsonResponse({ error: 'paused' }, 403);
+  if (rec.status !== 'active') return jsonResponse({ error: 'unauthorized' }, 401);
+  const ok = (typeof rec.keyHash === 'string' && _hexEq(keyHash, rec.keyHash)) ||
+             (typeof rec.backupKeyHash === 'string' && _hexEq(keyHash, rec.backupKeyHash));
+  return ok ? null : jsonResponse({ error: 'unauthorized' }, 401);
+}
+async function _authUser(request, env, keyHashIn, ctx, write) {
+  const keyHash = String(keyHashIn || '').toLowerCase();
+  let legacy;
+  try { legacy = env ? await _expectedSyncKeyHash(env) : ''; }
+  catch (_) { return { resp: jsonResponse({ error: 'kv_read_failed' }, 503) }; }
+  let r;
+  if (!env || !env.ECON_PORTFOLIO) {
+    if (!legacy) return { resp: _noKeyConfigured() };
+    r = _hexEq(keyHash, legacy)
+      ? { user: { uid: keyHash.slice(0, 16), role: 'owner', status: 'active', name: '마스터', legacy: true } }
+      : { status: 401, error: 'unauthorized' };
+  } else if (!HEX64.test(keyHash)) {
+    // 형식이 틀린 해시는 캐시를 건드리지 않고 거절한다(표 없고 옛 키도 없으면 옛 방식 503).
+    try { if (!legacy && !Array.isArray(await env.ECON_PORTFOLIO.get('users:index', 'json'))) return { resp: _noKeyConfigured() }; }
+    catch (_) { return { resp: jsonResponse({ error: 'kv_read_failed' }, 503) }; }
+    r = { status: 401, error: 'unauthorized' };
+  } else {
+    try {
+      r = await resolveUser(env, keyHash, legacy);
+      // 표가 없고 옛 키도 안 정해진 상태 → 옛 방식 그대로 503(표가 있으면 401 이 맞다).
+      if (r.status === 401 && !legacy && !Array.isArray(await env.ECON_PORTFOLIO.get('users:index', 'json'))) return { resp: _noKeyConfigured() };
+    } catch (_) { return { resp: jsonResponse({ error: 'kv_read_failed' }, 503) }; }
   }
-  if (!_hexEq(String((body && body.keyHash) || '').toLowerCase(), expected)) {
-    return jsonResponse({ error: 'unauthorized' }, 401);
+  if (!r.user) return { resp: jsonResponse({ error: r.error || 'unauthorized' }, r.status || 401) };
+  if (write && !r.user.legacy) {
+    const bad = await _freshWriteCheck(env, r.user, keyHash);
+    if (bad) return { resp: bad };
   }
-  return null;   // 통과
+  if (!r.user.legacy && ctx && ctx.waitUntil) {
+    ctx.waitUntil(touchSeen(env, r.user, new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)).catch(() => {}));
+  }
+  return { user: r.user };
+}
+const _space = user => user.uid;                       // legacy 는 키 해시 앞 16자(옛 칸 그대로), 사람 표 사용자는 uid
+const _holdKey = user => user.legacy ? ENC_HOLDINGS_KV_KEY : 'hold:' + user.uid;
+const _holdPrevKey = user => user.legacy ? ENC_HOLDINGS_PREV_KV_KEY : 'hold:' + user.uid + ':prev';
+const _isOwnerLike = user => user.legacy || user.role === 'owner';
+const AI_DAILY_QUOTA = 30;
+// 멤버 AI 하루 한도 — user 기록은 건드리지 않고 aiq:<uid> = {day,count} (2일 뒤 저절로 사라짐)에만 센다. 넘으면 429 Response, 아니면 null.
+async function _consumeAiQuota(env, user) {
+  if (_isOwnerLike(user)) return null;
+  const day = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  const k = 'aiq:' + user.uid;
+  try {
+    const cur = await env.ECON_PORTFOLIO.get(k, 'json');
+    const used = cur && cur.day === day ? (Number(cur.count) || 0) : 0;
+    if (used >= AI_DAILY_QUOTA) return jsonResponse({ error: 'ai_quota', limit: AI_DAILY_QUOTA }, 429);
+    await env.ECON_PORTFOLIO.put(k, JSON.stringify({ day, count: used + 1 }), { expirationTtl: 2 * 86400 });
+  } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
+  return null;
 }
 
 // 🔑 동기화 키 확인 · 바꾸기 — POST /sync-key (계약: docs/superpowers/specs/2026-10-07-usage-pattern-plan.md B5)
@@ -887,7 +954,7 @@ async function _verifySyncKey(body, env) {
 //   레이트리밋은 POST 공통 관문(AI_LIMITER)이 건다.
 // ponytail: 바뀐 것을 디스코드 #시스템에 알리지 않는다 — Worker 에 디스코드 웹훅 시크릿이 없다(Interactions 응답 토큰뿐).
 //   알려야 하면 DISCORD_WEBHOOK_SYSTEM 을 Worker 시크릿으로 넣고 여기서 ctx.waitUntil 로 한 줄 보낸다(키 글자 · 해시 미기재).
-async function handleSyncKey(request, env) {
+async function handleSyncKey(request, env, ctx) {
   const raw = await request.text();
   if (raw.length > 1000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let body;
@@ -895,19 +962,30 @@ async function handleSyncKey(request, env) {
   if (!_isObj(body)) body = {};
   if (body.newKeyHash !== undefined) return jsonResponse({ error: 'use_new_key' }, 400);
   if (body.newKey === undefined) {
-    const denied = await _verifySyncKey({ keyHash: request.headers.get('X-Sync-Key-Hash') }, env);
-    return denied || jsonResponse({ ok: true, changed: false });
+    const a0 = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx);
+    return a0.resp || jsonResponse({ ok: true, changed: false });
   }
-  const cur = typeof body.currentKey === 'string' ? body.currentKey.trim() : '';
-  const nk = typeof body.newKey === 'string' ? body.newKey.trim() : '';
+  // 서버가 원문을 해시할 때는 입장 키 정규화(normalizeEntryKey)를 먼저 건다 — ECOM 형식이 아니면 trim 과 같다.
+  const cur = typeof body.currentKey === 'string' ? normalizeEntryKey(body.currentKey) : '';
+  const nk = typeof body.newKey === 'string' ? normalizeEntryKey(body.newKey) : '';
   const oh = cur ? await _sha256Hex(cur) : '';
-  const denied = await _verifySyncKey({ keyHash: oh }, env);
-  if (denied) return denied;
+  const auth = await _authUser(request, env, oh, ctx, true);
+  if (auth.resp) return auth.resp;
   if (nk.length < 12 || nk === cur) return jsonResponse({ error: 'weak_new_key' }, 400);
   if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
   const nh = await _sha256Hex(nk);
+  if (!auth.user.legacy) {
+    // 사람 표 사용자 — 입장 키 칸(ukey:)과 user.keyHash 만 바꾼다. 공간(uid)은 그대로라 옮길 것이 없다.
+    try {
+      if (await env.ECON_PORTFOLIO.get('ukey:' + nh)) return jsonResponse({ error: 'weak_new_key' }, 400);
+      const sr = await setUserKeyHash(env, auth.user.uid, nh);
+      if (sr.error) return jsonResponse({ error: sr.error }, sr.status || 500);
+    } catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+    return jsonResponse({ ok: true, changed: true });
+  }
   try { await env.ECON_PORTFOLIO.put(SYNC_KEY_KV_KEY, nh); }
   catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+  _clearUserCache();   // 옛 키가 해석기 캐시에 남아 60초 더 통하지 않게
   // 키는 이미 바뀌었다 — 옮기기에 실패해도 바뀐 것으로 답한다(앱은 새 공간이 비었으면 이 기기 것을 올린다).
   try {
     const doc = await env.ECON_PORTFOLIO.get('prefs:' + oh.slice(0, 16));
@@ -916,16 +994,19 @@ async function handleSyncKey(request, env) {
   return jsonResponse({ ok: true, changed: true });
 }
 
-async function handlePortfolioPost(request, env) {
+async function handlePortfolioPost(request, env, ctx) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   const raw = await request.text();
   if (raw.length > 120000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let body;
   try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
-  const denied = await _verifySyncKey(body, env);
-  if (denied) return denied;
+  const auth = await _authUser(request, env, body && body.keyHash, ctx, true);
+  if (auth.resp) return auth.resp;
+  const user = auth.user;
   // 🔔 알림 조건 — body.alerts 가 배열로 '있을 때만' 갱신, 없으면 기존 저장본을 보존(settings·tracking 과 같은 원칙).
   //   종전엔 미동봉을 빈 배열로 바꿔 커밋해, 보유 암호문만 올리는 요청이 알림 조건을 전부 지웠다(2026-10-02 검토).
+  // 멤버는 공개 파일(주인 한 사람의 알림 설정)을 건드릴 수 없다 — 보유 암호문만 받는다.
+  if (!_isOwnerLike(user)) { body.alerts = undefined; body.settings = undefined; body.tracking = undefined; }
   const alertsGiven = Array.isArray(body.alerts);
   let alerts = alertsGiven ? _sanitizeAlerts(body.alerts) : null;
   // ⚙ 전역 알림 설정 — body.settings 가 '있을 때만' 갱신, 없으면 기존 저장본을 보존(tracking 과 동일 원칙).
@@ -944,12 +1025,12 @@ async function handlePortfolioPost(request, env) {
     //   밀어낼 수 있다(salt · iv 가 매번 새로라 같은 보유도 늘 다른 글이다). 되돌리기는 README 「보유 이전 판」.
     const next = JSON.stringify(encHoldings);
     try {
-      const prev = await env.ECON_PORTFOLIO.get(ENC_HOLDINGS_KV_KEY);
-      const dayKey = ENC_HOLDINGS_PREV_KV_KEY + ':' + new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+      const prev = await env.ECON_PORTFOLIO.get(_holdKey(user));
+      const dayKey = _holdPrevKey(user) + ':' + new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
       if (prev && prev !== next && !(await env.ECON_PORTFOLIO.get(dayKey))) {
         await env.ECON_PORTFOLIO.put(dayKey, prev, { expirationTtl: 30 * 86400 });
       }
-      await env.ECON_PORTFOLIO.put(ENC_HOLDINGS_KV_KEY, next);
+      await env.ECON_PORTFOLIO.put(_holdKey(user), next);
     } catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
   }
   // 보유 암호문만 온 요청(alerts·settings·tracking 전부 미동봉)은 공개 파일을 건드리지 않는다 —
@@ -999,14 +1080,15 @@ async function handlePortfolioPost(request, env) {
 // 알림 평가는 평소 stock-alerts.yml 의 5분 cron 에서만 돌아 설정 검증에 최대 5분이 걸린다.
 // 이 엔드포인트는 키 검증 후 repository_dispatch(alerts-test) 로 워크플로를 즉시 1회 깨워
 // 사용자가 저장 직후 바로 평가·발송 결과를 확인할 수 있게 한다.
-async function handlePortfolioTest(request, env) {
+async function handlePortfolioTest(request, env, ctx) {
   if (!env || !env.GH_DISPATCH_TOKEN) return jsonResponse({ error: 'no_github_token' }, 503);
   const raw = await request.text();
   if (raw.length > 4000) return jsonResponse({ error: 'payload_too_large' }, 413);
   let body;
   try { body = JSON.parse(raw || '{}'); } catch { return jsonResponse({ error: 'invalid_json' }, 400); }
-  const denied = await _verifySyncKey(body, env);
-  if (denied) return denied;
+  const auth = await _authUser(request, env, body && body.keyHash, ctx);
+  if (auth.resp) return auth.resp;
+  if (!_isOwnerLike(auth.user)) return jsonResponse({ error: 'forbidden' }, 403);   // 알림 발송 워크플로는 주인 것
   try {
     const r = await fetch(`https://api.github.com/repos/${GH_REPO}/dispatches`, {
       method: 'POST',
@@ -1169,13 +1251,12 @@ function _sanitizePushSub(raw) {
   return { endpoint: raw.endpoint, expirationTime: exp, keys: { p256dh: k.p256dh, auth: k.auth } };
 }
 
-// 인증(_verifySyncKey 그대로) 뒤 이 키 해시의 KV 키를 정한다. 검증을 통과한 해시만 쓰이므로 공간이 섞이지 않는다.
-async function _userKvKey(request, env, prefix) {
-  const keyHash = String(request.headers.get('X-Sync-Key-Hash') || '').toLowerCase();
-  const denied = await _verifySyncKey({ keyHash }, env);
-  if (denied) return { denied };
+// 인증(_authUser) 뒤 이 사용자 공간의 KV 키를 정한다(legacy = 키 해시 앞 16자, 사람 표 = uid). 인증된 사용자만 쓰이므로 공간이 섞이지 않는다.
+async function _userKvKey(request, env, prefix, ctx) {
+  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx, request.method !== 'GET');
+  if (auth.resp) return { denied: auth.resp };
   if (!env.ECON_PORTFOLIO) return { denied: jsonResponse({ error: 'kv_not_configured' }, 503) };
-  return { kvKey: prefix + keyHash.slice(0, 16) };
+  return { kvKey: prefix + _space(auth.user), user: auth.user };
 }
 
 async function _readJsonBody(request, maxBytes) {
@@ -1198,7 +1279,7 @@ async function _readJsonBody(request, maxBytes) {
 //   서로 덮어쓸 수 있다(같은 기기·같은 지역의 연속 저장은 잡힌다). 엄밀한 비교-후-쓰기가 필요하면 Durable Object 로 옮긴다.
 // 발송기 읽기(B6) — 헤더 X-Push-Read-Key 가 오면 그 길로만 판단하고 GET 만 받는다. CI 가 동기화 키를 갖지 않게 하려는
 //   길이라 쓰기는 여전히 동기화 키만 된다. 이 헤더는 CORS 허용 헤더에 없어 브라우저에서는 쓸 수 없다(서버 간 호출 전용).
-async function handlePrefs(request, env) {
+async function handlePrefs(request, env, ctx) {
   const reader = request.headers.has('X-Push-Read-Key');
   if (reader && request.method !== 'GET') return jsonResponse({ error: 'read_only' }, 403);
   let a;
@@ -1206,7 +1287,7 @@ async function handlePrefs(request, env) {
     const s = await _pushReadSpace(request, env);
     a = s.denied ? s : { kvKey: 'prefs:' + s.space };
   } else {
-    a = await _userKvKey(request, env, 'prefs:');
+    a = await _userKvKey(request, env, 'prefs:', ctx);
   }
   if (a.denied) return a.denied;
   let cur;
@@ -1247,8 +1328,8 @@ async function handlePrefs(request, env) {
 // GET /push/subscribe — { vapidPublicKey, count } (브라우저 pushManager.subscribe 의 applicationServerKey 용).
 // PUT — 본문 = PushSubscription.toJSON() 그대로. 같은 endpoint 는 교체(기기당 1개).
 // DELETE — 본문 { endpoint }. 발송은 scripts/send_push.py 가 아래 /push/subscriptions 로 읽어 한다.
-async function handlePushSubscribe(request, env) {
-  const a = await _userKvKey(request, env, 'push:');
+async function handlePushSubscribe(request, env, ctx) {
+  const a = await _userKvKey(request, env, 'push:', ctx);
   if (a.denied) return a.denied;
   const vapid = String(env.VAPID_PUBLIC_KEY || '').trim();
   if (!vapid) {
@@ -1281,7 +1362,7 @@ async function handlePushSubscribe(request, env) {
 // /prefs · /push/subscribe 공통 관문 — 메서드 → 출처 → 레이트리밋(AI_LIMITER, fail-closed) → 처리 → 출처 제한 CORS.
 // Origin 이 없는 서버측 호출은 기존 POST 경로와 같이 통과시키고 인증·레이트리밋으로 막는다.
 const USER_DATA_METHODS = { '/prefs': ['GET', 'PUT'], '/push/subscribe': ['GET', 'PUT', 'DELETE'] };
-async function handleUserData(request, env, path) {
+async function handleUserData(request, env, path, ctx) {
   const pc = { ...postCors(request, env), 'Cache-Control': 'no-store' };
   if (!USER_DATA_METHODS[path].includes(request.method)) {
     return jsonResponse({ error: 'method_not_allowed', allow: USER_DATA_METHODS[path] }, 405, pc);
@@ -1291,7 +1372,7 @@ async function handleUserData(request, env, path) {
   const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
   if (rl) return _withCors(rl, pc);
   try {
-    const resp = path === '/prefs' ? await handlePrefs(request, env) : await handlePushSubscribe(request, env);
+    const resp = path === '/prefs' ? await handlePrefs(request, env, ctx) : await handlePushSubscribe(request, env, ctx);
     return _withCors(resp, pc);
   } catch (e) {
     console.log('[user-data] 예외:', String((e && e.message) || e));
@@ -1317,6 +1398,12 @@ async function _pushReadSpace(request, env, hdrs) {
     return { denied: jsonResponse({ error: 'unauthorized' }, 401, hdrs) };
   }
   if (!env.ECON_PORTFOLIO) return { denied: jsonResponse({ error: 'kv_not_configured' }, 503, hdrs) };
+  // 사람 표가 있으면 발송 대상은 주인(owner)의 공간(uid). 표가 사라졌으면 닫힌 채 실패.
+  try {
+    const owner = await getOwner(env);
+    if (owner) return { space: owner.uid };
+    if ((await env.ECON_PORTFOLIO.get('auth:migrated')) === '1') return { denied: jsonResponse({ error: 'users_index_missing' }, 503, hdrs) };
+  } catch (_) { return { denied: jsonResponse({ error: 'kv_read_failed' }, 503, hdrs) }; }
   let h;
   try { h = await _expectedSyncKeyHash(env); }
   catch (_) { return { denied: jsonResponse({ error: 'kv_read_failed' }, 503, hdrs) }; }
@@ -1330,7 +1417,7 @@ async function handlePushSender(request, env, path) {
   if (request.method !== want) return jsonResponse({ error: 'method_not_allowed', allow: [want] }, 405, nc);
   const a = await _pushReadSpace(request, env, nc);
   if (a.denied) return a.denied;
-  const space = a.space, kvKey = 'push:' + space;
+  const space = a.space; let kvKey = 'push:' + space;
   let subs;
   try { subs = await env.ECON_PORTFOLIO.get(kvKey, 'json'); }
   catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
@@ -1340,7 +1427,7 @@ async function handlePushSender(request, env, path) {
     let quiet = null;
     try { const p = await env.ECON_PORTFOLIO.get('prefs:' + space, 'json'); quiet = (p && p.settings && p.settings.quiet) || null; }
     catch (_) { /* 조용한 시간 없이 보낸다 — 구독 목록은 이미 읽었다 */ }
-    return jsonResponse({ subs, quiet }, 200, nc);
+    return jsonResponse({ subs, quiet, uid: space }, 200, nc);
   }
 
   // PUT /push/prune — 본문 { endpoints: [...] }. 푸시 서비스가 410/404(구독 사라짐)로 답한 주소만 지운다.
@@ -1348,12 +1435,200 @@ async function handlePushSender(request, env, path) {
   if (b.err) return _withCors(b.err, nc);
   const gone = _isObj(b.body) && Array.isArray(b.body.endpoints) ? b.body.endpoints.filter(e => typeof e === 'string') : null;
   if (!gone) return jsonResponse({ error: 'endpoints_required' }, 400, nc);
+  // uid 가 오면 그 사람 칸을 정리한다(없으면 주인 — 옛 발송기 호환). 모르는 uid 는 404.
+  if (b.body.uid !== undefined && b.body.uid !== space) {
+    const uid = b.body.uid;
+    if (typeof uid !== 'string' || !UID_RE.test(uid)) return jsonResponse({ error: 'not_found' }, 404, nc);
+    try {
+      if (!(await getOwner(env)) || !(await env.ECON_PORTFOLIO.get('user:' + uid, 'json'))) return jsonResponse({ error: 'not_found' }, 404, nc);
+      kvKey = 'push:' + uid;
+      subs = await env.ECON_PORTFOLIO.get(kvKey, 'json');
+    } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, nc); }
+    if (!Array.isArray(subs)) subs = [];
+  }
   const next = subs.filter(s => !gone.includes(s.endpoint));
   if (next.length !== subs.length) {
     try { await env.ECON_PORTFOLIO.put(kvKey, JSON.stringify(next)); }
     catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, nc); }
   }
   return jsonResponse({ ok: true, removed: subs.length - next.length, count: next.length }, 200, nc);
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 사람 관리 · 내 정보 · CI 복수 읽기 · 발송 기록
+// ──────────────────────────────────────────────────────────────────
+const UID_RE = /^[a-z0-9]{1,32}$/;
+const FIRED_KEEP = 50, FIRED_ITEM_MAX = 2048;
+const _NC = { 'Cache-Control': 'no-store' };
+const _pubUser = (u, extra) => ({ uid: u.uid, name: u.name, role: u.role, status: u.status, ...extra });
+const _cleanName = n => { const t = typeof n === 'string' ? n.trim() : ''; return t.length >= 1 && t.length <= 20 ? t : null; };
+
+// 브라우저 경로(/me · /admin/* · GET /fired) 공통 관문 — 출처 → 레이트리밋(fail-closed) → 처리 → 출처 제한 CORS.
+async function handleMemberRoute(request, env, path, ctx) {
+  const pc = { ...postCors(request, env), ..._NC };
+  const o = request.headers.get('Origin');
+  if (o && !_corsOriginOk(o, env)) return jsonResponse({ error: 'forbidden_origin' }, 403, pc);
+  const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
+  if (rl) return _withCors(rl, pc);
+  try { return _withCors(await _memberRoute(request, env, path, ctx), pc); }
+  catch (e) {
+    console.log('[member-route] 예외:', String((e && e.message) || e));
+    return jsonResponse({ error: 'internal_error' }, 500, pc);
+  }
+}
+
+async function _memberRoute(request, env, path, ctx) {
+  const method = request.method;
+  const auth = await _authUser(request, env, request.headers.get('X-Sync-Key-Hash'), ctx, method !== 'GET');
+  if (auth.resp) return auth.resp;
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503);
+  const user = auth.user;
+  try {
+    if (path === '/me') {
+      if (method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
+      return jsonResponse({ uid: user.uid, name: user.name, role: user.role, viaBackup: !!user.viaBackup });
+    }
+    if (path === '/fired') {
+      if (method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
+      const items = await env.ECON_PORTFOLIO.get('fired:' + user.uid, 'json');
+      return jsonResponse({ items: Array.isArray(items) ? items : [] });
+    }
+    // /admin/*
+    if (!_isOwnerLike(user)) return jsonResponse({ error: 'owner_only' }, 403);
+    const legacy = !!user.legacy;
+    const notMigrated = () => jsonResponse({ error: 'not_migrated' }, 409);
+    const fail = r => jsonResponse({ error: r.error }, r.status || 500);
+    if (path === '/admin/users') {
+      if (method === 'GET') {
+        const rows = legacy ? [user] : await listUsers(env);
+        const users = [];
+        for (const u of rows) {
+          const push = await env.ECON_PORTFOLIO.get('push:' + u.uid, 'json');
+          users.push(_pubUser(u, { lastSeenDay: legacy ? null : ((await readSeen(env, u.uid)) || null), pushCount: Array.isArray(push) ? push.length : 0 }));
+        }
+        return jsonResponse({ users });
+      }
+      if (method === 'POST') {
+        if (legacy) return notMigrated();
+        const b = await _readJsonBody(request, 2048);
+        if (b.err) return b.err;
+        const name = _isObj(b.body) ? _cleanName(b.body.name) : null;
+        if (!name) return jsonResponse({ error: 'bad_name' }, 400);
+        const r = await createUser(env, { name });
+        if (r.error) return fail(r);
+        return jsonResponse({ user: _pubUser(r.user), key: r.key });
+      }
+      return jsonResponse({ error: 'method_not_allowed', allow: ['GET', 'POST'] }, 405);
+    }
+    if (path === '/admin/backup-key') {
+      if (method !== 'POST') return jsonResponse({ error: 'method_not_allowed', allow: ['POST'] }, 405);
+      if (legacy) return notMigrated();
+      const r = await issueBackupKey(env, user.uid);
+      return r.error ? fail(r) : jsonResponse({ key: r.key });
+    }
+    const m = /^\/admin\/users\/([^/]+)(\/rekey)?$/.exec(path);
+    if (m) {
+      const uid = m[1];
+      if (!UID_RE.test(uid)) return jsonResponse({ error: 'not_found' }, 404);
+      if (m[2]) {
+        if (method !== 'POST') return jsonResponse({ error: 'method_not_allowed', allow: ['POST'] }, 405);
+        if (legacy) return notMigrated();
+        const r = await rekeyUser(env, uid);
+        return r.error ? fail(r) : jsonResponse({ key: r.key });
+      }
+      if (method === 'PATCH') {
+        if (legacy) return notMigrated();
+        const b = await _readJsonBody(request, 2048);
+        if (b.err) return b.err;
+        if (!_isObj(b.body)) return jsonResponse({ error: 'bad_patch' }, 400);
+        const patch = {};
+        if (b.body.name !== undefined) { const n = _cleanName(b.body.name); if (!n) return jsonResponse({ error: 'bad_name' }, 400); patch.name = n; }
+        if (b.body.status !== undefined) patch.status = b.body.status;
+        if (patch.status === 'paused' && uid === user.uid) return jsonResponse({ error: 'owner_unpausable' }, 403);
+        const r = await patchUser(env, uid, patch);
+        return r.error ? fail(r) : jsonResponse({ user: _pubUser(r.user) });
+      }
+      if (method === 'DELETE') {
+        if (legacy) return notMigrated();
+        const r = await deleteUser(env, uid);
+        return r.error ? fail(r) : jsonResponse({ ok: true });
+      }
+      return jsonResponse({ error: 'method_not_allowed', allow: ['PATCH', 'DELETE'] }, 405);
+    }
+    return jsonResponse({ error: 'not_found' }, 404);
+  } catch (e) {
+    console.log('[member-route] KV 오류:', String((e && e.message) || e));
+    return jsonResponse({ error: 'kv_read_failed' }, 503);
+  }
+}
+
+// POST /admin/migrate — CI 한 번 호출. 머리 X-Push-Read-Key(시크릿) 와 본문 keyHash(옛 키) 가 둘 다 맞아야 한다.
+async function handleMigrate(request, env) {
+  if (request.method !== 'POST') return jsonResponse({ error: 'method_not_allowed', allow: ['POST'] }, 405, _NC);
+  const secret = String(env.PUSH_READ_KEY || '').trim();
+  if (!secret) return jsonResponse({ error: 'push_read_not_configured' }, 503, _NC);
+  // 머리가 틀리면 본문·KV 를 읽기 전에 거절한다.
+  if (!_hexEq(String(request.headers.get('X-Push-Read-Key') || '').trim(), secret)) return jsonResponse({ error: 'unauthorized' }, 401, _NC);
+  const b = await _readJsonBody(request, 4096);
+  if (b.err) return _withCors(b.err, _NC);
+  let legacy = '';
+  try { legacy = await _expectedSyncKeyHash(env); } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
+  const kh = _isObj(b.body) && typeof b.body.keyHash === 'string' ? b.body.keyHash.toLowerCase() : '';
+  if (!legacy || !_hexEq(kh, legacy)) return jsonResponse({ error: 'unauthorized' }, 401, _NC);
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, _NC);
+  try { return jsonResponse(await migrateOwner(env, legacy), 200, _NC); }
+  catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, _NC); }
+}
+
+// GET /prefs/all · GET /push/subscriptions/all — 발송기(CI)가 사람마다 한 번에 읽는다. 멈춘 사람은 뺀다.
+//   사람 표 이전 전에는 옛 공간 하나(uid = 키 해시 앞 16자, 주인)만 낸다.
+async function handlePushAll(request, env, path) {
+  if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405, _NC);
+  const a = await _pushReadSpace(request, env, _NC);
+  if (a.denied) return a.denied;
+  try {
+    const owner = await getOwner(env);
+    const rows = owner ? (await listUsers(env)).filter(u => u.status !== 'paused')
+                       : [{ uid: a.space, role: 'owner' }];
+    const users = [];
+    for (const u of rows) {
+      const p = await env.ECON_PORTFOLIO.get('prefs:' + u.uid, 'json');
+      if (path === '/prefs/all') {
+        users.push({ uid: u.uid, role: u.role, prefs: p || { v: 2, updatedAt: null, ..._sanitizePrefs({}) } });
+      } else {
+        const subs = await env.ECON_PORTFOLIO.get('push:' + u.uid, 'json');
+        users.push({ uid: u.uid, role: u.role, quiet: (p && p.settings && p.settings.quiet) || null, subs: Array.isArray(subs) ? subs : [] });
+      }
+    }
+    return jsonResponse({ users }, 200, _NC);
+  } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
+}
+
+// POST /fired {uid, item} — 발송기가 보낸 알림 기록을 사람 칸 fired:<uid> 앞에 넣고 50건만 둔다. 시크릿 PUSH_WRITE_KEY.
+async function handleFiredWrite(request, env) {
+  const secret = String(env.PUSH_WRITE_KEY || '').trim();
+  if (!secret) return jsonResponse({ error: 'push_write_not_configured' }, 503, _NC);
+  if (!_hexEq(String(request.headers.get('X-Push-Write-Key') || '').trim(), secret)) return jsonResponse({ error: 'forbidden' }, 403, _NC);
+  if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, _NC);
+  const b = await _readJsonBody(request, 8192);
+  if (b.err) return _withCors(b.err, _NC);
+  const uid = _isObj(b.body) ? b.body.uid : null, item = _isObj(b.body) ? b.body.item : null;
+  if (typeof uid !== 'string' || !UID_RE.test(uid)) return jsonResponse({ error: 'not_found' }, 404, _NC);
+  if (!_isObj(item) || Array.isArray(item)) return jsonResponse({ error: 'item_required' }, 400, _NC);
+  if (new TextEncoder().encode(JSON.stringify(item)).length > FIRED_ITEM_MAX) return jsonResponse({ error: 'item_too_large', limit: FIRED_ITEM_MAX }, 413, _NC);
+  try {
+    if (await getOwner(env)) {
+      if (!(await env.ECON_PORTFOLIO.get('user:' + uid, 'json'))) return jsonResponse({ error: 'not_found' }, 404, _NC);
+    } else {
+      if ((await env.ECON_PORTFOLIO.get('auth:migrated')) === '1') return jsonResponse({ error: 'users_index_missing' }, 503, _NC);   // 닫힌 채 실패
+      const h = await _expectedSyncKeyHash(env);   // 이전 전 — 옛 공간(키 해시 앞 16자) 하나뿐
+      if (!h || uid !== h.slice(0, 16)) return jsonResponse({ error: 'not_found' }, 404, _NC);
+    }
+    const cur = await env.ECON_PORTFOLIO.get('fired:' + uid, 'json');
+    const next = [item, ...(Array.isArray(cur) ? cur : [])].slice(0, FIRED_KEEP);
+    await env.ECON_PORTFOLIO.put('fired:' + uid, JSON.stringify(next));
+    return jsonResponse({ ok: true, count: next.length }, 200, _NC);
+  } catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, _NC); }
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -1746,7 +2021,7 @@ async function _discordQuote(label, env) {
     const arrow = pct == null ? '' : (pct >= 0 ? '▲' : '▼');
     const pctTxt = pct == null ? '' : ` ${arrow}${Math.abs(pct).toFixed(2)}%`;
     const nav = DISCORD_NAVER[label] ? ` · [네이버 ↗](${DISCORD_NAVER[label]})` : '';
-    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](https://0101-commits.github.io/economic-site/)`;
+    return `**${label}** ${Number(price).toLocaleString('en-US', { minimumFractionDigits: nd, maximumFractionDigits: nd })}${pctTxt}${nav}\n※ 무료 시세 기준(지연 가능) · [대시보드](${APP_URL})`;
   };
   try {
     // range=1d — 이때 chartPreviousClose 가 '직전 거래일 종가'다. 5d 로 부르면 5일 전
@@ -1794,7 +2069,7 @@ async function handleDiscordInteractions(request, env, ctx) {
     }
     if (name === '대시보드') {
       return jsonResponse({ type: 4, data: {
-        content: '📊 경제터미널 대시보드\nhttps://0101-commits.github.io/economic-site/' } });
+        content: '📊 경제터미널 대시보드\n' + APP_URL } });
     }
     return jsonResponse({ type: 4, data: { content: `알 수 없는 명령: ${name}`, flags: 64 } });
   }
@@ -1823,7 +2098,7 @@ async function handleDiscordInteractions(request, env, ctx) {
       const hit = DISCORD_ASSET_LINKS[v];
       const content = hit
         ? `📈 **${hit[0]}** 차트 → ${hit[1]}`
-        : `📊 대시보드 → https://0101-commits.github.io/economic-site/`;
+        : `📊 대시보드 → ${APP_URL}`;
       return jsonResponse({ type: 4, data: { content, flags: 64 } });
     }
     return jsonResponse({ type: 4, data: { content: `알 수 없는 버튼: ${customId}`, flags: 64 } });
@@ -1921,14 +2196,15 @@ export default {
     if (request.method === 'OPTIONS') {
       const _p = new URL(request.url).pathname;
       const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test' || _p === '/sync-key' ||
-                       _p === '/prefs' || _p === '/push/subscribe');
-      return new Response(null, { headers: _isPost ? postCors(request, env) : GET_CORS });
+                       _p === '/prefs' || _p === '/push/subscribe' ||
+                       _p === '/me' || _p === '/fired' || _p === '/admin/migrate' || _p.startsWith('/admin/'));
+      return new Response(null, { status: 204, headers: _isPost ? postCors(request, env) : GET_CORS });
     }
 
     // 1층 사용자 데이터(관심·알림 조건·화면 설정)와 웹 푸시 구독 — GET/PUT/DELETE 를 한 관문에서 받는다.
     {
       const _p = new URL(request.url).pathname;
-      if (_p === '/prefs' || _p === '/push/subscribe') return handleUserData(request, env, _p);
+      if (_p === '/prefs' || _p === '/push/subscribe') return handleUserData(request, env, _p, ctx);
       // 웹 푸시 공개키(인증 없음) — 브라우저가 구독 전에 읽는다. 공개값이라 GET_CORS(*).
       if (_p === '/push/key') {
         if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
@@ -1937,6 +2213,13 @@ export default {
           : jsonResponse({ error: 'push_not_configured', message: 'Worker 시크릿 VAPID_PUBLIC_KEY 가 없습니다.' }, 503);
       }
       if (_p === '/push/subscriptions' || _p === '/push/prune') return handlePushSender(request, env, _p);
+      if (_p === '/prefs/all' || _p === '/push/subscriptions/all') return handlePushAll(request, env, _p);
+      // 사람 관리 · 내 정보 · 발송 기록. 서버 간 호출(/admin/migrate · POST /fired)은 Origin 없이 시크릿으로 인증한다.
+      if (_p === '/admin/migrate') return handleMigrate(request, env);
+      if (_p === '/fired' && request.method === 'POST') return handleFiredWrite(request, env);
+      if (_p === '/me' || _p === '/fired' || _p === '/admin/users' || _p === '/admin/backup-key' || _p.startsWith('/admin/users/')) {
+        return handleMemberRoute(request, env, _p, ctx);
+      }
     }
 
     // 🤖 AI 시황 요약 — POST /ai : 프론트가 보낸 '그 순간의 시장 스냅샷'을 Anthropic(Claude)
@@ -1959,16 +2242,16 @@ export default {
       const purl = new URL(request.url);
       let resp;
       if (purl.pathname === '/ai' || purl.searchParams.get('ai') === '1') {
-        resp = await handleAiSummary(request, env);
+        resp = await handleAiSummary(request, env, ctx);
       } else if (purl.pathname === '/portfolio') {
         // 📲 투자 현황 — 카카오 알림 설정 저장 (저장소 alerts_config.json 커밋)
-        resp = await handlePortfolioPost(request, env);
+        resp = await handlePortfolioPost(request, env, ctx);
       } else if (purl.pathname === '/portfolio/test') {
         // 🔔 알림 테스트 발송 — stock-alerts 워크플로 즉시 1회 실행
-        resp = await handlePortfolioTest(request, env);
+        resp = await handlePortfolioTest(request, env, ctx);
       } else if (purl.pathname === '/sync-key') {
         // 🔑 동기화 키 바꾸기 / 확인(PIN 잊음)
-        resp = await handleSyncKey(request, env);
+        resp = await handleSyncKey(request, env, ctx);
       } else {
         resp = jsonResponse({ error: 'POST is only supported at /ai, /portfolio, /portfolio/test or /sync-key' }, 404);
       }
@@ -1983,7 +2266,7 @@ export default {
       // 온라인 대입 창구가 된다 — POST 와 같은 분당 10회(fail-closed)를 건다.
       const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
       if (rl) return rl;
-      return handlePortfolioGet(request, env);   // [이슈1] request 전달 — X-Sync-Key-Hash 헤더 검증에 필요
+      return handlePortfolioGet(request, env, ctx);   // [이슈1] request 전달 — X-Sync-Key-Hash 헤더 검증에 필요
     }
     // AI 헬스체크 (GET /ai) — Workers AI 바인딩/Anthropic 키 설정 여부를 즉시 확인.
     // 브라우저에서 https://<worker>/ai 를 열어 {aiBinding:true} 가 보이면 무료 AI 사용 가능.

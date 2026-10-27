@@ -37,7 +37,7 @@ const APP_EXTS = ['.js', '.css', '.html', '.svg', '.png', '.woff2', '.webmanifes
 const FORBIDDEN = [
   /\.(md|py|pyc|sql|sh|ps1|bat|ya?ml|toml|jsonc|jsonl|mjs|env|pem|key)$/i,
   /(^|\/)\.(omc|github|claude|git|wrangler|env|dev\.vars)/i,
-  /(^|\/)(docs|tests|scripts|node_modules|cloudflare-worker|root-site)\//i,
+  /(^|\/)(docs|tests|scripts|node_modules|cloudflare-worker|cloudflare-pages|root-site)\//i,
   /(^|\/)(alerts_config|toss_snapshot|package(-lock)?)\.json$/i,
 ];
 const SECRET = [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, /\bgh[pousr]_[A-Za-z0-9]{36}\b/, /\bgithub_pat_\w{22,}/, /\bAKIA[0-9A-Z]{16}\b/];
@@ -70,7 +70,7 @@ function collect() {
   for (const outDir of APP_OUTS) {
     for (const r of app) {
       const dst = path.join(SITE, outDir, r);
-      if (outDir === '' && fs.existsSync(dst) && r !== 'index.html') throw new Error(`앱 파일이 현행 파일과 겹침: ${r}`);   // assets/·sw.js·manifest 가 현행 파일을 덮지 않게
+      if (outDir === '' && fs.existsSync(dst) && r !== 'index.html' && !fs.readFileSync(dst).equals(fs.readFileSync(path.join(dist, r)))) throw new Error(`앱 파일이 현행 파일과 겹침: ${r}`);   // assets/·sw.js·manifest 가 현행 파일을 덮지 않게(내용이 같은 공유 그림 등은 통과)
       fs.mkdirSync(path.dirname(dst), { recursive: true });
       fs.copyFileSync(path.join(dist, r), dst);
     }

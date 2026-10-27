@@ -25,7 +25,7 @@ export async function pushSubscribed(): Promise<boolean> {
 }
 
 const MSG: Record<number, string> = {
-  401: '동기화 키가 맞지 않습니다. 설정에서 다시 넣으세요.',
+  401: '입장 키가 맞지 않습니다. 설정에서 다시 넣으세요.',
   429: '요청이 많습니다. 잠시 뒤 다시 하세요.',
   503: '서버에 푸시가 아직 준비되지 않았습니다.',
 }
@@ -51,7 +51,7 @@ const sameKey = (a: ArrayBuffer | null | undefined, b: Uint8Array) =>
 export async function subscribePush(getKeyHash: GetKeyHash): Promise<void> {
   if (!pushSupported()) throw new Error('이 브라우저는 웹 푸시를 지원하지 않습니다.')
   const hash = await getKeyHash()
-  if (!hash) throw new Error('설정에서 동기화 키를 먼저 넣으세요.')
+  if (!hash) throw new Error('설정에서 입장 키를 먼저 넣으세요.')
   if ((await Notification.requestPermission()) !== 'granted') throw new Error('알림이 막혀 있습니다. 브라우저 사이트 설정에서 허락하세요.')
   if (!(await registerSW())) throw new Error('서비스 워커를 등록하지 못했습니다.')
   const reg = await navigator.serviceWorker.ready
@@ -72,6 +72,15 @@ export async function pushCount(getKeyHash: GetKeyHash): Promise<number | null> 
   const hash = await getKeyHash()
   if (!hash) return null
   try { const j = await call('GET', '/push/subscribe', hash); return Number.isInteger(j?.count) ? j.count : null } catch { return null }
+}
+
+/**
+ * 키가 더는 안 맞을 때(401 — 운영자 재발급 · 삭제): 서버에 묻지 않고 이 브라우저의 구독만 끊는다(가능한 경우).
+ * 서버 쪽 칸은 해시가 없어 지울 수 없지만, 재발급 · 삭제가 이미 지웠다(cloudflare-worker/users.js).
+ */
+export async function dropLocalPush(): Promise<void> {
+  if (!pushSupported()) return
+  try { await (await (await navigator.serviceWorker.getRegistration())?.pushManager.getSubscription())?.unsubscribe() } catch { /* 못 끊어도 그만 */ }
 }
 
 /** 이 기기 구독을 끊는다. 서버에서 못 지워도 끊긴 주소는 발송기가 410 을 받고 정리한다. */

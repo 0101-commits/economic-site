@@ -108,8 +108,13 @@ test('passProblem: 6자리 숫자가 아닌 PIN 도 거부 · 동기화 키 · �
   assert.match(await passProblem('abcdefg', no, pinIs('abcdefg')), /잠금 PIN/)       // 현행 잠금은 4자 이상 아무 글자
   assert.match(await passProblem('abcdefg ', no, pinIs('abcdefg')), /잠금 PIN/)      // 공백 뺀 값도 견준다
   assert.match(await passProblem('abcd', no, pinIs('abcd')), /6자 이상/)            // 4자 PIN 은 길이에서 먼저 걸린다
-  assert.match(await passProblem('sync-key-phrase', async () => true, no), /동기화 키/)
+  assert.match(await passProblem('sync-key-phrase', async () => true, no), /입장 키/)
   assert.equal(await passProblem('long-enough-pass', no, pinIs('abcdefg')), '')
+})
+
+test('holdKeyOf: 입장 키는 대소문자 · 공백 · 하이픈이 달라도 같은 재료', async () => {
+  assert.equal(await holdKeyOf('ecom-7kq3-px9m-2hta'), await holdKeyOf('ECOM-7KQ3-PX9M-2HTA'))
+  assert.equal(await holdKeyOf(' ecom 7kq3 px9m 2hta '), await holdKeyOf('ECOM-7KQ3-PX9M-2HTA'))
 })
 
 test('holdKeyOf: 같은 키 → 같은 재료(앞뒤 공백 무시) · 다른 키 → 다름 · 명세 그대로 PBKDF2-SHA256(키, "ecom-holdings-v1", 600000) 32바이트 hex', async () => {

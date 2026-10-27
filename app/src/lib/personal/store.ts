@@ -17,51 +17,34 @@ import { watchKind } from './remote'
 import { unsubscribePush, type GetKeyHash } from '../push'
 import { applyTheme, readTheme } from '../theme'
 import type { MyData } from './backup'
+import { storeKey } from './who'
+import { read, write, readPortfolio, writePortfolio, readSnaps, writeSnaps, readLedger, writeLedger, scopedWipeNames, wipeAllPeople } from './scoped'
+export { readPortfolio, writePortfolio, readSnaps, readLedger, writeLedger }
+export type { Portfolio, Ledger } from './scoped'
+import type { Portfolio } from './scoped'
 import '../../components/personal/updown.css'
+export { storeKey }
 
 export const KEYS = {
-  portfolio: 'portfolioV1', snaps: 'pfSnapshotsV1', ledger: 'pfLedgerV1',
-  prefs: 'econPrefsV1', recent: 'econSearchRecentV1', watch: 'econ_watch_v1', theme: 'econNextTheme_v1',
+  // 보유 · 스냅샷 · 원장 · 설정 · 관심 · 시나리오는 사람마다 이름이 갈린다 → who.ts storeKey(). 여기엔 두지 않는다.
+  // recent · holdSync · scope(와 quotes.ts 시세 캐시)도 사람마다 갈린다 — 쓰는 곳은 이 이름을 storeKey() 로 감싸 쓴다(마스터는 이 이름 그대로).
+  recent: 'econSearchRecentV1', theme: 'econNextTheme_v1',
   holdSync: 'econHoldSync_v1',   // 보유 동기화 기록(sync.ts) — 지문·시각만, 보유 값 없음
   hk: 'econAlertsHk_v1',         // 알림 자동 정리 기록(housekeeping.ts) — 조건 id · 시각만
   holdKey: 'econHoldKey_v1',     // 보유 열쇠 재료(sync.ts) — 동기화 키에서 만든 hex
   scope: 'econSyncScope_v1',     // 기기 연결 범위(sync.ts)
-  scenarios: 'econ_scenarios_v1', // 렌즈 「만약에」 저장(components/lens/WhatIf.tsx SAVE_KEY 와 같은 열쇠)
   rail: 'econRail_v1',           // 오른쪽 패널 펼침 · 탭(components/Rail.tsx)
 } as const
 
-function read<T>(key: string, fallback: T): T {
-  try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v ?? fallback } catch { return fallback }
-}
-/** 저장 실패(시크릿 창·용량 초과)는 false — 화면이 「저장 못 함」을 말해야 입력이 소리 없이 사라지지 않는다. */
-function write(key: string, v: unknown): boolean {
-  try { localStorage.setItem(key, JSON.stringify(v)); return true } catch { return false }
-}
-
 // ── 보유 ──────────────────────────────────────────────
-export type Portfolio = { groups: { id: string; name: string }[]; items: Holding[]; alerts: unknown[]; [k: string]: unknown }
-
-export function readPortfolio(): Portfolio {
-  const p = read<Partial<Portfolio> | null>(KEYS.portfolio, null)
-  const items = Array.isArray(p?.items) ? p!.items.filter(x => x && typeof x.symbol === 'string') : []
-  const groups = Array.isArray(p?.groups) && p!.groups.length ? p!.groups : [{ id: 'g_default', name: '기본 그룹' }]
-  return { lastSync: null, ...p, groups, items, alerts: Array.isArray(p?.alerts) ? p!.alerts : [] }
-}
-export const writePortfolio = (p: Portfolio) => write(KEYS.portfolio, p)
 export const newId = (prefix: string) => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 
-/** 스냅샷 목록. 깨진 칸(null · 날짜 없는 것)은 뺀다 — 다른 기기 · 옛 화면이 쓴 배열을 그대로 읽으므로. */
-export const readSnaps = (): Snap[] => { const a = read<unknown>(KEYS.snaps, []); return Array.isArray(a) ? a.filter((s): s is Snap => !!s && typeof s.d === 'string') : [] }
 /** 오늘(UTC 날짜) 스냅샷 한 건을 넣는다. 같은 날은 바꿔 넣으므로 하루 1건. */
 export function saveTodaySnap(ev: number, ct: number): Snap[] {
   const next = upsertSnap(readSnaps(), { d: new Date().toISOString().slice(0, 10), ev: Math.round(ev), ct: Math.round(ct) })
-  write(KEYS.snaps, next)
+  writeSnaps(next)
   return next
 }
-
-export type Ledger = { id: string; d: string; kind: 'div' | 'dep' | 'wd'; amt: number; memo?: string }
-export const readLedger = (): Ledger[] => { const a = read<unknown>(KEYS.ledger, []); return Array.isArray(a) ? a : [] }
-export const writeLedger = (a: Ledger[]) => write(KEYS.ledger, [...a].sort((x, y) => (x.d < y.d ? -1 : 1)).slice(-500))
 
 // ── 설정·알림 조건 v2(Worker /prefs 와 같은 모양 — 계약서 docs/superpowers/plans/2026-10-05-alerts-v2.md 「설정 /prefs v2」) ──
 // 조건 한 건 = 사건(사전 A1~H4 · 사용자 U1 수준 도달 · U2 급변 값) + 대상 + 세기 · 등급 · 반복 · 울림.
@@ -87,8 +70,8 @@ export type Settings = {
 }
 export type Prefs = { v: 2; alerts: AlertCond[]; settings: Settings; scenarios: { name: string; inputs: Record<string, unknown> }[] }
 
-export const readPrefs = (): Prefs => upgradePrefs(read<unknown>(KEYS.prefs, null))
-export const writePrefs = (p: Prefs) => write(KEYS.prefs, p)
+export const readPrefs = (): Prefs => upgradePrefs(read<unknown>(storeKey('econPrefsV1'), null))
+export const writePrefs = (p: Prefs) => write(storeKey('econPrefsV1'), p)
 
 /** 자동 정리 기록(housekeeping.ts) — 이 기기에만. */
 export const readHk = (): Hk => { const h = read<unknown>(KEYS.hk, {}); return h && typeof h === 'object' ? (h as Hk) : {} }
@@ -98,7 +81,7 @@ export const writeHk = (h: Hk) => write(KEYS.hk, h)
 export function tidyAlerts(rows: unknown, seen: string | null, now = Date.now()) {
   const r = housekeep(readPrefs(), readHk(), now, Date.parse(seen ?? '') || 0, Array.isArray(rows) ? rows : [])
   writeHk(r.hk)
-  if (r.changed && writePrefs(r.prefs)) window.dispatchEvent(new StorageEvent('storage', { key: KEYS.prefs }))
+  if (r.changed && writePrefs(r.prefs)) window.dispatchEvent(new StorageEvent('storage', { key: storeKey('econPrefsV1') }))
 }
 
 /** 등락 색: 'kr' = 상승 빨강(기본, 속성 없음) · 'us' = 상승 초록(updown.css). 앱이 뜰 때 App.tsx 가 한 번 부른다. */
@@ -110,7 +93,9 @@ export function applyUpdown(u: Updown) {
 // ── 내 데이터 파일(backup.ts — 설정 「내 데이터」) ──────────────
 /** 내려받기 재료. 비밀(키 해시 · 보유 열쇠 재료 · PIN)과 사용 기록은 읽지 않는다. 관심은 watch.ts 처럼 현행 화면 즐겨찾기를 이어받는다. */
 export function readMyData(): MyData {
-  const p = readPrefs(), w = read<unknown>(KEYS.watch, null) ?? read<unknown>('econ_fav_v1', []), sc = read<unknown>(KEYS.scenarios, [])
+  const wk = storeKey('econ_watch_v1')
+  // 옛 즐겨찾기(econ_fav_v1)는 마스터(옛 이름) 것이다 — 멤버는 잇지 않는다.
+  const p = readPrefs(), w = read<unknown>(wk, null) ?? (wk === 'econ_watch_v1' ? read<unknown>('econ_fav_v1', []) : []), sc = read<unknown>(storeKey('econ_scenarios_v1'), [])
   return {
     portfolio: readPortfolio(), snapshots: readSnaps(), ledger: readLedger(),
     watch: Array.isArray(w) ? w.filter((x): x is string => typeof x === 'string') : [],
@@ -123,11 +108,11 @@ export function readMyData(): MyData {
  * 다른 화면은 storage 이벤트로 다시 읽는다(sync.ts writeLocal 과 같은 길). 기기 연결이 켜져 있으면 sync.ts 감시가 바뀐 것을 서버에 올린다.
  */
 export function writeMyData(d: Partial<MyData>): boolean {
-  const puts: [string, unknown][] = [[KEYS.portfolio, d.portfolio], [KEYS.snaps, d.snapshots], [KEYS.watch, d.watch], [KEYS.scenarios, d.scenarios],
-    [KEYS.prefs, d.prefs && { ...readPrefs(), ...d.prefs }]]
+  const puts: [string, unknown][] = [[storeKey('portfolioV1'), d.portfolio], [storeKey('pfSnapshotsV1'), d.snapshots], [storeKey('econ_watch_v1'), d.watch], [storeKey('econ_scenarios_v1'), d.scenarios],
+    [storeKey('econPrefsV1'), d.prefs && { ...readPrefs(), ...d.prefs }]]
   const done = puts.filter(([, v]) => v !== undefined)
   let ok = done.map(([k, v]) => write(k, v)).every(Boolean)
-  if (d.ledger) { ok = writeLedger(d.ledger) && ok; done.push([KEYS.ledger, d.ledger]) }
+  if (d.ledger) { ok = writeLedger(d.ledger) && ok; done.push([storeKey('pfLedgerV1'), d.ledger]) }
   if (d.theme) applyTheme(d.theme)
   if (d.prefs) applyUpdown(d.prefs.settings.updown)
   for (const [key] of done) window.dispatchEvent(new StorageEvent('storage', { key }))
@@ -136,25 +121,31 @@ export function writeMyData(d: Partial<MyData>): boolean {
 
 // ── 최근 본 것(검색 · 오른쪽 패널) ─────────────────────────
 export type { Recent }
-export const readRecent = (): Recent[] => recentList(read<unknown>(KEYS.recent, []))
+export const readRecent = (): Recent[] => recentList(read<unknown>(storeKey(KEYS.recent), []))
 export function pushRecent(r: Recent) {
-  write(KEYS.recent, addRecent(readRecent(), r))
+  write(storeKey(KEYS.recent), addRecent(readRecent(), r))
 }
 /** 상세(/i/<id>)를 열 때 한 번 — 지표 · 종목 모두. 이름은 모르므로 id 를 적고, 전에 적힌 이름이 있으면 남긴다(보이는 이름은 읽는 쪽이 사전 · 묶음에서 찾는다). */
 export function noteRecent(id: string) {
-  if (id) write(KEYS.recent, addRecent(readRecent(), { label: id, to: `/i/${id}`, kind: watchKind(id) === 'stock' ? '종목' : '지표' }, true))
+  if (id) write(storeKey(KEYS.recent), addRecent(readRecent(), { label: id, to: `/i/${id}`, kind: watchKind(id) === 'stock' ? '종목' : '지표' }, true))
 }
 
 /**
  * 이 기기 데이터 지우기 대상. 잠금 PIN 은 남긴다(설정 화면이 그렇다고 적는다 — PIN 잊음에서 지울 때는 PinGate 가 따로 지운다).
  * 현행 화면(js/app2.js)의 동기화 키 해시 · 보유 암호(pfSyncKey* · pfHoldingsPass)도 지운다 — 예전 판은 localStorage 에, 지금 판은 이 탭 sessionStorage 에 둔다.
- * econHoldQuotes_v1 = 보유 종목 시세 캐시(quotes.ts, sessionStorage) — 종목 목록이 드러나므로 같이 지운다.
+ * 최근 본 것 · 보유 동기화 기록 · 연결 범위 · 보유 시세 캐시(quotes.ts, sessionStorage — 종목 목록이 드러난다)는 사람별 이름이라 scopedWipeNames 에 든다.
  */
-export const WIPE_KEYS = [KEYS.portfolio, KEYS.snaps, KEYS.ledger, KEYS.watch, KEYS.prefs, KEYS.recent, KEYS.theme, KEYS.holdSync, KEYS.hk,
-  KEYS.holdKey, KEYS.scope, KEYS.rail,
-  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econ_scenarios_v1', 'econAlertsSeen_v1', 'econ_fav_v1', 'econ_fold_v1', 'econHoldQuotes_v1', 'econ_usage_v1', 'econ_home_cache_v1']
+export const wipeKeys = () => [...scopedWipeNames(), KEYS.theme, KEYS.hk, KEYS.holdKey, KEYS.rail,
+  'pfHoldingsPass', 'pfSyncKeyHash', 'pfSyncKey', 'econAlertsSeen_v1', 'econ_fold_v1', 'econ_usage_v1', 'econ_home_cache_v1']
+/** PIN 잊음 전용: 잠금 PIN 은 이 기기 모든 사람의 자료를 지켰으므로 모든 사람 것을 지운다(scoped.wipeAllPeople). 설정의 「이 기기 데이터 지우기」는 그대로 wipeDevice(지금 사람만). */
+export async function wipeDeviceAll(getKeyHash: GetKeyHash): Promise<boolean> {
+  await unsubscribePush(getKeyHash).catch(() => {})
+  const mine = new Set(scopedWipeNames())
+  return wipeAllPeople(wipeKeys().filter(k => !mine.has(k)))
+}
 /** 지우기 전에 이 기기 폰 알림 구독을 끊는다(서버 쪽 해지에 동기화 키 해시가 쓰인다 — 그래서 동기화는 이 뒤에 끈다). 못 끊어도 지우기는 계속. */
 export async function wipeDevice(getKeyHash: GetKeyHash): Promise<boolean> {
   await unsubscribePush(getKeyHash).catch(() => {})
-  try { for (const s of [localStorage, sessionStorage]) WIPE_KEYS.forEach(k => s.removeItem(k)); return true } catch { return false }
+  const keys = wipeKeys()   // 지금 사람의 이름뿐 — 다른 사람 것은 그대로
+  try { for (const s of [localStorage, sessionStorage]) keys.forEach(k => s.removeItem(k)); return true } catch { return false }
 }

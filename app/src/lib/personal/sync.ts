@@ -7,7 +7,7 @@
 //   키      화면에서 받은 동기화 키 원문은 저장하지 않는다. 연결할 때(원문이 손에 있을 때) 두 가지로 바꿔 둔다:
 //           SHA-256 해시 → sessionStorage econSyncHash_v1(이 탭) + localStorage econSyncHashKeep_v1(기억 — 새 탭이 PIN 없이 잇는다, 결정 D10),
 //           보유 열쇠 재료(e2e.ts holdKeyOf) → localStorage econHoldKey_v1. 기억 해시와 재료는 수명이 같다 —
-//           「이 기기 잊기」 · 키가 틀려(401) 끊김 · 이 기기 데이터 지우기(store.ts WIPE_KEYS) · 다른 탭에서 지움(storage 이벤트) 때 함께 지운다.
+//           「이 기기 잊기」 · 키가 틀려(401) 끊김 · 이 기기 데이터 지우기(store.ts wipeKeys) · 다른 탭에서 지움(storage 이벤트) 때 함께 지운다.
 //   연결    키 → 해시 · 재료 → GET /prefs. 서버에 저장본이 있고 이 기기에도 관심 · 조건 · 시나리오(또는 기본값에서 바꾼 설정)가 있는데 서로 다르면 한 번 묻는다
 //           (st.ask — 「서버 것으로 맞추기 / 이 기기 것을 올리기」, answerAsk). 답하기 전엔 아무것도 저장하지 않는다. 한쪽이 비었거나 같으면 묻지 않는다.
 //           서버에 못 닿으면 연결하지 않는다(나중에 말없이 덮지 않게 — 다시 「연결」).
@@ -26,15 +26,15 @@
 import { useSyncExternalStore } from 'react'
 import { mdHm } from '../format'
 import { samePin } from '../pin'
-import { pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../push'
-import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, writePortfolio, writePrefs } from './store'
+import { dropLocalPush, pushSubscribed, pushSupported, subscribePush, unsubscribePush } from '../push'
+import { clearMe, markPaused } from './account'
+import { applyUpdown, KEYS, newId, readPortfolio, readPrefs, storeKey, writePortfolio, writePrefs } from './store'
 import { blankLocal, defaultSet, fromServer, keyChangeText, keyHash, portfolioGet, portfolioPost, prefsCall, syncedOf, syncKeyChange, toServer, type Local, type PrefsDoc, type Reply } from './remote'
 import { applyEntries, autoStep, decide, encrypt, entriesOf, fingerprint, holdKeyOf, openBlob, relockBlob, type EncBlob, type Entry, type Plan } from './e2e'
 import type { Holding } from './calc'
 
 const HASH_KEY = 'econSyncHash_v1'
 const KEEP_KEY = 'econSyncHashKeep_v1'
-const SCEN_KEY = 'econ_scenarios_v1'   // components/lens/WhatIf.tsx SAVE_KEY 와 같은 열쇠
 const QUIET_MS = 2_000                 // 바뀐 뒤 이만큼 조용하면 보낸다
 const GAP_MS = 6_000                   // 요청 사이 최소 간격(분당 10회 아래)
 const RETRY_MS = 60_000                // 서버에 못 닿았을 때 다시 해 볼 때까지
@@ -54,11 +54,11 @@ export const hasHoldKey = () => holdKey() != null
 // ── 범위(이 기기만) ─────────────────────────────────────
 export type Scope = { prefs: boolean; hold: boolean }
 export function readScope(): Scope {
-  const r = readJson(KEYS.scope) as Partial<Scope> | null
+  const r = readJson(storeKey(KEYS.scope)) as Partial<Scope> | null
   return { prefs: r?.prefs !== false, hold: r?.hold !== false }
 }
 function writeScope(p: Partial<Scope>) {
-  try { localStorage.setItem(KEYS.scope, JSON.stringify({ ...readScope(), ...p })) } catch { /* 못 남기면 이번 탭만 */ }
+  try { localStorage.setItem(storeKey(KEYS.scope), JSON.stringify({ ...readScope(), ...p })) } catch { /* 못 남기면 이번 탭만 */ }
 }
 
 // ── 화면에 보이는 상태 ───────────────────────────────────
@@ -73,6 +73,8 @@ function set(p: Partial<SyncStatus>) { st = { ...st, ...p }; subs.forEach(f => f
 const subscribe = (f: () => void) => { subs.add(f); return () => { subs.delete(f) } }
 /** rev 는 서버 내용으로 이 기기를 덮을 때마다 1씩 오른다 — 상태를 들고 있는 화면은 이때 다시 읽는다. */
 export const useSyncStatus = () => useSyncExternalStore(subscribe, () => st)
+/** 입장 관문(App.tsx)용: 이 탭에 키 해시가 있나 — 연결 · 끊김(401 포함) 때 바로 다시 그린다(값이 같으면 그리지 않는다). */
+export const useHasKey = () => useSyncExternalStore(subscribe, () => getKeyHash() != null)
 /** 알림 화면의 범위 문구 — 두 벌(명세 S5). on = ① 을 주고받는 중, push = 이 기기 폰 알림 구독. */
 export const scopeText = (on: boolean, push: boolean) => (on ? (push ? '연결됨 · 폰 알림 켜짐' : '연결됨') : '이 기기만 — 울리지 않음')
 
@@ -80,7 +82,7 @@ export const scopeText = (on: boolean, push: boolean) => (on ? (push ? '연결�
 function readJson(k: string): unknown { try { return JSON.parse(localStorage.getItem(k) || 'null') } catch { return null } }
 
 function readLocal(): Local {
-  const w = readJson(KEYS.watch), sc = readJson(SCEN_KEY), p = readPrefs()
+  const w = readJson(storeKey('econ_watch_v1')), sc = readJson(storeKey('econ_scenarios_v1')), p = readPrefs()
   return {
     watch: Array.isArray(w) ? w.filter((x): x is string => typeof x === 'string') : [],
     alerts: p.alerts, settings: syncedOf(p.settings),
@@ -90,12 +92,12 @@ function readLocal(): Local {
 
 function writeLocal(l: Local) {
   const put = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* 저장 못 하면 이번 화면만 그대로 */ } }
-  put(KEYS.watch, l.watch)
-  put(SCEN_KEY, l.scenarios)
+  put(storeKey('econ_watch_v1'), l.watch)
+  put(storeKey('econ_scenarios_v1'), l.scenarios)
   const cur = readPrefs()
   writePrefs({ ...cur, alerts: l.alerts, settings: { ...cur.settings, ...l.settings } })   // 금액 단위 · 자동 강등은 이 기기 값 그대로
   applyUpdown(l.settings.updown)
-  for (const key of [KEYS.watch, KEYS.prefs, SCEN_KEY]) window.dispatchEvent(new StorageEvent('storage', { key }))
+  for (const key of [storeKey('econ_watch_v1'), storeKey('econPrefsV1'), storeKey('econ_scenarios_v1')]) window.dispatchEvent(new StorageEvent('storage', { key }))
 }
 
 const fp = () => JSON.stringify(readLocal())
@@ -118,7 +120,7 @@ export const noteReq = () => { lastReq = Date.now() }
 function errText(r: Reply): string {
   if (r.status === 0) return '서버에 닿지 못했습니다. 1분 뒤 다시 맞춥니다.'
   if (r.status === 429) return '요청이 많아 1분 뒤 다시 맞춥니다.'
-  if (r.error === 'sync_key_not_configured') return '서버에 동기화 키가 설정되지 않았습니다.'
+  if (r.error === 'sync_key_not_configured') return '서버에 입장 키가 설정되지 않았습니다.'
   if (r.error === 'forbidden_origin') return '이 주소에서 연 화면은 서버가 받지 않습니다.'
   if (r.error === 'tier2_field_rejected') return `보유정보로 보이는 칸(${r.field ?? '?'})이 있어 서버가 받지 않았습니다.`
   if (r.status === 413) return '맡길 내용이 너무 커서 서버가 받지 않았습니다. 관심·알림 조건을 줄여 주세요.'
@@ -128,13 +130,13 @@ function errText(r: Reply): string {
 /** 같은 내용을 다시 보내도 또 거절되는 응답 — 이 기기 것이 다시 바뀔 때까지 기다린다. */
 const refused = (r: Reply) => r.status === 400 || r.status === 413
 
-const KEY_LOST = '동기화 키가 맞지 않아 연결을 끊었습니다. 키를 다시 넣어 주세요.'
+const KEY_LOST = '입장 키가 맞지 않아 연결을 끊었습니다. 키를 다시 넣어 주세요.'
 /** 401: 같은 브라우저의 다른 탭이 키를 바꿨으면(기억 해시가 다르면) 그 해시로 잇고, 아니면 끊는다. */
 function lost(h: string) {
   if (changing) return   // 키 바꾸는 중 — 옛 해시로 나간 요청의 401 은 바뀐 결과다
   const k = keptHash()
   if (k && k !== h) adopt(k)
-  else disableSync(KEY_LOST)
+  else { clearMe(); disableSync(KEY_LOST); void dropLocalPush() }   // account.refreshMe 의 401 과 같은 뒷정리(끊긴 표시를 먼저 · 이 브라우저 폰 알림 구독도 끊는다)
 }
 
 /** 요청 한 번 + 공통 처리. 키가 없거나 401 이면(끊는다) null. 받지 못한 응답(409 제외)은 알림 글을 남긴다. */
@@ -145,6 +147,7 @@ async function call(put?: Parameters<typeof prefsCall>[1]): Promise<Reply | null
   const r = await prefsCall(h, put)
   busy = false; set({ busy: false })
   if (r.status === 401) { lost(h); return null }
+  if (r.status === 403 && getKeyHash() === h) markPaused()   // 멈춤 — 키 · 연결은 그대로, 표시만(account.refreshMe 의 403 과 같다)
   if (!r.doc && r.status !== 409) set({ msg: errText(r) })
   return r
 }
@@ -234,8 +237,8 @@ function onVisibility() {
 function onStorage(e: StorageEvent) {
   if (e.storageArea !== localStorage) return
   if (e.key === KEEP_KEY && e.newValue && HEX64.test(e.newValue)) { if (e.newValue !== getKeyHash()) adopt(e.newValue); return }
-  if (e.key === KEYS.scope) { if (st.linked) set({ on: readScope().prefs }); return }
-  if (e.newValue !== null || (e.key !== KEEP_KEY && e.key !== KEYS.prefs)) return
+  if (e.key === storeKey(KEYS.scope)) { if (st.linked) set({ on: readScope().prefs }); return }
+  if (e.newValue !== null || (e.key !== KEEP_KEY && e.key !== storeKey('econPrefsV1'))) return
   if (getKeyHash()) disableSync('다른 탭에서 이 기기를 잊거나 데이터를 지워 이 탭도 끊었습니다.')
 }
 
@@ -259,7 +262,7 @@ function fail(msg: string) { set({ busy: false, msg }); return false }
  */
 export async function connectSync(key: string, perm?: Promise<unknown>): Promise<boolean> {
   permAsk = perm ?? null
-  if (!key.trim()) return fail('동기화 키를 넣어 주세요.')
+  if (!key.trim()) return fail('입장 키를 넣어 주세요.')
   set({ busy: true, msg: '' })
   let h: string, mat: string
   try { [h, mat] = await Promise.all([keyHash(key), holdKeyOf(key)]) } catch { return fail('이 환경(https 아님)에서는 연결할 수 없습니다.') }
@@ -270,7 +273,7 @@ export async function connectSync(key: string, perm?: Promise<unknown>): Promise
 async function matchPrefs(h: string, mat: string | null, prefsOn: boolean, fresh: boolean): Promise<boolean> {
   set({ busy: true, msg: '' })
   const r = await prefsCall(h)
-  if (r.status === 401) { if (fresh) return fail('동기화 키가 맞지 않습니다.'); set({ busy: false }); lost(h); return false }
+  if (r.status === 401) { if (fresh) return fail('입장 키가 맞지 않습니다.'); set({ busy: false }); lost(h); return false }
   if (!r.doc) return fail(r.status === 0 ? '서버에 닿지 못했습니다. 잠시 뒤 다시 하세요.' : r.status === 429 ? '요청이 많습니다. 1분 뒤 다시 하세요.' : errText(r))
   set({ busy: false })
   const local = readLocal(), server = fromServer(r.doc)
@@ -379,11 +382,11 @@ export async function changeKey(cur: string, next: string): Promise<string> {
 // econHoldSync_v1 = { base: 마지막으로 맞췄을 때의 보유 지문, upAt: 마지막 올림, downAt: 마지막 받음, server: 서버에 있음, checkedAt } — 보유 값은 없다.
 export type HoldRec = { base?: string; upAt?: string; downAt?: string; server?: boolean; checkedAt?: string }
 export function readHoldRec(): HoldRec {
-  const r = readJson(KEYS.holdSync)
+  const r = readJson(storeKey(KEYS.holdSync))
   return r && typeof r === 'object' ? (r as HoldRec) : {}
 }
 function noteHold(p: HoldRec) {
-  try { localStorage.setItem(KEYS.holdSync, JSON.stringify({ ...readHoldRec(), ...p })) } catch { /* 못 남기면 다음 확인이 둘 중 고르라고 묻는다 */ }
+  try { localStorage.setItem(storeKey(KEYS.holdSync), JSON.stringify({ ...readHoldRec(), ...p })) } catch { /* 못 남기면 다음 확인이 둘 중 고르라고 묻는다 */ }
 }
 
 /** 확인 결과. migrate = 예전 보유 암호 사본 · broken = 열쇠로는 풀리는데 모양이 깨진 사본(둘 다 그 덩어리 — 「서버 사본 버리고 올리기」가 seen 으로 쓴다) · needKey = 보유 열쇠 재료 없음. */
@@ -392,9 +395,9 @@ export type HoldCheck =
   | { ok: true; plan: Plan; enc: EncBlob | null; server: Entry[]; serverAt: string | null; localN: number; stale: boolean }
 export type HoldDone = { ok: boolean; msg: string }
 
-const NO_SYNC = '설정 › 기기 연결에서 동기화 키를 먼저 넣으세요.'
-const NO_HOLD_KEY = '보유 열쇠가 없습니다. 설정 › 기기 연결에서 동기화 키를 한 번 다시 넣어 주세요.'
-const MIGRATE = '예전 보유 암호(또는 바꾸기 전 동기화 키)로 잠긴 서버 사본이 있습니다 — 한 번 넣으면 새 열쇠로 다시 잠가 올립니다.'
+const NO_SYNC = '설정 › 내 계정에서 입장 키를 먼저 넣으세요.'
+const NO_HOLD_KEY = '보유 열쇠가 없습니다. 설정 › 내 계정에서 입장 키를 한 번 다시 넣어 주세요.'
+const MIGRATE = '예전 보유 암호(또는 바꾸기 전 입장 키)로 잠긴 서버 사본이 있습니다 — 한 번 넣으면 새 열쇠로 다시 잠가 올립니다.'
 function holdErr(r: { status: number; error?: string }, h: string): string {
   if (r.status === 401) { lost(h); return KEY_LOST }
   if (r.status === 0) return '서버에 닿지 못했습니다.'
@@ -420,7 +423,7 @@ export async function checkHoldings(old?: string): Promise<HoldCheck> {
   try { d = await openBlob(g.enc, mat, old) } catch (e) {
     const m = (e as Error).message
     if (m === 'old-pass') return { ok: false, msg: MIGRATE, migrate: g.enc }
-    if (m === 'wrong-pass') return { ok: false, msg: '예전 보유 암호(또는 바꾸기 전 동기화 키)가 다릅니다.', migrate: g.enc }
+    if (m === 'wrong-pass') return { ok: false, msg: '예전 보유 암호(또는 바꾸기 전 입장 키)가 다릅니다.', migrate: g.enc }
     return { ok: false, msg: '서버 보유 사본이 깨져 읽지 못했습니다 — 이 기기 것을 올려 덮을 수 있습니다.', broken: g.enc }
   }
   const plan = decide(lf, { fp: await fingerprint(d.entries), n: d.entries.length }, base)

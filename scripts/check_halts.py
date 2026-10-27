@@ -19,6 +19,7 @@ import datetime
 
 import market_halts                 # 라이브 모드 감지 재사용 (scripts/ 가 sys.path[0])
 import send_kakao_digest as kakao   # scripts/ 가 sys.path[0]
+import app_url as _au
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -142,7 +143,7 @@ def _halt_buttons(h):
     try:
         import notify_discord
         emoji = {"up": "📈", "down": "📉"}.get(h.get("direction"), "➖")
-        btns = [("📊 시장 지표", "https://0101-commits.github.io/economic-site/?p=market")]
+        btns = [("📊 시장 지표", _au.app_link("?p=market"))]
         key = "KOSDAQ" if h.get("market") == "KOSDAQ" else "KOSPI"
         u = notify_discord.NAVER_LINKS.get(key)
         if u:
@@ -165,7 +166,7 @@ def _send_all(token, uuids, msg, kind="fire", card=None, buttons=None, kakao_car
                           }.get(kind, (notify_discord.COLOR_TEST, False))
         notify_discord.send("\n".join(lines[1:]), png=card,
                             title=(lines[0] + " — 시장 지표 보기")[:256],
-                            url="https://0101-commits.github.io/economic-site/?p=market",
+                            url=_au.app_link("?p=market"),
                             color=color, timestamp=True, mention=mention,
                             env="DISCORD_WEBHOOK_SWINGS", buttons=buttons)
     except Exception as e:
@@ -174,7 +175,7 @@ def _send_all(token, uuids, msg, kind="fire", card=None, buttons=None, kakao_car
     lines = msg.split("\n")
     kakao.send_card(token, lines[0][:44], "\n".join(lines[1:3])[:120],
                     png=kakao_card, uuids=uuids, kind=f"시장경보({kind})",
-                    buttons=[("시장 지표", "https://0101-commits.github.io/economic-site/?p=market")])
+                    buttons=[("시장 지표", _au.app_link("?p=market"))])
 
 
 def _flush_state(state):

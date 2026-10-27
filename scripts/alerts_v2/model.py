@@ -26,6 +26,8 @@ class Decision:
     reason: str = ""                # 「기본 켜짐」 「관심」 「내 조건」 「꾸러미 밖」 …
     cond_id: str | None = None      # 사용자 조건이면 그 id
     on: bool = True                 # 켜진 대상인가(기본 켜짐 · 관심 · 내 설정) — 안내 · 보관도 켜진 것만 나간다
+    uid: str | None = None          # 누구의 판정인가(사람 표 uid — 사람별 설정을 못 읽은 런은 None = 마스터)
+    role: str | None = None         # owner | member — 카톡 · 공개 원장은 owner 만
 
 
 @dataclass
@@ -39,6 +41,7 @@ class Send:
     bundled: bool = False           # 상한 초과 묶음에 들어감
     bundle: list = field(default_factory=list)   # 묶음 통이면 안의 행들
     kind: str = "event"             # event | bundle
+    uid: str | None = None          # 받을 사람 — 푸시 큐 항목에 실린다(None = 옛 큐처럼 마스터에게만)
 
     def __str__(self) -> str:
         ch = "+".join(k for k, v in (("push", self.push), ("kakao", self.kakao)) if v)

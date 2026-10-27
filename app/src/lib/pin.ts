@@ -65,7 +65,16 @@ export async function checkPin(pin: string, now = Date.now()): Promise<boolean> 
   return ok
 }
 
-/** PIN 잊음: 이 기기 PIN 과 실패 셈을 지운다(동기화 키를 확인했거나 이 기기 데이터를 지운 뒤에만 — PinGate). */
+/**
+ * PIN 잊음에서 입장 키를 넣었을 때 무엇을 허락하나. PIN 은 이 기기 모든 사람의 자료를 지키므로
+ * 「PIN 만 지우기」(clear)는 들어와 있는 사람이 마스터이고 · 넣은 키가 바로 그 사람의 키이고 · 서버도 맞다고 할 때만이다.
+ * 멤버 키 · 다른 사람 키 · 키 없음은 모두 「이 기기 데이터 전부 지운 뒤 새로 정하기」(wipe-only)만 된다.
+ */
+export function pinResetAllowed(s: { typedHash: string | null; currentHash: string | null; role: string | null | undefined; serverOk: boolean }): 'clear' | 'wipe-only' {
+  return s.serverOk && s.role === 'owner' && !!s.typedHash && !!s.currentHash && s.typedHash === s.currentHash ? 'clear' : 'wipe-only'
+}
+
+/** PIN 잊음: 이 기기 PIN 과 실패 셈을 지운다(마스터가 자기 입장 키를 확인했거나 이 기기 데이터를 지운 뒤에만 — PinGate). */
 export function clearPin() {
   lock()
   ss(() => localStorage.removeItem(PIN_KEY))

@@ -24,7 +24,8 @@ self.addEventListener('push', e => {
     body: String(d.body || '').slice(0, 400),
     tag: d.id ? String(d.id) : undefined,   // 같은 조건의 알림은 새 것으로 바꿔 쌓이지 않게
     data: { url: target(d.url) },
-    icon: new URL('icon.png', self.registration.scope).href,
+    icon: new URL('icon-192.png', self.registration.scope).href,
+    badge: new URL('badge-96.png', self.registration.scope).href,
   }))
 })
 

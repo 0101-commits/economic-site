@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Korean economic dashboard: static single-page app (GitHub Pages) + GitHub Actions data pipeline + Cloudflare Worker CORS proxy.
 
-Live site: `https://0101-commits.github.io/economic-site/`
+Live site: `https://ecom-terminal.pages.dev/` (2026-10-27 새 주소 — Cloudflare Pages 가 아래 원본을 넘겨 준다). 원본(origin): `https://0101-commits.github.io/economic-site/`
 
 ## No Build Step
 
@@ -626,6 +626,15 @@ python scripts/validate_data.py   # verify output
 - **워크플로**: light = `stock-alerts.yml`(매분, 테스트 통과 마커 캐시 `pytest-ok-<hash>`), full/daily = `fetch-data.yml` 끝, settle 18:05 · eve 21:00 = `alerts-v2.yml`, 브리핑 = `briefing.yml`. 원장은 각 워크플로의 커밋 단계가 `events/` 를 함께 올린다.
 - **게이트**: `test_v2_*.py`(사전 · 원장 · 문구 · 구독 · 편성 · 발송 · 카드 · 판정 · 파리티 · 재생). `python scripts/alerts_v2/replay.py --days 400 --watch …` 가 400일 재생 표(`docs/alerts_v2_replay.md`)를 만든다 — 사전 임계를 바꾸면 다시 돌려 하루 평균 ≤4 를 확인할 것.
 - **함정**: 격리 워크트리 에이전트는 main 에서 시작하므로 `alerts-v2` 로 올리지 못하면 커밋을 cherry-pick 한다 · 테스트는 `mer_signals.json` 을 더럽히므로 `git checkout -- mer_signals.json` · Windows 콘솔은 `PYTHONIOENCODING=utf-8`.
+
+## 멤버 · 입장 키 (2026-10-27 · 설계 `docs/superpowers/specs/2026-10-27-members-address-logo-design.md`)
+
+- **사람 표(Worker KV)**: `user:<uid>`(사람 기록) · `ukey:<keyHash>`(키 해시 → uid) · `users:index`(명단) · `auth:migrated`(이전 끝 표시) · 사람별 `prefs:<uid>` · `push:<uid>` · `hold:<uid>`(+ `:prev:<KST 날짜>`) · `fired:<uid>`(받은 알림) · `aiq:<uid>`(멤버 AI 하루 30회) · `seen:<uid>`(마지막 접속).
+- **해석기는 하나**: `_authUser`/`resolveUser` 만 키 → 사람을 푼다. 이전 전(`auth:migrated` 없음)은 legacy 모드 = 옛 단일 동기화 키가 곧 마스터. 이전 뒤 명단(`users:index`)이 없으면 닫힌 채 실패(503). 쓰기 경로는 `user:<uid>` 를 캐시 없이 다시 읽는다.
+- **마스터(owner)** 는 기기 키 접미사 없이 옛 키 그대로, 멤버는 `base:<uid>`. 입장 중 신원은 보류(pending identity) 상태로 두었다가 확정한다. PIN 초기화는 `wipeAllPeople`.
+- **공개 파일 금지**: 멤버는 공개 파일에 절대 쓰지 않는다. `alerts_config.json` 은 마스터 전용 · 멤버의 내 조건 사건은 `events/` 에 남기지 않고 Worker `/fired`(헤더 `PUSH_WRITE_KEY`)로 보낸다. 멤버 상태 키는 HMAC(`uid:cond`, `ALERTS_STATE_SALT`) · 멤버 하루 상한 카운터는 `hmac(uid:@day)`. 멤버 종목 코드는 Actions 로그에 찍지 않는다(가림).
+- **마스터 예비 키 · 마지막 복구**: `cloudflare-worker/README.md`.
+- **새 주소**: `https://ecom-terminal.pages.dev` = Cloudflare Pages `cloudflare-pages/_worker.js` 가 GitHub Pages 를 대신 받아 보여 준다(올리는 법 `cloudflare-pages/README.md`). 링크는 전부 `scripts/app_url.py` 한 곳(기본값 새 주소)에서 만들고 워크플로에 주소를 박지 않는다. 옛 주소 화면은 앱 `MovedBanner` 가 안내한다.
 
 ## KakaoTalk Integration
 

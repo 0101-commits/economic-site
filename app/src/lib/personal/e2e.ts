@@ -9,6 +9,8 @@
 // 저장소·화면·네트워크를 만지지 않는다 — node --test 로 바로 돈다(e2e.test.ts). 흐름은 sync.ts 「보유」 칸.
 // 이 파일은 타입 표기 외의 TypeScript 전용 문법을 쓰지 않는다(calc.ts 와 같은 규칙).
 
+import { normalizeEntryKey } from './entryKey.ts'
+
 export const ITER = 600_000
 
 export type EncBlob = { alg: 'AES-256-GCM'; kdf: 'PBKDF2-SHA256'; iter: number; salt: string; iv: string; ciphertext: string }
@@ -82,7 +84,7 @@ export async function decryptAs(blob: EncBlob, pass: string): Promise<{ entries:
  *  서버는 SHA-256(키)만 알므로 이 재료를 만들 수 없다. 이 hex 가 덩어리 형식의 「암호」 자리에 들어간다. */
 export const HOLD_SALT = 'ecom-holdings-v1'
 export async function holdKeyOf(key: string): Promise<string> {
-  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(key.trim()), 'PBKDF2', false, ['deriveBits'])
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(normalizeEntryKey(key)), 'PBKDF2', false, ['deriveBits'])
   return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(HOLD_SALT), iterations: ITER, hash: 'SHA-256' }, base, 256))
 }
 
@@ -125,7 +127,7 @@ export function autoStep(plan: Plan, localN: number, serverN: number): 'push' | 
  */
 export async function passProblem(pass: string, sameAsSyncKey: (p: string) => Promise<boolean>, isPin: (p: string) => Promise<boolean>): Promise<string> {
   if (pass.trim().length < 6) return '보유 암호는 6자 이상이어야 합니다. 12자 이상을 권합니다.'
-  if (await sameAsSyncKey(pass)) return '동기화 키와 다른 암호를 쓰세요.'
+  if (await sameAsSyncKey(pass)) return '입장 키와 다른 암호를 쓰세요.'
   for (const p of new Set([pass, pass.trim()])) if (await isPin(p)) return '잠금 PIN 과 다른 암호를 쓰세요.'
   return ''
 }

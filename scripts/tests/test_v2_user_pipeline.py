@@ -57,6 +57,9 @@ def env(monkeypatch, tmp_path):
     def one(prefs, at, value=None, chg=None, mode="light", sides=None):
         """한 런: 공개 기록을 읽고 판정 · 발송 · 원장 저장 → 공개 기록(바뀐 것, 없으면 읽은 그대로)."""
         monkeypatch.setattr(subscribe, "load_prefs", lambda log=print: prefs)
+        # 사람별 설정(/prefs/all)의 마스터 칸 — 못 읽으면 None(마스터 칸만 · 정리 안 함, test_v2_members)
+        people = None if prefs is None else [("o1", "owner", dict(prefs, updatedAt="2026-10-01T00:00:00Z"))]
+        monkeypatch.setattr(subscribe, "load_all_prefs", lambda log=print: people)
         path = tmp_path / "alerts_state.json"
         if sides is not None:
             path.write_text(json.dumps({"_prefs": sides}), encoding="utf-8")

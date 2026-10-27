@@ -2,13 +2,13 @@
 // 실행: node tests/ui/foldzero.mjs [--url http://127.0.0.1:5173/next/] [--paths "#/,#/market"] [--widths 390,1440] [--wait 2500]
 // 검사(폭 × 경로마다, 빈 저장소로 연 첫 그림): Panel 의 접힘 details[data-panel-fold]:not([open]) 0개.
 //   접을 수 있는 패널 수도 같이 찍는다 — 0 이면 게이트가 아무것도 안 본 것이다.
-// 경로: _lib.mjs 의 NEXT_PATHS 전부, 단 #/my 는 PIN 관문 뒤라 뺀다. 종료 코드: 접힘 또는 실행 오류가 있으면 1.
+// 경로: _lib.mjs 의 NEXT_PATHS 전부, 단 #/my 는 PIN 관문 뒤라, 입장 화면(#/welcome)은 패널이 없어 뺀다. 종료 코드: 접힘 또는 실행 오류가 있으면 1.
 import { chromium } from 'playwright';
 import { opt, baseUrl, newCtx, fullUrl, NEXT_PATHS, WAIT } from './_lib.mjs';
 
 const widths = String(opt('widths', '390,1440')).split(',').map(Number);
 const given = opt('paths', '');
-const list = given && given !== true ? given.split(',').map(s => s.trim()).filter(Boolean) : NEXT_PATHS.filter(p => p !== '#/my');
+const list = given && given !== true ? given.split(',').map(s => s.trim()).filter(Boolean) : NEXT_PATHS.filter(p => p !== '#/my' && !p.startsWith('#/welcome'));
 const base = baseUrl();
 
 const browser = await chromium.launch();

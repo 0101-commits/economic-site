@@ -4,13 +4,14 @@
 import type { AlertCond, Settings } from './store'
 import { defaultSettings, normSettings, upgradePrefs } from './prefsV2.ts'
 import type { EncBlob } from './e2e'
+import { normalizeEntryKey } from './entryKey.ts'
 
 /** Worker 주소. 배포 화면의 보안 정책(vite.config.ts connect-src)이 이 주소 하나만 열어 두므로 바꿔 끼우는 설정은 두지 않는다. */
 export const WORKER = 'https://ecom-dashboard-proxy.e-hcg.workers.dev'
 
-/** 동기화 키 → 서버가 비교하는 해시. 현행 화면(js/app2.js pfSetSyncKey)과 같은 규칙: 앞뒤 공백을 뺀 뒤 SHA-256 hex. */
+/** 동기화 키 → 서버가 비교하는 해시. 입장 키 정규화(entryKey.ts — Worker 와 같은 규칙; 옛 키는 앞뒤 공백만 뺌) 뒤 SHA-256 hex. */
 export async function keyHash(key: string): Promise<string> {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key.trim()))
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalizeEntryKey(key)))
   return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('')
 }
 
@@ -140,7 +141,7 @@ const KEY_LOST_REPLY = '서버 답을 확인하지 못했습니다. 키가 바�
 const KEY_ERR: Record<number, string> = {
   401: '지금 키가 맞지 않습니다.',
   429: '요청이 많습니다. 1분 뒤 다시 하세요.',
-  503: '서버에 동기화 키가 설정되지 않았습니다.',
+  503: '서버에 입장 키가 설정되지 않았습니다.',
   0: KEY_LOST_REPLY,
   [-1]: KEY_LOST_REPLY,
 }
@@ -150,6 +151,38 @@ export function keyChangeText(r: KeyChange): string {
   if (r.error === 'weak_new_key') return '서버가 새 키를 받지 않았습니다. 12자 이상, 지금 키와 다른 키를 쓰세요.'
   return KEY_ERR[r.status] ?? `서버가 받지 않았습니다(${r.error ?? r.status}).`
 }
+
+// ── /me · /admin/* · /fired (회원) ───────────────────────────
+// 모두 헤더 X-Sync-Key-Hash. status = HTTP 상태(401 키 틀림 · 403 멈춤 · 429 · 503), 네트워크 실패 0, 2xx 면 doc = 본문 JSON.
+export type Me = { uid: string; name: string; role: 'owner' | 'member'; viaBackup: boolean }
+export type MemberReply = { status: number; doc?: any; error?: string }   // eslint-disable-line @typescript-eslint/no-explicit-any
+
+async function memberCall(hash: string, method: string, path: string, body?: unknown): Promise<MemberReply> {
+  const headers: Record<string, string> = { 'X-Sync-Key-Hash': hash }
+  if (body !== undefined) headers['content-type'] = 'application/json'
+  try {
+    const r = await fetch(`${WORKER}${path}`, {
+      method, headers, cache: 'no-store', body: body !== undefined ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15_000),
+    })
+    const j = await r.json().catch(() => ({}))
+    return r.ok ? { status: r.status, doc: j } : { status: r.status, error: j?.error }
+  } catch { return { status: 0, error: 'network' } }
+}
+
+/** GET /me — 200 이면 me. 그 밖은 status(401 · 403 paused · 429 · 503 · 0)만. */
+export async function meGet(hash: string): Promise<{ status: number; me?: Me; error?: string }> {
+  const r = await memberCall(hash, 'GET', '/me')
+  const j = r.doc
+  const ok = r.status === 200 && j && typeof j.uid === 'string' && typeof j.name === 'string' && (j.role === 'owner' || j.role === 'member')
+  return ok ? { status: 200, me: { uid: j.uid, name: j.name, role: j.role, viaBackup: j.viaBackup === true } } : { status: r.status === 200 ? -1 : r.status, error: r.error }
+}
+export const adminList = (hash: string) => memberCall(hash, 'GET', '/admin/users')
+export const adminCreate = (hash: string, name: string) => memberCall(hash, 'POST', '/admin/users', { name })
+export const adminPatch = (hash: string, uid: string, patch: Record<string, unknown>) => memberCall(hash, 'PATCH', `/admin/users/${encodeURIComponent(uid)}`, patch)
+export const adminRekey = (hash: string, uid: string) => memberCall(hash, 'POST', `/admin/users/${encodeURIComponent(uid)}/rekey`, {})
+export const adminDelete = (hash: string, uid: string) => memberCall(hash, 'DELETE', `/admin/users/${encodeURIComponent(uid)}`)
+export const adminBackupKey = (hash: string) => memberCall(hash, 'POST', '/admin/backup-key', {})
+export const firedGet = (hash: string) => memberCall(hash, 'GET', '/fired')
 
 // ── /portfolio — 보유는 암호 덩어리(e2e.ts)로만 오간다 ─────────────────
 // GET  헤더 X-Sync-Key-Hash → { ok, alerts, settings, tracking, encHoldings, updatedAt }. encHoldings 는 KV portfolio:encHoldings.
@@ -196,9 +229,11 @@ export async function aiAsk(hash: string, question: string, snapshot: unknown): 
 }
 
 const AI_ERR: Record<string, string> = {
+  ai_quota: '오늘 AI 질문을 모두 썼습니다(하루 30회).',   // 멤버 하루 상한(Worker 429 ai_quota) — 1분 뒤가 아니다
+  paused: '멈춘 키입니다. 모임 운영자에게 문의해 주세요.',
   rate_limited: '요청이 많습니다. 1분 뒤 다시 물어보세요.',
-  unauthorized: '동기화 키가 서버와 맞지 않습니다. 설정 「기기 연결」에서 다시 연결하세요.',
-  sync_key_not_configured: '서버에 동기화 키가 설정되지 않아 지금은 물을 수 없습니다.',
+  unauthorized: '입장 키가 서버와 맞지 않습니다. 설정 › 내 계정에서 다시 연결하세요.',
+  sync_key_not_configured: '서버에 입장 키가 설정되지 않아 지금은 물을 수 없습니다.',
   no_ai_available: '서버에 AI 엔진이 설정되지 않아 지금은 물을 수 없습니다.',
   forbidden_origin: '이 주소에서는 물을 수 없습니다.',
   network: '서버에 닿지 못했습니다. 잠시 뒤 다시 물어보세요.',

@@ -52,6 +52,7 @@ import datetime
 
 # 카카오 발송/토큰 유틸은 시황 다이제스트와 공용 (scripts/ 가 sys.path[0])
 import send_kakao_digest as kakao
+import app_url as _au
 import toss_api
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
@@ -497,7 +498,7 @@ def _check_toss_warnings(state):
             notify_discord.send(
                 "\n".join(msgs[:10]),
                 title="🚧 종목 시장 지정 변경 (투자경고·과열 등)",
-                url="https://0101-commits.github.io/economic-site/?p=portfolio",
+                url=_au.app_link("?p=portfolio"),
                 color=notify_discord.COLOR_ALERT, timestamp=True,
                 footer="토스증권 Open API · PC 스냅샷 경유(시간 지연 가능)",
                 env="DISCORD_WEBHOOK_ALERTS")
@@ -537,7 +538,7 @@ def is_market_open(market, now):
     return False
 
 
-PORTFOLIO_URL = "https://0101-commits.github.io/economic-site/?p=portfolio"
+PORTFOLIO_URL = _au.app_link("?p=portfolio")
 
 
 # 시장 대비의 기준 지수 — 종목 알림이 '그 종목의 사건'인지 '시장이 다 오른 날'인지 가르는 재료.
@@ -775,7 +776,7 @@ def _finalize_alerts(state, to_finalize, fired_price_ids, now, delivered_syms):
 # 상태는 alerts_state.json 의 "_prefs" 아래 조건 id 별로 둔다. 밑줄 키라 _write_state 가 지우지 않는다.
 # 이 파일과 Actions 로그는 공개(저장소·Pages)다 — 대상·문구·값은 어디에도 적지 않는다. 기록은 source·type·
 # 날짜·시각·해시뿐이고, 로그는 조건 id·종류·예외 종류 이름뿐이다. 화면은 기기의 econPrefsV1 에서 id 로 이름을 찾는다.
-APP_URL = "https://0101-commits.github.io/economic-site/"   # 새 화면(2026-10-02 부터 사이트 첫 주소. 옛 next/ 는 사본)
+APP_URL = _au.APP_URL   # 새 화면(2026-10-02 부터 사이트 첫 주소. 옛 next/ 는 사본)
 PUSH_QUEUE_PATH = os.path.join(ROOT, "scripts", "push_queue.json")   # send_push.py 가 읽고 지운다. 커밋하지 않는다.
 PUSH_SENT_PATH = os.path.join(ROOT, "scripts", "push_sent.json")     # send_push.py 가 실제로 보낸 큐 id. --confirm-push 가 읽고 지운다.
 ONCE_FOREVER = ("price", "pct", "high52", "lens")    # once 가 「한 번 울리면 끝」인 종류 — event·flow 는 건마다
@@ -1195,6 +1196,9 @@ def _check_prefs(state, now, snaps, cfg):
     prev = state.get("_prefs") or {}
     ids = {str(a["id"]) for a in conds}
     # 지운 조건의 기록만 정리한다. 꺼 둔 조건은 남긴다 — 껐다 켠다고 once 가 다시 울리지 않게.
+    # ⚠ 마스터 조건 id 만 남긴다 — 멤버 기록(키 = HMAC(uid:조건 id), 알림 v2 subscribe.state_key)도 여기서 지워진다.
+    #   이 경로는 ALERTS_V2 != '1' 일 때만 돈다(stock-alerts.yml). ALERTS_V2=0 으로 되돌리면 멤버의 넘는 순간 쪽 · 「한 번」
+    #   멈춤 · 하루 울림 수가 사라져, 다시 1 로 켰을 때 멤버 U1 은 첫 관측(무음)부터, 「한 번」 조건은 다시 울릴 수 있다.
     st = {k: dict(v) for k, v in prev.items() if k in ids and isinstance(v, dict)}
     today = _daily_key("KR", now)
     live = [a for a in conds if a.get("enabled") is True]
@@ -1423,7 +1427,7 @@ def _main_alerts(now, snaps):
                 title=(f"{_pre}🔔 {now.month}/{now.day} {now.hour:02d}:{now.minute:02d} 종목 알림"
                        + (f" — {_hnm} 시세 보기" if _hurl else " — 투자 현황 보기")),
                 # 제목 클릭 = 카드가 크게 그린 그 종목의 네이버 증권. 투자현황은 버튼.
-                url=_hurl or "https://0101-commits.github.io/economic-site/?p=portfolio",
+                url=_hurl or _au.app_link("?p=portfolio"),
                 color=notify_discord.COLOR_TEST if IS_TEST else notify_discord.COLOR_ALERT,
                 footer=DELAY_NOTICE, timestamp=True, env="DISCORD_WEBHOOK_ALERTS",
                 # 도달 티어 T2(E1) — @종목알림 역할 멘션(셀프 구독형). 테스트는 무멘션.

@@ -2,7 +2,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { eventsFor, familyCount, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, passes, savedNote, sheetEvents, todayRows, yearCounts, type Dict } from './v2.ts'
+import { eventsFor, familyCount, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, memberView, passes, personalRow, publicLedger, railFeed, savedNote, sheetEvents, todayRows, yearCounts, type Dict } from './v2.ts'
+import { condStatus, rearm } from '../personal/alertStatus.ts'
 
 const dict: Dict = JSON.parse(readFileSync(new URL('./dict.json', import.meta.url), 'utf8'))
 const row = (key: string, ts: string, o: Record<string, unknown> = {}) =>
@@ -124,4 +125,65 @@ test('저장 직후 한 줄: 동기화가 꺼져 있으면 이 기기에만, 켜
   assert.equal(savedNote({ on: true, at: at - 1000 }, at), '저장했습니다 · 서버로 올리는 중')
   assert.equal(savedNote({ on: true, at: at + 3000 }, at), '저장했습니다 · 서버에 올라감 09:05')
   assert.equal(savedNote({ on: true, at: at + 3000 }, at, '3건 가져왔습니다'), '3건 가져왔습니다 · 서버에 올라감 09:05')
+})
+
+test('memberView: 공개 원장의 사람 행(cond · U* · BUNDLE)은 빼고, 내 울림(/fired)을 「내 조건」으로 더하고, 조건별 울림 기록을 만든다', () => {
+  const ledger = [
+    row('A1:kospi:up:x', '2026-10-02T10:00:00+09:00'),
+    row('U1:005930:up:h1', '2026-10-02T10:05:00+09:00', { event: 'U1', cond: 'c-owner', title: '삼성전자 70,000 · 내 조건 위로' }),
+    row('B1:005930:new:h2', '2026-10-02T10:06:00+09:00', { event: 'B1', cond: 'c-owner2' }),
+    row('BUNDLE:2026-10-02:1010', '2026-10-02T10:10:00+09:00', { event: 'BUNDLE' }),
+  ]
+  const items = [
+    { id: 'U1:usdkrw:up:k1', event: 'U1', cond: 'm1', dir: 'up', level: 'alert', title: '달러원 1,400 · 내 조건 위로', why: '내 조건', url: '#/i/usdkrw', ts: '2026-10-02T11:00:00+09:00', held: false, bundled: false },
+    { id: 'U1:usdkrw:up:k0', event: 'U1', cond: 'm1', dir: 'up', level: 'alert', title: '앞선 울림', ts: '2026-10-01T09:00:00+09:00', held: false },
+    { id: 'U2:kospi:down:k2', event: 'U2', cond: 'm2', dir: 'down', level: 'alert', title: '아주 옛 울림', ts: '2026-09-01T09:00:00+09:00', held: true },
+    { title: '조건 id 없음', ts: '2026-10-02T11:00:00+09:00' }, null, 'x',
+  ]
+  const v = memberView(ledger, items, '2026-09-26')
+  const keys = v.rows.map(r => r.key)
+  assert.deepEqual(keys.slice(0, 1), ['A1:kospi:up:x'], '공개 원장은 시장 사건만')
+  assert.ok(!keys.some(k => k.startsWith('U1:005930') || k.startsWith('B1:') || k.startsWith('BUNDLE')))
+  assert.deepEqual(keys.slice(1), ['U1:usdkrw:up:k1', 'U1:usdkrw:up:k0'], '내 울림은 창(from) 안의 것만 받은 알림에')
+  assert.equal(v.mine.length, 3, '조건 상태 재료는 내 울림 전부')
+  assert.deepEqual(v.fired, { m1: { ts: Date.parse('2026-10-02T11:00:00+09:00') / 1000, fired: true }, m2: { ts: Date.parse('2026-09-01T09:00:00+09:00') / 1000, fired: true } })
+  const feed = fromLedger(v.rows, new Map([['m1', '달러원 1,400 위로']]))
+  assert.deepEqual(feed.map(x => [x.title, x.mine]), [['달러원 1,400 위로', true], ['제목 A1:kospi:up:x', false], ['달러원 1,400 위로', true]])
+  assert.equal(v.mine.find(r => r.cond === 'm2')!.sent!.held, true)
+  // 「한 번」 조건 — 울린 뒤 「멈춤」, 다시 켜면(armedAt 이 마지막 울림 뒤) 멈춤이 풀리고 마지막 울림 시각을 보인다
+  const once = { id: 'm1', event: 'U1', target: 'usdkrw', value: 1400, dir: 'up' as const, repeat: 'once' as const, enabled: true, armedAt: '2026-09-30T00:00:00Z' }
+  assert.equal(condStatus(once, v.mine, v.fired.m1).kind, 'stopped')
+  const again = rearm(once, v.mine, v.fired.m1, Date.parse('2026-10-02T12:00:00+09:00'))
+  assert.equal(condStatus(again, v.mine, v.fired.m1).text, '울림 10/2 11:00')
+  assert.equal(condStatus({ ...once, id: 'm9' }, v.mine, undefined).kind, 'wait', '울린 적 없는 내 조건 = 대기')
+  // /fired 를 못 읽었으면 공개 원장의 시장 사건만, 원장이 없으면 빈 목록
+  assert.deepEqual(memberView(ledger, null).rows.map(r => r.key), ['A1:kospi:up:x'])
+  assert.deepEqual(memberView(null, null), { rows: [], mine: [], fired: {} })
+})
+
+test('railFeed(오른쪽 패널 받은 알림): 멤버 = 시장 사건 + 내 울림(마스터 행 없음), 마스터 = 공개 원장 그대로, 20건 상한', () => {
+  const ledger = [
+    row('A1:kospi:up:x', '2026-10-02T10:00:00+09:00'),
+    row('U1:005930:up:h1', '2026-10-02T10:05:00+09:00', { event: 'U1', cond: 'c-owner' }),
+    row('B1:005930:new:h2', '2026-10-02T10:06:00+09:00', { event: 'B1', cond: 'c-owner2' }),
+    row('BUNDLE:2026-10-02:1010', '2026-10-02T10:10:00+09:00', { event: 'BUNDLE' }),
+  ]
+  const items = [{ id: 'U1:usdkrw:up:k1', event: 'U1', cond: 'm1', dir: 'up', level: 'alert', title: '내 울림', ts: '2026-10-02T11:00:00+09:00' }]
+  const m = railFeed(ledger, items, true, '2026-09-26')
+  assert.deepEqual(m.map(x => x.key), ['U1:usdkrw:up:k1', 'A1:kospi:up:x'])
+  assert.ok(!m.some(x => /c-owner|BUNDLE|005930/.test(x.key)))
+  assert.deepEqual(railFeed(ledger, null, true, '2026-09-26').map(x => x.key), ['A1:kospi:up:x'], '/fired 를 못 읽으면 시장 사건만')
+  assert.equal(railFeed(ledger, items, false, '2026-09-26').length, 4, '마스터는 그대로')
+  const many = Array.from({ length: 30 }, (_, i) => row(`A1:k:${i}`, `2026-10-02T10:${String(i).padStart(2, '0')}:00+09:00`))
+  assert.equal(railFeed(many, null, false, '').length, 20)
+})
+
+test('publicLedger · personalRow: 사람 행만 뺀다 · 배열이 아니면 그대로', () => {
+  assert.equal(personalRow({ event: 'A1' }), false)
+  assert.equal(personalRow({ event: 'A1', cond: 'c' }), true)
+  assert.equal(personalRow({ event: 'U2' }), true)
+  assert.equal(personalRow({ event: 'BUNDLE' }), true)
+  assert.equal(publicLedger(null), null)
+  assert.deepEqual(publicLedger([{ event: 'A1' }, { event: 'U1' }]), [{ event: 'A1' }])
+  assert.equal(todayRows(publicLedger([row('U1:x', '2026-10-02T10:00:00+09:00', { event: 'U1', cond: 'c' })]), '2026-10-02').total, 0)
 })

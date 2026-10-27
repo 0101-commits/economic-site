@@ -122,3 +122,13 @@ def test_checker_catches_bad_value_and_wrapped_screen():
     assert _check("#/market?a=macro&v=calender")[0], "철자 틀린 값을 놓침"
     assert _check("#/market?a=kr&v=gainers") == ([], 0)
     assert _routes()["/settings"] == "Settings"
+
+
+def test_welcome_route_registered():
+    """입장 화면 /welcome 은 Route 목록에 있어야 한다(키 없는 기기가 보내지는 곳)."""
+    assert _routes()["/welcome"] == "Welcome"
+
+
+def test_members_route_registered():
+    """멤버 관리 /members 는 Route 목록에 있어야 한다(머리 메뉴가 마스터에게 여는 곳)."""
+    assert _routes()["/members"] == "Members"

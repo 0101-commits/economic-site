@@ -576,3 +576,72 @@ def test_prefs_snaps_keep_no_failures_and_do_not_requery(env):
     assert ctx.quote(A(target="000000")) is None and ctx.quote(A(target="000000")) is None
     assert snaps == {} and env.snap_calls == ["000000"]
     assert ctx.quote(A(target="005930")) and ("KR", "005930") in snaps
+
+
+# ---------- fetch_all — GET /prefs/all (사람별 설정) ----------
+class _FakeResp:
+    def __init__(self, body):
+        self._b = json.dumps(body).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def read(self):
+        return self._b
+
+
+def _fake_open(seen, result):
+    def op(req, timeout=None):
+        seen.append((req.full_url, req.get_header("X-push-read-key"), timeout))
+        if isinstance(result, Exception):
+            raise result
+        return _FakeResp(result)
+    return op
+
+
+def test_fetch_all_returns_users_list_with_read_key_header(monkeypatch):
+    seen = []
+    users = [{"uid": "u1", "role": "owner", "prefs": {"alerts": []}},
+             {"uid": "u2", "role": "member", "prefs": {"alerts": []}}]
+    monkeypatch.setenv("PUSH_READ_KEY", "rk")
+    monkeypatch.setattr(prefs_client._OPENER, "open", _fake_open(seen, {"users": users}))
+    assert prefs_client.fetch_all("https://w.example/") == users
+    assert seen == [("https://w.example/prefs/all", "rk", prefs_client.TIMEOUT)]
+
+
+def test_fetch_all_401_is_none_and_never_logs_key(monkeypatch, capsys):
+    err = urllib.error.HTTPError("u", 401, "unauthorized", {}, None)
+    monkeypatch.setenv("PUSH_READ_KEY", "secret-rk")
+    monkeypatch.setattr(prefs_client._OPENER, "open", _fake_open([], err))
+    assert prefs_client.fetch_all("https://w.example") is None
+    out = capsys.readouterr().out
+    assert "401" in out and "secret-rk" not in out
+
+
+def test_fetch_all_empty_users_is_empty_list_and_bad_shape_is_none(monkeypatch):
+    monkeypatch.setenv("PUSH_READ_KEY", "rk")
+    monkeypatch.setattr(prefs_client._OPENER, "open", _fake_open([], {"users": []}))
+    assert prefs_client.fetch_all("https://w.example") == []
+    monkeypatch.setattr(prefs_client._OPENER, "open", _fake_open([], {"nope": 1}))
+    assert prefs_client.fetch_all("https://w.example") is None
+
+
+def test_fetch_all_malformed_entry_makes_whole_response_a_failure(monkeypatch, capsys):
+    users = [{"uid": "good-uid", "role": "owner", "prefs": {}}, {"role": "member", "prefs": {}},
+             {"uid": "x", "prefs": "nope"}]
+    monkeypatch.setenv("PUSH_READ_KEY", "rk")
+    monkeypatch.setattr(prefs_client._OPENER, "open", _fake_open([], {"users": users}))
+    assert prefs_client.fetch_all("https://w.example") is None
+    out = capsys.readouterr().out
+    assert "2" in out and "good-uid" not in out and out.count("[prefs]") == 1
+
+
+def test_fetch_all_without_key_does_not_call_network(monkeypatch):
+    monkeypatch.delenv("PUSH_READ_KEY", raising=False)
+    seen = []
+    monkeypatch.setattr(prefs_client._OPENER, "open", _fake_open(seen, {"users": []}))
+    assert prefs_client.fetch_all("https://w.example") is None
+    assert seen == []

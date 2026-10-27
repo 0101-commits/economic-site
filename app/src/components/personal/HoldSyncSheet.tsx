@@ -46,7 +46,7 @@ export function HoldSyncSheet({ open, onClose, onPulled }: { open: boolean; onCl
   return (
     <BottomSheet open={open} onClose={close} title="보유 동기화">
       {!linked ? (
-        <p className="m-0 text-13 text-ink-2">연결돼 있지 않습니다. <Link to="/settings">설정 › 기기 연결</Link>에서 동기화 키를 넣은 뒤 다시 여세요.</p>
+        <p className="m-0 text-13 text-ink-2">연결돼 있지 않습니다. <Link to="/settings">설정 › 내 계정</Link>에서 입장 키를 넣은 뒤 다시 여세요.</p>
       ) : (
         <div className="flex flex-col gap-3">
           {busy && !chk && <p role="status" className="m-0 text-13 text-ink-3">확인 중</p>}
@@ -56,17 +56,17 @@ export function HoldSyncSheet({ open, onClose, onPulled }: { open: boolean; onCl
               <p role="alert" className="m-0 text-13 text-warn">{chk.msg}</p>
               {chk.migrate && (
                 <>
-                  <form onSubmit={unlockOld} className="flex flex-wrap items-end gap-2" aria-label="예전 보유 암호 또는 바꾸기 전 동기화 키 넣기">
-                    <Field label="예전 보유 암호 또는 바꾸기 전 동기화 키" className="flex-1 min-w-48">
+                  <form onSubmit={unlockOld} className="flex flex-wrap items-end gap-2" aria-label="예전 보유 암호 또는 바꾸기 전 입장 키 넣기">
+                    <Field label="예전 보유 암호 또는 바꾸기 전 입장 키" className="flex-1 min-w-48">
                       <input type="password" autoComplete="off" className={INPUT} value={old} onChange={e => setOld(e.target.value)} />
                     </Field>
                     <button type="submit" disabled={busy || !old.trim()} className={BTN}>{busy ? '푸는 중' : '풀기'}</button>
                   </form>
-                  <p className="m-0 text-12 text-ink-3">이전 화면의 「평단가 동기화 암호」, 또는 키를 바꿨는데 사본이 옛 키로 남았다면 바꾸기 전 동기화 키입니다. 한 번 풀면 지금 동기화 키로 잠가 다시 올리므로 더 묻지 않습니다.</p>
+                  <p className="m-0 text-12 text-ink-3">이전 화면의 「평단가 동기화 암호」, 또는 키를 바꿨는데 사본이 옛 키로 남았다면 바꾸기 전 입장 키입니다. 한 번 풀면 지금 입장 키로 잠가 다시 올리므로 더 묻지 않습니다.</p>
                   <button type="button" disabled={busy} className={`${BTN2} self-start`} onClick={() => push(chk.migrate!)}>서버 사본 버리고 이 기기 것 올리기</button>
                 </>
               )}
-              {chk.needKey && <Link to="/settings" className="text-12 text-ink-2">설정 › 기기 연결로</Link>}
+              {chk.needKey && <Link to="/settings" className="text-12 text-ink-2">설정 › 내 계정으로</Link>}
               {!chk.migrate && !chk.needKey && (
                 <div className="flex flex-wrap gap-2">
                   <button type="button" disabled={busy} className={BTN2} onClick={() => void check()}>다시 확인</button>
@@ -98,7 +98,7 @@ export function HoldSyncSheet({ open, onClose, onPulled }: { open: boolean; onCl
             </div>
           )}
           {note && <p role={note.ok ? 'status' : 'alert'} className={`m-0 text-12 ${note.ok ? 'text-ink-2' : 'text-warn'}`}>{note.msg}</p>}
-          <p className="m-0 text-12 text-ink-3">동기화 키에서 만든 열쇠로 잠근 덩어리만 서버에 둡니다. 서버는 내용을 읽지 못합니다.</p>
+          <p className="m-0 text-12 text-ink-3">입장 키에서 만든 열쇠로 잠근 덩어리만 서버에 둡니다. 서버는 내용을 읽지 못합니다.</p>
         </div>
       )}
     </BottomSheet>

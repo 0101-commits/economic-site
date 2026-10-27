@@ -3,7 +3,7 @@
 // 경로 방식이면 /next/market 을 새로 고칠 때 404 가 난다.
 // 머리 아래 띠 둘(매매중단 · 새 화면 판) · 화면 단위 칸막이(오류가 나도 머리 · 탭은 남는다)도 여기.
 import { useEffect, useState } from 'react'
-import { HashRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { HashRouter, Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { Bell, ChartCandlestick, ChevronRight, House, Moon, RotateCw, Search, Settings as Gear, Sun, SunMoon, Telescope, Wallet, type LucideIcon } from 'lucide-react'
 import Home from './screens/Home'
 import Market from './screens/Market'
@@ -12,8 +12,13 @@ import My from './screens/My'
 import Alerts from './screens/Alerts'
 import Detail from './screens/Detail'
 import Settings from './screens/Settings'
+import Welcome from './screens/Welcome'
+import Members from './screens/Members'
+import { BrandMark, BrandWord } from './components/Brand'
 import { PinGate } from './components/PinGate'
+import { MovedBanner } from './components/MovedBanner'
 import { Boundary, Pill } from './components/ui'
+import { AccountMenu } from './components/personal/AccountMenu'
 import { SearchOverlay } from './components/personal/SearchOverlay'
 import Rail, { useRail } from './components/Rail'
 import { applyUpdown, readPrefs, tidyAlerts } from './lib/personal/store'
@@ -24,6 +29,10 @@ import { applyTheme, useTheme, type Theme } from './lib/theme'
 import { countUse, screenKey } from './lib/usage'
 import { loadBundle, useBundleRev, useNewBuild, watchBundles, type Meta } from './lib/bundle'
 import { haltLine, type Halt } from './lib/refresh'
+import { useHasKey } from './lib/personal/sync'
+import { keyWasLost, useMe } from './lib/personal/account'
+import { gateRedirect } from './lib/welcome'
+import { publicLedger } from './lib/alerts/v2'
 
 // 등락 색(한국식·서양식)은 테마처럼 첫 그림 전에 정한다
 applyUpdown(readPrefs().settings.updown)
@@ -109,7 +118,9 @@ function Shell() {
     loadRootJson<unknown>('events/latest.json').then(r => { setRows(r); tidyAlerts(r, prior) }, () => tidyAlerts([], prior))
   }, [])
   useEffect(() => { if (pathname === '/alerts') setSeen(markSeen()) }, [pathname])
-  const unseen = hasUnseen(rows, seen)
+  const me = useMe()
+  // 멤버의 안 읽음 점은 시장 사건만으로(공개 원장의 사용자 조건 · 묶음 행은 마스터 것 — lib/alerts/v2.ts publicLedger)
+  const unseen = hasUnseen(me?.role === 'member' ? publicLedger(rows) : rows, seen)
   // 묶음 다시 읽기(lib/bundle.ts — meta nextAt + 30초, 없으면 장중 5분). 새 묶음이 오면 rev 가 오르고, 홈 · 시장 · 지표 상세 · 내 자산은
   // 묶음을 읽는 곳이 rev 를 보고 그 자리에서 다시 읽는다(화면을 다시 만들지 않아 입력 · 열린 시트가 남는다). 렌즈 · 알림 · 설정은 그대로다.
   useEffect(() => watchBundles(), [])
@@ -147,12 +158,19 @@ function Shell() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+  // 입장 관문(lib/welcome.ts gateRedirect): 키 없는 기기는 입장 화면부터(주소를 그대로 next 로 넘겨 들어간 뒤 돌아온다).
+  // 401 로 끊겼으면 why=lost, 멈춘 사람이면 why=paused — 키 해시 · me 가 바뀌는 순간 다시 그려 바로 보낸다(다음 이동을 기다리지 않는다).
+  // 입장 화면엔 머리줄 · 하단 탭 · 오른쪽 패널이 없다.
+  const hasKey = useHasKey()
+  const welcome = pathname === '/welcome'
+  const gate = gateRedirect({ path: pathname, query, hash: hasKey, paused: me?.status === 'paused', lost: keyWasLost() })
+  if (gate) return <Navigate to={gate} replace />
   return (
-    <div className={`min-h-dvh pc:pr-12 ${rail.open ? 'min-[90rem]:pr-75' : ''}`}>
+    <div className={`min-h-dvh ${welcome ? '' : 'pc:pr-12'} ${rail.open && !welcome ? 'min-[90rem]:pr-75' : ''}`}>
       {/* PC 상단 */}
-      <header className="hidden pc:block bg-card border-b border-line">
+      {!welcome && <header className="hidden pc:block bg-card border-b border-line">
         <div className="mx-auto max-w-[1200px] px-4 h-14 flex items-stretch gap-6">
-          <Link to="/" className="self-center text-18 font-bold text-ink-1 no-underline">ecom</Link>
+          <Link to="/" aria-label="ECOM 홈" className="self-center inline-flex items-center gap-1.5 text-brand-logo no-underline"><BrandMark className="h-[22px] w-auto" /><BrandWord className="h-[15px] w-auto" /></Link>
           <nav aria-label="주 메뉴" className="flex gap-5">
             {TABS.map(({ to, label, icon: Icon }) => (
               <NavLink key={to} to={to} end={to === '/'}
@@ -166,20 +184,24 @@ function Shell() {
             <IconLink to="/alerts" label="알림" icon={Bell} dot={unseen ? '안 읽은 알림 있음' : undefined} />
             <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
             <ThemeButton />
+            <AccountMenu />
           </div>
         </div>
-      </header>
+      </header>}
 
       {/* 모바일 상단: 이름 + 검색 + 톱니 */}
-      <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
-        <Link to="/" className="mr-auto text-18 font-bold text-ink-1 no-underline">ecom</Link>
+      {!welcome && <header className="pc:hidden bg-card border-b border-line px-4 h-12 flex items-center gap-2">
+        <Link to="/" aria-label="ECOM 홈" className="mr-auto inline-flex items-center gap-1.5 text-brand-logo no-underline"><BrandMark className="h-[22px] w-auto" /><BrandWord className="h-[15px] w-auto" /></Link>
         <SearchButton compact onOpen={() => setSearch(true)} />
         <IconLink to="/settings" label="설정" icon={Gear} dot={gearDot} />
         <ThemeButton />
-      </header>
+        <AccountMenu />
+      </header>}
 
-      {/* 매매중단 배너 — 지금 발동 중인 서킷브레이커 · 사이드카(알림의 같은 사건). 누르면 국내 매매중단 패널 */}
-      {halt && (
+      <MovedBanner />
+
+      {/* 매매중단 배너 —지금 발동 중인 서킷브레이커 · 사이드카(알림의 같은 사건). 누르면 국내 매매중단 패널 */}
+      {halt && !welcome && (
         <Link to="/market?a=kr&v=halts&m=all" className="block bg-card border-b border-line no-underline">
           <span className="mx-auto max-w-[1200px] px-4 py-2 flex items-center gap-2 text-13 text-ink-1">
             <Pill tone="x">매매중단</Pill><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{halt}</span><ChevronRight size={16} aria-hidden className="shrink-0 text-ink-3" />
@@ -198,7 +220,7 @@ function Shell() {
         </div>
       )}
 
-      <main className="mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8">
+      <main className={welcome ? undefined : 'mx-auto max-w-[1200px] px-4 py-4 pb-24 pc:pb-8'}>
         {/* 화면 단위 칸막이 — 한 화면이 그리다 오류를 내도 머리 · 탭은 남는다. 다른 화면으로 가면 풀린다 */}
         <Boundary screen where={screen} resetKey={`${pathname}:${rev}`}>
           <Routes>
@@ -208,17 +230,19 @@ function Shell() {
             <Route path="/my" element={<My />} />
             <Route path="/alerts" element={<Alerts />} />
             <Route path="/i/:id" element={<Detail />} />
+            <Route path="/welcome" element={<Welcome />} />
             <Route path="/settings" element={<PinGate><Settings /></PinGate>} />
+            <Route path="/members" element={<PinGate><Members /></PinGate>} />
             <Route path="*" element={<p className="text-14 text-ink-2">없는 화면입니다. <Link to="/">홈으로</Link></p>} />
           </Routes>
         </Boundary>
       </main>
 
-      <SearchOverlay open={search} onClose={() => setSearch(false)} />
-      <Rail />
+      {!welcome && <SearchOverlay open={search} onClose={() => setSearch(false)} />}
+      {!welcome && <Rail />}
 
       {/* 모바일 하단 탭 */}
-      <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
+      {!welcome && <nav aria-label="주 메뉴" className="pc:hidden fixed bottom-0 inset-x-0 bg-card border-t border-line grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
         {TABS.map(({ to, label, icon: Icon }) => (
           <NavLink key={to} to={to} end={to === '/'}
             aria-label={to === '/alerts' && unseen ? `${label} · 안 읽은 알림 있음` : undefined}
@@ -227,7 +251,7 @@ function Shell() {
             <span className="text-10 leading-none">{label}</span>
           </NavLink>
         ))}
-      </nav>
+      </nav>}
     </div>
   )
 }

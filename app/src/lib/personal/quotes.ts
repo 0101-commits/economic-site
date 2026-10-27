@@ -11,8 +11,9 @@ import type { Pt } from '../format'
 import type { StripItem } from '../bundle'
 import type { StockRow } from '../detail'
 import { WORKER, watchKind } from './remote.ts'
+import { storeKey } from './who.ts'
 
-const CACHE_KEY = 'econHoldQuotes_v1'
+const CACHE_KEY = () => storeKey('econHoldQuotes_v1')   // 사람마다(마스터는 이 이름 그대로) — 보유 종목 목록이 드러난다
 const TTL_MS = 10 * 60_000
 const PARALLEL = 4
 
@@ -64,9 +65,9 @@ const toQuote = (p: { price: number; prev: number | null }): Quote => ({ price: 
 
 type Cache = Record<string, { t: number; price: number; prev: number | null }>
 function readCache(): Cache {
-  try { const c = JSON.parse(sessionStorage.getItem(CACHE_KEY) || '{}'); return c && typeof c === 'object' ? c : {} } catch { return {} }
+  try { const c = JSON.parse(sessionStorage.getItem(CACHE_KEY()) || '{}'); return c && typeof c === 'object' ? c : {} } catch { return {} }
 }
-function writeCache(c: Cache) { try { sessionStorage.setItem(CACHE_KEY, JSON.stringify(c)) } catch { /* 못 두면 다음에 다시 받는다 */ } }
+function writeCache(c: Cache) { try { sessionStorage.setItem(CACHE_KEY(), JSON.stringify(c)) } catch { /* 못 두면 다음에 다시 받는다 */ } }
 
 /** 국내 접미사 → Yahoo 거래소 표식(parseChart 의 exchange). */
 const KR_EXCHANGE: Record<string, string> = { '.KS': 'KSC', '.KQ': 'KOE' }

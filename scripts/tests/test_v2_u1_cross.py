@@ -125,6 +125,9 @@ def test_state_doc_light_only_and_not_on_dry_run(monkeypatch, tmp_path):
     monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
     monkeypatch.setenv("ALERTS_V2", "1")
     monkeypatch.setattr(subscribe, "load_prefs", lambda log=print: {"alerts": [_cond()], "settings": {}})
+    monkeypatch.setattr(subscribe, "load_all_prefs",       # 사람별 설정을 정상으로 읽은 런만 정리한다(test_v2_members)
+                        lambda log=print: [("o1", "owner", {"updatedAt": "2026-10-01T00:00:00Z", "alerts": [_cond()],
+                                                            "settings": {}})])
     monkeypatch.setattr(schedule, "plan", lambda *a, **k: [])
     path = tmp_path / "alerts_state.json"
     raw = json.dumps({"_swings": {"kospi": 1}, "_prefs": {"c1x": {"ts": 1, "fired": True}}})

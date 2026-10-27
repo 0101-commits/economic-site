@@ -16,15 +16,16 @@ import { fmtNumber, fmtPct, mdHm, scaled, shortDate } from '../lib/format'
 import { useViewParam } from '../lib/useViewParam'
 import { kstDay } from '../lib/personal/calc'
 import { loadMarketData, loadRootJson, type MarketData } from '../lib/personal/data'
-import { KEYS, readHk, readPrefs, writeHk, writePrefs, type AlertCond, type Level, type Pkg, type Prefs, type Settings, type Strength } from '../lib/personal/store'
+import { readHk, storeKey, readPrefs, writeHk, writePrefs, type AlertCond, type Level, type Pkg, type Prefs, type Settings, type Strength } from '../lib/personal/store'
 import { PACKAGE_PRESET, setPackage } from '../lib/personal/prefsV2'
 import { armU1, condId, condName, condStatus, prefillTarget, rearm, repeatNote, TARGET_RE, type FiredRec, type LedgerRow } from '../lib/personal/alertStatus'
 import type { Hk } from '../lib/personal/housekeeping'
-import { portfolioGet, watchKind } from '../lib/personal/remote'
+import { firedGet, portfolioGet, watchKind } from '../lib/personal/remote'
 import { getKeyHash, scopeText, useSyncStatus, type SyncStatus } from '../lib/personal/sync'
+import { useMe } from '../lib/personal/account'
 import { pushSubscribed } from '../lib/push'
 import { CAP_MSG } from '../components/personal/BellSheet'
-import { adjustOf, ALERT_CAP, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, passes, savedNote, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter } from '../lib/alerts/v2'
+import { adjustOf, ALERT_CAP, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, memberView, passes, savedNote, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter } from '../lib/alerts/v2'
 import { loadDaily } from '../lib/alerts/daily'
 import { convertLegacy, type Imported } from '../lib/alerts/legacy'
 import dictJson from '../lib/alerts/dict.json'
@@ -128,6 +129,9 @@ export default function Alerts() {
   const [pushOn, setPushOn] = useState(false)
   const [msg, setMsg] = useState('')
   const [reg, setReg] = useState<RegRow[]>([])
+  // 멤버: 공개 원장 · 공개 기록의 사용자 조건은 마스터 것이다 — 내 울림은 내 칸(GET /fired)에서 읽는다(lib/alerts/v2.ts memberView)
+  const member = useMe()?.role === 'member'
+  const [firedItems, setFiredItems] = useState<unknown>(undefined)   // undefined 아직 · null 못 읽음 · 배열
   useEffect(() => {
     loadRootJson<unknown>('events/latest.json').then(r => setLedger(Array.isArray(r) ? (r as LedgerRow[]) : null), () => setLedger(null))
     loadRootJson<Record<string, unknown>>('alerts_state.json').then(setState, () => setState(null))
@@ -135,9 +139,14 @@ export default function Alerts() {
     loadRegistry().then(setReg, () => {})
     pushSubscribed().then(setPushOn, () => {})
   }, [])
+  useEffect(() => {
+    const h = getKeyHash()
+    if (!member || !h) return
+    firedGet(h).then(r => setFiredItems(r.status === 200 && Array.isArray(r.doc?.items) ? r.doc.items : null), () => setFiredItems(null))
+  }, [member])
   // 동기화(sync.ts)·자동 정리(store.tidyAlerts)·다른 탭이 바꾸면 다시 읽는다 — 낡은 사본으로 저장해 다른 기기의 조건을 지우지 않게.
   useEffect(() => {
-    const f = (e: StorageEvent) => { if (e.key === KEYS.prefs) { setPrefs(readPrefs()); setHk(readHk()) } }
+    const f = (e: StorageEvent) => { if (e.key === storeKey('econPrefsV1')) { setPrefs(readPrefs()); setHk(readHk()) } }
     window.addEventListener('storage', f)
     return () => window.removeEventListener('storage', f)
   }, [])
@@ -156,8 +165,16 @@ export default function Alerts() {
   const today = kstDay()
   const yesterday = kstDay(Date.now() - 86_400_000)
   const from = kstDay(Date.now() - 6 * 86_400_000)
-  const feed = useMemo(() => (ledger ? fromLedger(ledger, names)
-    : legacyFeed(state ?? null, md, new Map(prefs.alerts.map(a => [a.id, a])), names, toOf, from)), [ledger, state, md, prefs.alerts, names, from])   // toOf 는 regName 을 따르고 regName 이 바뀌면 names 도 바뀐다
+  const mv = useMemo(() => (member ? memberView(ledger, firedItems, from) : null), [member, ledger, firedItems, from])
+  const feed = useMemo(() => {
+    if (ledger) return fromLedger(mv ? mv.rows : ledger, names)
+    // 원장이 없을 때(배포 전) 현행 이력 — 멤버에겐 사용자 조건 기록(마스터 것)을 빼고 급변 · 렌즈 · 매매중단만, 내 울림은 /fired 에서
+    const legacy = legacyFeed(mv ? { _swings: state?._swings } : state ?? null, md, new Map(prefs.alerts.map(a => [a.id, a])), names, toOf, from)
+    return mv ? [...fromLedger(mv.rows, names), ...legacy].sort((a, b) => b.at - a.at) : legacy
+  }, [ledger, mv, state, md, prefs.alerts, names, from])   // toOf 는 regName 을 따르고 regName 이 바뀌면 names 도 바뀐다
+  // 조건 상태(울림 · 멈춤 · 다시 켜기)의 재료 — 마스터 = 공개 원장 + 공개 기록 _prefs, 멤버 = 내 울림(/fired)
+  const statusRows = mv ? mv.mine : ledger ?? []
+  const fired = (mv ? mv.fired : state?._prefs ?? {}) as Record<string, FiredRec>
   const todays = feed.filter(x => x.day === today)
   const save = (p: Prefs) => { setPrefs(p); setMsg(writePrefs(p) ? '' : SAVE_FAIL) }
   const setS = (k: Partial<Settings>) => save({ ...prefs, settings: { ...prefs.settings, ...k } })
@@ -178,7 +195,7 @@ export default function Alerts() {
 
       {tab === 'inbox' && <Inbox feed={feed} ledger={ledger} state={state} today={today} yesterday={yesterday} />}
       {tab === 'cond' && (
-        <EventsTab prefs={prefs} save={save} sync={sync} pushOn={pushOn} ledger={ledger ?? []} known={Array.isArray(ledger) || !!state} state={state} hk={hk} setHk={setHk}
+        <EventsTab prefs={prefs} save={save} sync={sync} pushOn={pushOn} ledger={statusRows} known={mv ? Array.isArray(firedItems) : Array.isArray(ledger) || !!state} fired={fired} hk={hk} setHk={setHk}
           names={names} rows={reg} labelOf={labelOf} cur={id => curOf(md, id)} />
       )}
       {tab === 'chan' && <Channels prefs={prefs} setS={setS} />}
@@ -271,13 +288,13 @@ function FeedList({ items, showDay }: { items: FeedRow[]; showDay?: boolean }) {
 // ── 사건 ───────────────────────────────────────────
 
 type EventsProps = {
-  prefs: Prefs; save: (p: Prefs) => void; sync: SyncStatus; pushOn: boolean; ledger: LedgerRow[]; known: boolean; state: Record<string, unknown> | null | undefined
+  prefs: Prefs; save: (p: Prefs) => void; sync: SyncStatus; pushOn: boolean; ledger: LedgerRow[]; known: boolean; fired: Record<string, FiredRec>
   hk: Hk; setHk: (h: Hk) => void; names: Map<string, string>; rows: RegRow[]; labelOf: (id: string) => string; cur: (id: string) => number | null
 }
 
-// known = 울림 기록(원장 · 현행 이력)을 하나라도 읽었나 — 못 읽었으면 「대기」라고 말하지 않는다
-function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk, names, rows, labelOf, cur }: EventsProps) {
-  const fired = (state?._prefs ?? {}) as Record<string, FiredRec>
+// known = 울림 기록(원장 · 현행 이력 · 멤버는 /fired)을 하나라도 읽었나 — 못 읽었으면 「대기」라고 말하지 않는다
+// ledger · fired = 조건 상태 재료(마스터 = 공개 원장 · 공개 기록 _prefs, 멤버 = 내 울림 /fired — Alerts 가 고른다)
+function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk, names, rows, labelOf, cur }: EventsProps) {
   const mine = prefs.alerts.filter(a => a.target !== '*')
   const off = new Set(hk.off ?? [])
   const put = (alerts: AlertCond[]) => save({ ...prefs, alerts })
@@ -339,7 +356,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
                     {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 동기화가 꺼져 있으면 눌러도 소용없다 */}
                     {st.kind === 'stopped' && (sync.on ? (
                       <button type="button" className={`${BTN2} mt-1`} aria-label={`${name} 다시 켜기`} onClick={() => setAlert(a.id, x => rearm(x, ledger, fired[a.id], Date.now(), cur(x.target)))}>다시 켜기</button>
-                    ) : <span className="block text-12 text-ink-3">설정 › 기기 연결에서 연결하면 다시 켤 수 있습니다</span>)}
+                    ) : <span className="block text-12 text-ink-3">설정 › 내 계정에서 연결하면 다시 켤 수 있습니다</span>)}
                   </span>
                   <button type="button" onClick={() => put(prefs.alerts.filter(x => x.id !== a.id))} aria-label={`${name} 지우기`} title="지우기"
                     className="size-8 shrink-0 inline-flex items-center justify-center rounded-btn border-0 bg-transparent text-ink-3 hover:text-ink-1 cursor-pointer">
@@ -350,7 +367,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, state, hk, setHk,
             })}
           </ul>
         ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다. 지표 · 종목 상세의 벨이나 아래 「새 조건」에서 만듭니다.</p>}
-        <p className="mt-2 mb-0 text-12 text-ink-3">연결돼 있어야(설정 › 기기 연결) 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
+        <p className="mt-2 mb-0 text-12 text-ink-3">연결돼 있어야(설정 › 내 계정) 서버가 이 조건을 보고 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
         <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add.map(a => armU1(a, cur(a.target)))])} />
       </Panel>
 
@@ -370,10 +387,10 @@ async function readLegacy(): Promise<{ rows: unknown[] } | { error: string }> {
   if (h) {
     const g = await portfolioGet(h)
     if (g.ok) return { rows: g.alerts ?? [] }
-    why = g.status === 401 ? '동기화 키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
+    why = g.status === 401 ? '입장 키가 맞지 않습니다.' : '서버에 닿지 못했습니다.'
   }
   try { return { rows: (await loadRootJson<{ alerts?: unknown[] }>('alerts_config.json')).alerts ?? [] } } catch { /* 운영 사이트에는 없다 */ }
-  return { error: why || '현행 조건을 읽으려면 설정 › 기기 연결에서 연결해야 합니다.' }
+  return { error: why || '현행 조건을 읽으려면 설정 › 내 계정에서 연결해야 합니다.' }
 }
 
 /** 「현행 조건 가져오기」: 읽기 → 미리보기(가져올 N · 건너뛸 M) → 확인하면 이 기기 조건에 더한다. 현행 화면의 조건은 그대로 둔다. */
@@ -590,7 +607,7 @@ function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) 
   const setQuiet = (q: Settings['quiet']) => setS({ quiet: q })
   return (
     <>
-      <p className="m-0 text-12 text-ink-2">폰 알림 · 동기화 키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 기기 연결</Link>에서</p>
+      <p className="m-0 text-12 text-ink-2">폰 알림 · 입장 키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
       <div className="grid grid-cols-1 pc:grid-cols-2 gap-4 items-start">
         <Panel title="울림 채널 · 하루 상한">
           <SegBar label="울림 채널" options={RING_OPTS} value={s.ringChannel} onChange={v => setS({ ringChannel: v })} />

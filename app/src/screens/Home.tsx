@@ -15,7 +15,8 @@ import { More, Panel, RankTable, StripCard, WatchStar, type Col } from '../compo
 import { BTN, INPUT, LevelPill } from '../components/personal/bits'
 import Brief, { emphasize } from '../components/home/Brief'
 import { useItems } from '../components/Rail'
-import { hhmm, todayRows } from '../lib/alerts/v2'
+import { hhmm, publicLedger, todayRows } from '../lib/alerts/v2'
+import { useMe } from '../lib/personal/account'
 import { kstDay } from '../lib/personal/calc'
 import { loadRootJson } from '../lib/personal/data'
 import { aiAsk, aiErrText } from '../lib/personal/remote'
@@ -52,7 +53,9 @@ export default function Home() {
   // 알림 원장(events/latest.json) — 「일정·알림」 패널의 「오늘 바뀐 것」. 아직 없으면(배포 전) 패널은 종전 그대로다.
   const [ledger, setLedger] = useState<unknown>(null)
   useEffect(() => { loadRootJson<unknown>('events/latest.json').then(setLedger, () => {}) }, [])
-  const changed = useMemo(() => todayRows(ledger, kstDay()), [ledger])
+  // 멤버에겐 공개 원장의 사용자 조건 · 묶음 행(마스터 것)을 빼고 시장 사건만(lib/alerts/v2.ts publicLedger)
+  const member = useMe()?.role === 'member'
+  const changed = useMemo(() => todayRows(member ? publicLedger(ledger) : ledger, kstDay()), [ledger, member])
   const [s, setS] = useViewParam<string>('s', 'kospi')
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const watch = useWatch()
@@ -374,7 +377,7 @@ function AskBox({ home }: { home: HomeBundle }) {
     e.preventDefault()
     const question = q.trim(), hash = getKeyHash()
     if (!question || busy) return
-    if (!hash) { setNote('동기화가 꺼졌습니다. 설정 「기기 연결」에서 다시 연결하세요.'); return }
+    if (!hash) { setNote('동기화가 꺼졌습니다. 설정 › 내 계정에서 다시 연결하세요.'); return }
     // 간격은 기기 연결(sync.ts)의 마지막 요청 시각과 같이 센다 — 화면을 다시 열어도 남는다
     const wait = lastReqAt() + ASK_GAP_MS - Date.now()
     if (wait > 0) { setNote(`${Math.ceil(wait / 1000)}초 뒤에 다시 물어보세요.`); return }

@@ -298,7 +298,8 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     items = [(lab, v) for lab, v in items if v and not compose.has_relative_time(f"{lab} {v}")][:ITEMS_MAX]
     spec["info"] = [(lab, v) for lab, v in spec.get("info") or [] if v and not compose.has_relative_time(f"{lab} {v}")]
     ai = k.slot_ai_line(d, lslot, title, [("", mid)] + items + list(ai_blocks))
-    if not ai or compose.has_relative_time(ai):        # 사전 문장 — 경보 · 알림 「왜」, 없으면 카드의 큰 움직임
+    ai_from_rows = not ai or compose.has_relative_time(ai)
+    if ai_from_rows:                                   # 사전 문장 — 경보 · 알림 「왜」, 없으면 카드의 큰 움직임
         # 사용자 조건(U1 · U2 · 종목 B1 = cond)의 「왜」는 「내 조건」 · 이름 없는 내 종목 말이라 시황 문장이 못 된다
         # — 10/12 점심 · 마감 · 저녁 본문이 「내 조건」이었다. 묶음(BUNDLE) 「왜」도 제목 조각이라 뺀다.
         # 「왜」는 제목 옆에서만 뜻이 선다(「직전 신저가 1,339 (10/8)」 — 무엇의?). 제목이 행에 같이 안 실리는 슬롯은
@@ -309,6 +310,26 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
                    and not str(r.get("event") or "").startswith("U")), "") or _moves(spec, title)
     summary = " · ".join(([f"오늘 바뀐 것 {len(changed)}건"] if changed else []) + cal)
     lines = [x if x and not compose.has_relative_time(x) else "" for x in (ai, mid, summary)]
+    # 멤버 몫(푸시 제목 · 본문 두 줄) — 슬롯과 상관없이 같은 규칙. 멤버 재료(pub_rows) = 원장 행에서 마스터 개인 행(사용자 조건
+    # cond · U* · 상한 묶음 BUNDLE — _personal)과 마스터 조용한 시간 보류 행(주간 사건 수 제외)을 뺀 것 + 카드 값.
+    #  · 원장 행이 AI 재료 · 제목 · 가운데 줄에 들어간 슬롯(fed — 아침 「밤사이 알림」 = 마스터 보류 행 제목, 주간 = 사건 수 · 큰 알림)에서
+    #    마스터 것이 섞였으면 마스터의 AI 문장 · 제목 · 가운데 줄을 다시 쓰지 않고 공개 재료로 새로 만든다.
+    #  · AI 문장이 없어 원장 행에서 사전 문장을 골랐으면 어느 슬롯이든 공개 행에서 다시 고른다(마스터 보류 행을 골랐을 수 있다).
+    fed = held if slot == "morning" else week if slot == "weekly" else []
+    pub_rows = [r for r in (week if slot == "weekly" else ledger.rows)
+                if not _personal(r) and (slot == "weekly" or not (r.get("sent") or {}).get("held"))]
+    personal_in = (slot == "morning" and bool(held)) or any(_personal(r) for r in fed)
+    pub_title, pub_mid, pub_ai = title, mid, ai
+    if slot == "weekly" and personal_in:               # 주간 사건 수에 마스터 개인 행이 섞였다
+        pub_title = k._fit(base, [f"사건 {len(pub_rows)}건", big_txt])
+        pub_title = base if compose.has_relative_time(pub_title) else pub_title
+        pub_mid = " · ".join(x for x in (f"{dc.week_period(now)} 사건 {len(pub_rows)}건",
+                                         big_txt and f"가장 큰 움직임 {big_txt}") if x)
+    if personal_in or ai_from_rows:
+        part = "why" if slot == "morning" else "title"
+        pub_ai = next((r[part] for r in pub_rows if r.get(part) and r.get("level") in ("alarm", "alert")), "") \
+            or _moves(spec, pub_title)
+    public_lines = [x if x and not compose.has_relative_time(x) else "" for x in (pub_ai, pub_mid)]
     try:
         png = cards.brief_card_png(spec)
     except Exception as e:                             # noqa: BLE001 — 카드가 죽어도 브리핑은 나간다(카톡은 텍스트, 경고 남음)
@@ -318,7 +339,12 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
         items = ([("오늘 바뀐 것", f"안내 {len(changed)}건 · " + " · ".join(changed_lines(changed)))] + items)[:ITEMS_MAX]
     return {"title": title, "lines": lines, "items": items, "card_png": png, "held_rows": held,
             "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links,
-            "caption": lines[0], "card_info": spec["info"]}
+            "caption": lines[0], "card_info": spec["info"], "public_title": pub_title, "public_lines": public_lines}
+
+
+def _personal(r: dict) -> bool:
+    """마스터 개인 행 — 사용자 조건(cond · U*) · 상한 묶음(BUNDLE, 제목이 마스터 알림 조각). 멤버 브리핑 재료에서 뺀다."""
+    return bool(r.get("cond")) or str(r.get("event") or "").startswith("U") or r.get("event") == "BUNDLE"
 
 
 # ---------- 보내기 ----------
@@ -342,18 +368,26 @@ def _kakao(out: dict, slot: str, log=print) -> bool:
 
 
 def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = False, log=print,
-         queue_path: str = deliver.PUSH_QUEUE_PATH) -> dict:
+         queue_path: str = deliver.PUSH_QUEUE_PATH, uid: str | None = None,
+         members: list[tuple[str, dict | None]] | None = None) -> dict:
     """두 채널 독립 발송 → {push, kakao, memo}. 꺼진 슬롯 · 휴장일 한국 슬롯은 아무것도 안 보낸다.
     켜진 슬롯은 전부 푸시(웹앱은 모든 알림을 울린다, 2026-10-13) + 카톡, 디스코드는 없다.
-    보낸 뒤 밤사이 보류 행을 「합류」(held=False)로 적고 그 원장을 저장한다(드라이런은 쓰지 않음)."""
+    보낸 뒤 밤사이 보류 행을 「합류」(held=False)로 적고 그 원장을 저장한다(드라이런은 쓰지 않음).
+    uid = 마스터 uid(푸시 항목에 실음). members = [(멤버 uid, 그 사람 설정)] — 그 슬롯을 켠 멤버에게 같은 브리핑을
+    푸시로만(카톡 · 원장 없음, 브리핑은 시장 자료라 모두 같다). members 를 주면 결과에 members(큐에 넣은 사람 수)."""
     res = {"push": 0, "kakao": False, "memo": False}
-    if not enabled(slot, settings):
-        log(f"[v2 brief] {slot} 꺼짐 — 보내지 않음")
-        return res
+    if members is not None:
+        res["members"] = 0
+    owner_on = enabled(slot, settings)
+    mem = [u for u, s in members or [] if enabled(slot, s)]
+    if not owner_on:
+        log(f"[v2 brief] {slot} 꺼짐 — 보내지 않음" + (f"(마스터) · 멤버 {len(mem)}명은 보냄" if mem else ""))
+        if not mem:
+            return res
     if slot in KR_SLOTS and dc.kr_closed(ctx.data, ctx.now):
         log(f"[v2 brief] {slot} 한국 휴장 — 보내지 않음")
         return res
-    pairs = _held(ledger) if slot == "morning" else []
+    pairs = _held(ledger) if slot == "morning" and owner_on else []
     out = build(slot, ctx, ledger, settings)
     log(f"[v2 brief{' dry-run' if dry_run else ''}] {slot}: {out['title']}")
     for x in out["lines"] + [f"{lab} | {v}" for lab, v in out["items"]]:
@@ -361,17 +395,32 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
             log(f"  {x}")
     if dry_run:
         return res
+    item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": out["title"],
+            "body": compose.cut("\n".join(x for x in out["lines"][:2] if x), compose.PUSH_BODY_MAX),
+            "url": deliver.abs_url("#/"), "ts": ctx.now.isoformat(timespec="seconds"),
+            "level": "brief", "requireInteraction": False}
+    if owner_on:
+        _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, queue_path)
+    if mem:                                            # 멤버 — 푸시만, 사람마다 uid 를 단 항목 · 시장 내용만(public_*)
+        pub = {"title": out.get("public_title") or out["title"],
+               "body": compose.cut("\n".join(x for x in (out.get("public_lines") or out["lines"][:2]) if x),
+                                   compose.PUSH_BODY_MAX)}
+        if deliver.enqueue_push([dict(item, **pub, uid=u) for u in mem], queue_path):
+            res["members"] = len(mem)
+        log(f"[v2 brief] {slot} → 멤버 {res['members']}명 푸시")
+    return res
+
+
+def _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, queue_path) -> None:
+    """마스터 몫(종전 send 본문 그대로) — 푸시(울림 채널이 카톡이 아니면) + 카톡 · 메모, 원장 BRIEF 행 · 밤사이 합류."""
     ring = ((settings or {}).get("ringChannel") or DEFAULT_SETTINGS["ringChannel"])
-    if ring == "kakao" and not dry_run and not deliver.kakao_rings(log):
+    if ring == "kakao" and not deliver.kakao_rings(log):
         ring = "push"                                  # D11 — 메모 모드면 카톡은 안 울리므로 폰 푸시가 울린다
     if ring != "kakao":
-        item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": out["title"],
-                "body": compose.cut("\n".join(x for x in out["lines"][:2] if x), compose.PUSH_BODY_MAX),
-                "url": deliver.abs_url("#/"), "ts": ctx.now.isoformat(timespec="seconds"),
-                "level": "brief", "requireInteraction": False}
-        res["push"] = 1 if deliver.enqueue_push([item], queue_path) else 0
+        res["push"] = 1 if deliver.enqueue_push([dict(item, uid=uid) if uid else item], queue_path) else 0
     res["memo" if deliver.memo_mode(log) else "kakao"] = _kakao(out, slot, log)
-    if any(res.values()):                              # 받은 알림 「시황」 거르기 = 원장(기획서 2장) — 종전엔 안 적어 늘 빈칸이었다
+    went = any(res[k] for k in ("push", "kakao", "memo"))   # 마스터 몫만(멤버 수는 따로)
+    if went:                                           # 받은 알림 「시황」 거르기 = 원장(기획서 2장) — 종전엔 안 적어 늘 빈칸이었다
         if ledger.append({"key": f"BRIEF:{slot}:{ctx.now.date().isoformat()}", "event": "BRIEF", "target": slot,
                           "dir": "new", "level": "brief", "value": None, "unit": "", "asOf": ctx.now.date().isoformat(),
                           "fresh": "live", "title": out["title"], "why": compose.cut(out.get("caption") or "", compose.LINE_MAX),
@@ -380,10 +429,9 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
                           "sent": {"push": res["push"], "kakao": res["kakao"],
                                    "bundled": False, "held": False, "memo": res["memo"]}}):
             ledger.save()
-    if any(res.values()) and pairs:                    # 합류 — 아침 카드가 실제로 나갔을 때만
+    if went and pairs:                                 # 합류 — 아침 카드가 실제로 나갔을 때만
         for book, r in pairs:
             book.update_sent(r["key"], held=False, push=res["push"], kakao=res["kakao"], memo=res["memo"])
         for book in {id(b): b for b, _ in pairs}.values():
             book.save()
     log(f"[v2 brief] {slot} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']}")
-    return res

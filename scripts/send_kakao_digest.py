@@ -59,9 +59,10 @@ import urllib.request
 import urllib.error
 
 import kwmatch
+import app_url as _au
 import nyse_calendar
 
-DASHBOARD_URL = "https://0101-commits.github.io/economic-site/"
+DASHBOARD_URL = _au.APP_URL
 KST = datetime.timezone(datetime.timedelta(hours=9))
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data.json")
 TEXT_LIMIT = 200  # 카카오 텍스트 템플릿 text 최대 길이

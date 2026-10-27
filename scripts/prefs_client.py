@@ -58,3 +58,34 @@ def fetch(base_url):
         _log("조건 문서 모양이 다름 — 건너뜁니다")
         return None
     return doc
+
+
+def fetch_all(base_url):
+    """GET {base_url}/prefs/all → 사람별 목록 [{uid, role, prefs}](활성 사용자만) 또는 None.
+    사람이 없으면 [] — None(실패)과 구분한다."""
+    auth = auth_header()
+    if not auth:
+        _log("PUSH_READ_KEY 없음 — 사람별 조건을 건너뜁니다")
+        return None
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/prefs/all",
+        headers={auth[0]: auth[1], "Accept": "application/json", "User-Agent": "econ-alerts/1"})
+    try:
+        with _OPENER.open(req, timeout=TIMEOUT) as r:
+            doc = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        _log(f"사람별 조건을 받지 못함 — HTTP {e.code}")
+        return None
+    except Exception as e:                                    # noqa: BLE001 — 네트워크·JSON 전부 같은 처리
+        _log(f"사람별 조건을 받지 못함 — {type(e).__name__}")
+        return None
+    users = doc.get("users") if isinstance(doc, dict) else None
+    if not isinstance(users, list):
+        _log("사람별 조건 문서 모양이 다름 — 건너뜁니다")
+        return None
+    good = [u for u in users if isinstance(u, dict) and u.get("uid") and isinstance(u.get("prefs"), dict)]
+    if len(good) != len(users):
+        # 일부만 읽힌 응답은 사람 합집합이 줄어든다 — 통째로 실패로 본다(uid · 설정 내용은 로그에 안 찍는다)
+        _log(f"사람별 조건 {len(users) - len(good)}건 모양이 다름 — 일부만 받은 것으로 보고 건너뜁니다")
+        return None
+    return good
