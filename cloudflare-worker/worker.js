@@ -776,7 +776,9 @@ function _sanitizeTracking(raw) {
 // 🔐 E2E 암호화 보유정보(평단가/수량/매입환율) — 클라이언트가 사용자 암호로 AES-GCM 암호화한
 //   불투명 암호문 블록만 받는다. 서버는 복호화하지 않으며(키 없음), 형태·길이만 검증해 KV 에 보존한다.
 //   암호문이라도 공개 저장소에 두면 대입 공격 재료가 되므로 alerts_config.json 에는 쓰지 않는다.
-function _sanitizeEncHoldings(raw) {
+function _sanitizeEncHoldings(raw) { return _sanitizeEncBlob(raw); }
+// 보유(hold)와 스냅샷(snaps)이 같은 형식·같은 한도를 쓴다 — 서버는 형태만 본다.
+function _sanitizeEncBlob(raw) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.alg !== 'AES-256-GCM' || raw.kdf !== 'PBKDF2-SHA256') return null;
   const iter = Number(raw.iter);
@@ -928,6 +930,7 @@ async function _authUser(request, env, keyHashIn, ctx, write) {
 const _space = user => user.uid;                       // legacy 는 키 해시 앞 16자(옛 칸 그대로), 사람 표 사용자는 uid
 const _holdKey = user => user.legacy ? ENC_HOLDINGS_KV_KEY : 'hold:' + user.uid;
 const _holdPrevKey = user => user.legacy ? ENC_HOLDINGS_PREV_KV_KEY : 'hold:' + user.uid + ':prev';
+const _snapsKey = user => 'snaps:' + user.uid;   // legacy 는 uid = 키 해시 앞 16자(주인 옛 칸과 같다)
 const _isOwnerLike = user => user.legacy || user.role === 'owner';
 const AI_DAILY_QUOTA = 30;
 // 멤버 AI 하루 한도 — user 기록은 건드리지 않고 aiq:<uid> = {day,count} (2일 뒤 저절로 사라짐)에만 센다. 넘으면 429 Response, 아니면 null.
@@ -1359,9 +1362,76 @@ async function handlePushSubscribe(request, env, ctx) {
   return jsonResponse({ ok: true, count: next.length });
 }
 
+// GET · PUT /snaps — 사람 칸 snaps:<uid> 에 매일 평가액 기록(스냅샷)의 암호 덩어리 하나. 보유와 같은 형식(_sanitizeEncBlob).
+//   GET → { encSnaps: 덩어리 | null }. PUT 본문 { encSnaps: 덩어리 } (덩어리만 보내도 받는다). 크기 상한 SNAPS_MAX_BYTES.
+//   브라우저 전용(키 해시) — CI 는 아래 handleOwnerBlob 으로만 읽고 쓴다.
+const SNAPS_MAX_BYTES = 65536;
+async function handleSnaps(request, env, ctx) {
+  const a = await _userKvKey(request, env, 'snaps:', ctx);
+  if (a.denied) return a.denied;
+  if (request.method === 'GET') {
+    try { return jsonResponse({ ok: true, encSnaps: _sanitizeEncBlob(await env.ECON_PORTFOLIO.get(a.kvKey, 'json')) }); }
+    catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503); }
+  }
+  const b = await _readJsonBody(request, SNAPS_MAX_BYTES);
+  if (b.err) return b.err;
+  const blob = _sanitizeEncBlob(_isObj(b.body) && 'encSnaps' in b.body ? b.body.encSnaps : b.body);
+  if (!blob) return jsonResponse({ error: 'invalid_snaps' }, 400);
+  try { await env.ECON_PORTFOLIO.put(a.kvKey, JSON.stringify(blob)); }
+  catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502); }
+  return jsonResponse({ ok: true });
+}
+
+// 마스터(주인) 칸의 암호 덩어리 — CI 전용(서버 간, CORS 없음). 시크릿이 맞아야 하고 Origin 은 보지 않는다.
+//   GET /hold/owner · GET /snaps/owner — 머리 X-Push-Read-Key(PUSH_READ_KEY). PUT /snaps/owner — 머리 X-Push-Write-Key(PUSH_WRITE_KEY).
+//   읽기 키로는 쓸 수 없다. 사람 표가 있으면 주인 uid 칸(hold:<uid> · snaps:<uid>), 없으면(이전 전) 보유는 옛 칸
+//   portfolio:encHoldings, 스냅샷은 snaps:<키 해시 앞 16자>. 덩어리는 서버가 풀 수 없다(열쇠 없음).
+async function handleOwnerBlob(request, env, path) {
+  const isHold = path === '/hold/owner';
+  const want = path === '/snaps/owner' && request.method === 'PUT' ? 'PUT' : 'GET';
+  if (request.method !== want) return jsonResponse({ error: 'method_not_allowed', allow: isHold ? ['GET'] : ['GET', 'PUT'] }, 405, _NC);
+  let space;
+  if (want === 'GET') {
+    const a = await _pushReadSpace(request, env, _NC);
+    if (a.denied) return a.denied;
+    space = a.space;
+  } else {
+    const secret = String(env.PUSH_WRITE_KEY || '').trim();
+    if (!secret) return jsonResponse({ error: 'push_write_not_configured' }, 503, _NC);
+    if (!_hexEq(String(request.headers.get('X-Push-Write-Key') || '').trim(), secret)) return jsonResponse({ error: 'forbidden' }, 403, _NC);
+    if (!env.ECON_PORTFOLIO) return jsonResponse({ error: 'kv_not_configured' }, 503, _NC);
+    try {
+      const owner = await getOwner(env);
+      if (owner) space = owner.uid;
+      else {
+        if ((await env.ECON_PORTFOLIO.get('auth:migrated')) === '1') return jsonResponse({ error: 'users_index_missing' }, 503, _NC);
+        const h = await _expectedSyncKeyHash(env);
+        if (!h) return jsonResponse({ error: 'sync_key_not_configured' }, 503, _NC);
+        space = h.slice(0, 16);
+      }
+    } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
+  }
+  let legacy = false;
+  if (isHold) { try { legacy = !(await getOwner(env)); } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); } }
+  const kvKey = isHold ? (legacy ? ENC_HOLDINGS_KV_KEY : 'hold:' + space) : 'snaps:' + space;
+  if (want === 'GET') {
+    try {
+      const blob = _sanitizeEncBlob(await env.ECON_PORTFOLIO.get(kvKey, 'json'));
+      return jsonResponse(isHold ? { ok: true, encHoldings: blob } : { ok: true, encSnaps: blob }, 200, _NC);
+    } catch (_) { return jsonResponse({ error: 'kv_read_failed' }, 503, _NC); }
+  }
+  const b = await _readJsonBody(request, SNAPS_MAX_BYTES);
+  if (b.err) return _withCors(b.err, _NC);
+  const blob = _sanitizeEncBlob(_isObj(b.body) && 'encSnaps' in b.body ? b.body.encSnaps : b.body);
+  if (!blob) return jsonResponse({ error: 'invalid_snaps' }, 400, _NC);
+  try { await env.ECON_PORTFOLIO.put(kvKey, JSON.stringify(blob)); }
+  catch (e) { return jsonResponse({ error: 'kv_write_failed', detail: String((e && e.message) || e) }, 502, _NC); }
+  return jsonResponse({ ok: true }, 200, _NC);
+}
+
 // /prefs · /push/subscribe 공통 관문 — 메서드 → 출처 → 레이트리밋(AI_LIMITER, fail-closed) → 처리 → 출처 제한 CORS.
 // Origin 이 없는 서버측 호출은 기존 POST 경로와 같이 통과시키고 인증·레이트리밋으로 막는다.
-const USER_DATA_METHODS = { '/prefs': ['GET', 'PUT'], '/push/subscribe': ['GET', 'PUT', 'DELETE'] };
+const USER_DATA_METHODS = { '/prefs': ['GET', 'PUT'], '/push/subscribe': ['GET', 'PUT', 'DELETE'], '/snaps': ['GET', 'PUT'] };
 async function handleUserData(request, env, path, ctx) {
   const pc = { ...postCors(request, env), 'Cache-Control': 'no-store' };
   if (!USER_DATA_METHODS[path].includes(request.method)) {
@@ -1372,7 +1442,8 @@ async function handleUserData(request, env, path, ctx) {
   const rl = await _rateLimited(env, 'AI_LIMITER', request, true);
   if (rl) return _withCors(rl, pc);
   try {
-    const resp = path === '/prefs' ? await handlePrefs(request, env, ctx) : await handlePushSubscribe(request, env, ctx);
+    const resp = path === '/prefs' ? await handlePrefs(request, env, ctx)
+      : path === '/snaps' ? await handleSnaps(request, env, ctx) : await handlePushSubscribe(request, env, ctx);
     return _withCors(resp, pc);
   } catch (e) {
     console.log('[user-data] 예외:', String((e && e.message) || e));
@@ -2196,7 +2267,7 @@ export default {
     if (request.method === 'OPTIONS') {
       const _p = new URL(request.url).pathname;
       const _isPost = (_p === '/ai' || _p === '/portfolio' || _p === '/portfolio/test' || _p === '/sync-key' ||
-                       _p === '/prefs' || _p === '/push/subscribe' ||
+                       _p === '/prefs' || _p === '/push/subscribe' || _p === '/snaps' ||
                        _p === '/me' || _p === '/fired' || _p === '/admin/migrate' || _p.startsWith('/admin/'));
       return new Response(null, { status: 204, headers: _isPost ? postCors(request, env) : GET_CORS });
     }
@@ -2204,7 +2275,8 @@ export default {
     // 1층 사용자 데이터(관심·알림 조건·화면 설정)와 웹 푸시 구독 — GET/PUT/DELETE 를 한 관문에서 받는다.
     {
       const _p = new URL(request.url).pathname;
-      if (_p === '/prefs' || _p === '/push/subscribe') return handleUserData(request, env, _p, ctx);
+      if (_p === '/prefs' || _p === '/push/subscribe' || _p === '/snaps') return handleUserData(request, env, _p, ctx);
+      if (_p === '/hold/owner' || _p === '/snaps/owner') return handleOwnerBlob(request, env, _p);
       // 웹 푸시 공개키(인증 없음) — 브라우저가 구독 전에 읽는다. 공개값이라 GET_CORS(*).
       if (_p === '/push/key') {
         if (request.method !== 'GET') return jsonResponse({ error: 'method_not_allowed', allow: ['GET'] }, 405);
