@@ -319,7 +319,11 @@ def run(env=None, now=None, fetch=_yahoo):
     if not (hold_key and rk and wk):
         log("건너뜀: 비밀값(MASTER_HOLD_KEY · PUSH_READ_KEY · PUSH_WRITE_KEY)이 빠졌다")
         return 0
-    base = (env.get("PUSH_WORKER_URL") or WORKER).rstrip("/")
+    if not re.fullmatch(r"[0-9a-f]{64}", hold_key):
+        # 앱키 원문을 넣으면 여기서 멈춘다 — 원문은 계정 전체 열쇠라 CI 에 두지 않는다(보유 열쇠만 둔다).
+        log("실패: MASTER_HOLD_KEY 가 보유 열쇠 모양(64자리 16진수)이 아니다 — 앱키 원문이 아니라 앱키에서 만든 보유 열쇠를 넣어야 한다")
+        return 1
+    base =(env.get("PUSH_WORKER_URL") or WORKER).rstrip("/")
     rh, wh = {"X-Push-Read-Key": rk}, {"X-Push-Write-Key": wk}
     try:
         hb = http_get_json(base + "/hold/owner", rh).get("encHoldings")
