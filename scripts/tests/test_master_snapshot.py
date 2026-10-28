@@ -285,6 +285,15 @@ def test_run_exit_codes(fake_net, capsys):
     assert fake_net["puts"] == []
 
 
+def test_run_refuses_raw_app_key_without_network_or_echo(capsys):
+    """앱키 원문을 MASTER_HOLD_KEY 에 넣으면 네트워크 전에 멈추고, 그 값을 로그에 찍지 않는다."""
+    for raw in ("ECOM-ABCD-EFGH-JKMN", "my-old-sync-key-123", "AB" * 32):
+        env = dict(ENV, MASTER_HOLD_KEY=raw)
+        assert M.run(env=env, now=NOW, fetch=lambda s: (_ for _ in ()).throw(AssertionError("시세 조회 금지"))) == 1
+        out = capsys.readouterr().out
+        assert "보유 열쇠 모양" in out and raw not in out
+
+
 def test_run_put_failure_is_exit_1_without_leaking(monkeypatch, fake_net, capsys):
     def boom(url, headers, body, timeout=30):
         raise RuntimeError("https://x/?s=005930 amount 999")
