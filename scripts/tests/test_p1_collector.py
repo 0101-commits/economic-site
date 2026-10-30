@@ -225,8 +225,14 @@ def test_mark_preserved_distinguishes_lane():
 
 
 def test_data_sla_counts_only_preserved_true():
+    # 기간은 오늘 기준 직전 분기 — 「2026Q2」 로 박아 두었더니 2026-10 말 분기 SLA 가 지나 stale 로 분류돼 시험이 깨졌다
+    from datetime import date
+    t = date.today()
+    q = (t.month - 1) // 3                        # 직전 분기 번호(0 이면 작년 4분기)
+    period = f"{t.year}Q{q}" if q else f"{t.year - 1}Q4"
+
     def health(extra):
-        leaf = dict({"value": 0.6, "period": "2026Q2"}, **extra)
+        leaf = dict({"value": 0.6, "period": period}, **extra)
         return data_sla.build_health({"economicIndicators": {"kr": {"gdp_kr": leaf}}}, sources={})
     assert health({"preserved": True})["summary"]["preserved"] == 1     # 경로가 실제로 걸린다
     assert health({"preserved_reason": "lane"})["summary"]["preserved"] == 0
