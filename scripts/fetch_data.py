@@ -8467,13 +8467,23 @@ def build_data():
             # 컨센서스 · 공식 발표값 — 나스닥 경제 일정(scripts/consensus.py). FRED 로 채운 act 를 같은 자료원 값으로 덮는다
             # (컨센서스와 견줄 값은 같은 곳에서 — FRED 지수로 직접 계산한 CPI 전월비가 반올림으로 0.1%p 어긋났다).
             try:
-                from consensus import apply_consensus
-                _cst = apply_consensus(cal_data.get("events", []) or [], _prev_ev,
-                                       full=os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes"))
+                from consensus import apply_consensus, update_history
+                _full = os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes")
+                _days = {}
+                _cst = apply_consensus(cal_data.get("events", []) or [], _prev_ev, full=_full, days_out=_days)
+                # 지난 회차 기록(평소 어긋나는 폭) — 직전 기록을 잇고, 일일 런은 1년치를 거꾸로 조금씩 훑어 채운다
+                _prev_hist = ((prev or {}).get("economicCalendar") or {}).get("consensusHistory")
+                if not _cst.get("blocked"):
+                    cal_data["consensusHistory"], _cst["history"] = update_history(_prev_hist, _days, full=_full)
+                elif _prev_hist:
+                    cal_data["consensusHistory"] = _prev_hist
                 data.setdefault("diagnostics", {})["calendarConsensus"] = _cst
                 log(f"[Calendar] 컨센서스 {_cst}")
             except Exception as e:
                 log(f"[Calendar] 컨센서스 오류: {e}")
+                _ph = ((prev or {}).get("economicCalendar") or {}).get("consensusHistory")
+                if _ph and isinstance(cal_data, dict) and "consensusHistory" not in cal_data:
+                    cal_data["consensusHistory"] = _ph
             data["economicCalendar"] = cal_data
             data["sources"]["economicCalendar"] = cal_data.get("source", "FRED")
             log(f"[Calendar] 수집 완료: {len(cal_data.get('events', []))}건 (백필 {cal_data.get('backfilled',0)})")

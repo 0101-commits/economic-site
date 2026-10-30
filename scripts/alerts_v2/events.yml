@@ -330,11 +330,11 @@
   targets: [calendar]
   default_on: [calendar]
   judge: surprise
-  params: {min_stars: 2, pct_rank: 0.8, min_history: 24}
+  params: {min_stars: 2, ratio: 2.5, min_n: 6}   # 컨센서스 대비 차이가 평소 폭의 2.5배 이상(「매우 큼」 · 2026-10-30 D4)
   run: full
   cooldown: {per: [target, date], days: 1}
   title: "{event_name} {act} · 컨센서스와 {gap} 차이"
-  why: ["과거 {hist_n}회 중 상위 {rank_pct}"]
+  why: ["{why_line}"]
   next: ["{next_event}"]
   url: "#/market?a=macro&v=calendar"
 - id: E4

@@ -142,7 +142,31 @@ def fetch_day(q, timeout=15):
     return ((body or {}).get("data") or {}).get("rows") or []
 
 
-def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_day, pause=0.4):
+def _fetch_days(qs, fetch, pause, st, budget_s=None):
+    """조회일 목록을 받는다. 새 날짜부터 · 막힘(403 · 429)이면 그 자리에서 멈추고 나머지 실패는 그 날짜만 건너뛴다.
+    budget_s 가 있으면 그 초를 넘기는 순간 멈춘다(나스닥이 요청당 2~7초로 느려지는 때가 있다 — 2026-10-30 저녁 실측)."""
+    days = {}
+    t0 = time.monotonic()
+    for q in sorted((d for d in qs if d), reverse=True):
+        if budget_s is not None and time.monotonic() - t0 > budget_s:
+            st["budgetHit"] = True
+            break
+        try:
+            st["requests"] += 1
+            days[q] = fetch(q)
+        except Exception as e:
+            st["failed"] += 1
+            st["error"] = f"{q}: {str(e)[:120]}"
+            if getattr(e, "code", None) in (403, 429) or re.search(r"\b(403|429)\b", str(e)):
+                st["blocked"] = True
+                break
+            continue
+        if pause:
+            time.sleep(pause)
+    return days
+
+
+def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_day, pause=0.4, days_out=None):
     """일정 행에 fore(컨센서스) · act(발표값) · prev(직전)를 나스닥 값으로 채운다.
 
     full=True(일일 런)면 지난 62일 ~ 앞으로 10일을 다시 받고, 아니면 최근 6시간 안에 발표된 회차만 받는다.
@@ -165,21 +189,11 @@ def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_
             due = False      # 공식 발표값까지 받은 회차 — 10분마다 다시 물을 까닭이 없다(이어받기로 채운다)
         if due:
             want.setdefault(query_date(ev), []).append(ev)
-    days, st = {}, {"requests": 0, "failed": 0, "filled": 0, "carried": 0, "full": bool(full)}
-    # 새 날짜부터 받는다 — 앞으로의 컨센서스가 가장 쓸모 있다. 막힘(403 · 429)이면 이번 런은 멈추고 이어받기로 버티고,
-    # 그 밖의 실패(시간 초과 등)는 그 날짜만 건너뛴다.
-    for q in sorted((d for d in want if d), reverse=True):
-        try:
-            st["requests"] += 1
-            days[q] = fetch(q)
-        except Exception as e:
-            st["failed"] += 1
-            st["error"] = f"{q}: {str(e)[:120]}"
-            if getattr(e, "code", None) in (403, 429) or re.search(r"\b(403|429)\b", str(e)):
-                break
-            continue
-        if pause:
-            time.sleep(pause)
+    st = {"requests": 0, "failed": 0, "filled": 0, "carried": 0, "full": bool(full)}
+    # 새 날짜부터 받는다 — 앞으로의 컨센서스가 가장 쓸모 있다.
+    days = _fetch_days(want, fetch, pause, st)
+    if days_out is not None:
+        days_out.update(days)
     stamp = now.isoformat(timespec="minutes")
     for ev in events:
         mp = CONSENSUS_MAP.get(ev.get("name"))
@@ -217,3 +231,101 @@ def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_
         ev["consAt"] = stamp
         st["filled"] += 1
     return st
+
+
+# ── 지난 회차 기록(P2) ─────────────────────────────────────────────────────────
+# 지표마다 최근 1년 「발표값 · 컨센서스 · 직전」을 모아 「평소 어긋나는 폭」(컨센서스 대비 차이의 절댓값 평균)을 낸다.
+# 같은 0.2%p 라도 미국 CPI(평소 0.07%p)에선 매우 큰 차이고 미국 GDP(평소 0.5%p)에선 보통이다(2026-10-30 실측).
+# 기록은 data.json economicCalendar.consensusHistory 에 둔다. 처음엔 비어 있으므로 일일 런마다 하루 묶음을
+# _BACKFILL_PER_RUN 개씩 거꾸로 훑어 1년을 채우고(scannedTo = 거기까지 훑은 가장 오랜 조회일), 그 뒤로는
+# 일정 행을 채우며 받은 묶음에서 새 회차를 거둔다.
+_HIST_DAYS = 400          # 이만큼 지난 회차까지 둔다(1년 + 여유)
+_STATS_DAYS = 370         # 평소 폭은 최근 1년으로 잰다
+_BACKFILL_PER_RUN = 120   # 일일 런 한 번에 거꾸로 훑는 날 수(3번이면 1년)
+_BACKFILL_BUDGET_S = 300  # 거꾸로 훑기는 런마다 이 초 안에서만 — 느린 날 일일 런이 늘어지지 않게
+_UNIT = {"pct1": "%", "pct2": "%", "kd": "K", "raw1k": ""}
+
+
+def _val(n, how):
+    """나스닥 (값, 단위) → 기록용 숫자. 표기 규칙(_fmt)과 같은 배율."""
+    v, unit = n
+    if v is None:
+        return None
+    if how in ("kd", "raw1k") and unit == "M":
+        v *= 1000
+    return round(v, 4)
+
+
+def harvest(days, series):
+    """하루 묶음들에서 짝 지표의 발표된 회차를 series[이름] 에 넣는다(조회일 q 가 같으면 새 값으로 바꾼다)."""
+    added = 0
+    for q, rows in days.items():
+        for name, (country, nm, how, fmt) in CONSENSUS_MAP.items():
+            r = pick_row(rows, country, nm, how)
+            if r is None:
+                continue
+            a = _val(_num(r.get("actual")), fmt)
+            if a is None:
+                continue                      # 아직 발표 전
+            item = {"q": q, "a": a, "c": _val(_num(r.get("consensus")), fmt), "p": _val(_num(r.get("previous")), fmt)}
+            lst = series.setdefault(name, [])
+            old = next((x for x in lst if x.get("q") == q), None)
+            if old is None:
+                lst.append(item)
+                added += 1
+            else:
+                old.update(item)
+    return added
+
+
+def history_stats(series, today):
+    """지표별 최근 1년 통계 — n(컨센서스 있는 회차) · meanAbs(평소 어긋나는 폭) · 높음/같음/낮음 횟수 · 단위."""
+    lo = (today - timedelta(days=_STATS_DAYS)).isoformat()
+    out = {}
+    for name, lst in series.items():
+        both = [x for x in lst if x.get("q", "") >= lo and x.get("a") is not None and x.get("c") is not None]
+        if not both:
+            continue
+        d = [round(x["a"] - x["c"], 4) for x in both]
+        out[name] = {"n": len(d), "meanAbs": round(sum(abs(v) for v in d) / len(d), 4),
+                     "above": sum(1 for v in d if v > 1e-9), "same": sum(1 for v in d if abs(v) <= 1e-9),
+                     "below": sum(1 for v in d if v < -1e-9), "unit": _UNIT.get(CONSENSUS_MAP[name][3], "")}
+    return out
+
+
+def update_history(prev_hist, days, full=False, now=None, fetch=fetch_day, pause=0.4):
+    """직전 기록 + 이번 런이 받은 묶음 (+ 일일 런이면 거꾸로 훑기) → (새 기록, 진단)."""
+    now = now or datetime.now(KST)
+    today = now.date()
+    prev_hist = prev_hist if isinstance(prev_hist, dict) else {}
+    series = {k: [dict(x) for x in v] for k, v in (prev_hist.get("series") or {}).items()
+              if k in CONSENSUS_MAP and isinstance(v, list)}
+    st = {"requests": 0, "failed": 0, "added": 0}
+    st["added"] += harvest(days, series)
+    floor = (today - timedelta(days=_HIST_DAYS)).isoformat()
+    scanned_to = prev_hist.get("scannedTo")
+    if full and (not scanned_to or scanned_to > floor):
+        start = date_from(scanned_to) - timedelta(days=1) if scanned_to else today
+        qs = []
+        d = start
+        while len(qs) < _BACKFILL_PER_RUN and d.isoformat() >= floor:
+            if d.isoformat() not in days:
+                qs.append(d.isoformat())
+            d -= timedelta(days=1)
+        got = _fetch_days(qs, fetch, pause, st, budget_s=_BACKFILL_BUDGET_S)
+        st["added"] += harvest(got, series)
+        if got:
+            # 막혀서 중간에 멈췄으면 실제로 받은 가장 오랜 날까지만 훑은 것으로 친다(빈 구멍이 남지 않게)
+            scanned_to = min(got) if (st.get("blocked") or st.get("budgetHit")) else min(qs)
+    for k in series:
+        series[k] = sorted((x for x in series[k] if x.get("q", "") >= floor), key=lambda x: x["q"])
+    hist = {"series": series, "stats": history_stats(series, today), "scannedTo": scanned_to,
+            "source": SOURCE, "updatedAt": now.isoformat(timespec="minutes")}
+    st["scannedTo"] = scanned_to
+    st["series"] = sum(1 for v in series.values() if v)
+    return hist, st
+
+
+def date_from(iso):
+    y, m, d = (int(x) for x in str(iso)[:10].split("-"))
+    return datetime(y, m, d).date()

@@ -138,3 +138,28 @@ def test_blank_consensus_keeps_previous_and_tie_is_not_guessed():
     assert evs[0]["fore"] == "+2.7%" and evs[0]["prev"] == "+2.9%"
     tie = [_row("United States", "CPI", "0.3%", "0.3%", "0.3%"), _row("United States", "CPI", "0.3%", "0.2%", "0.3%")]
     assert pick_row(tie, "United States", "cpi", "short") is None
+
+
+def test_history_harvest_stats_and_backfill_cursor():
+    from consensus import update_history
+    now = datetime(2026, 10, 30, 9, 5, tzinfo=KST)
+    # 일반 런: 받은 묶음에서만 거둔다(거꾸로 훑기 없음)
+    hist, st = update_history(None, {"2026-10-15": DAYS["2026-10-15"]}, full=False, now=now, fetch=_fetch, pause=0)
+    s = hist["series"]
+    assert [x["a"] for x in s["미국 CPI (전월비)"]] == [0.6] and [x["c"] for x in s["미국 CPI (전년비)"]] == [3.6]
+    assert hist["stats"]["미국 CPI (전년비)"] == {"n": 1, "meanAbs": 0.1, "above": 1, "same": 0, "below": 0, "unit": "%"}
+    assert hist["scannedTo"] is None and st["requests"] == 0
+    # 일일 런: 오늘부터 거꾸로 120일을 훑고, 다음 일일 런은 그 아래부터 잇는다
+    calls = []
+    hist2, st2 = update_history(hist, {}, full=True, now=now, fetch=lambda q: calls.append(q) or _fetch(q), pause=0)
+    assert calls[0] == "2026-10-30" and len(calls) == 120 and hist2["scannedTo"] == calls[-1]
+    assert [x["q"] for x in hist2["series"]["한국 소비자물가동향"]] == ["2026-10-02"]
+    assert hist2["series"]["미국 비농업고용(NFP)"][0]["a"] == 29 and hist2["series"]["미국 주택착공 (Housing Starts)"][0]["a"] == 1221
+    calls.clear()
+    hist3, _ = update_history(hist2, {}, full=True, now=now, fetch=lambda q: calls.append(q) or [], pause=0)
+    assert calls[0] < hist2["scannedTo"] and hist3["series"]["미국 CPI (전월비)"][0]["q"] == "2026-10-15"   # 기록은 남는다
+    # 1년 넘게 훑었으면 더 묻지 않는다
+    done = dict(hist3, scannedTo="2025-09-01")
+    calls.clear()
+    update_history(done, {}, full=True, now=now, fetch=lambda q: calls.append(q) or [], pause=0)
+    assert calls == []

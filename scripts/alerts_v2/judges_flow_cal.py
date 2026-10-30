@@ -437,30 +437,34 @@ def release_result(ctx: Context, ev: dict) -> list[Hit]:
 
 @judge("surprise")
 def surprise(ctx: Context, ev: dict) -> list[Hit]:
-    """E3 — 예상과의 차 |act−fore| 가 그 지표 과거 회차 간 변화 |Δ| 분포에서 상위 (1−pct_rank) 안.
-    fore 가 비면 판정하지 않는다. 일정표의 beat 는 방향(±1 · 0)이라 발표 대부분에 붙어 있어 쓰지 않는다."""
+    """E3 — 컨센서스 대비 차이가 그 지표 「평소 어긋나는 폭」(최근 1년 |발표값 − 컨센서스| 평균)의 ratio 배 이상 = 「매우 큼」.
+    기록은 data.json economicCalendar.consensusHistory.stats(scripts/consensus.py, 열쇠 = 서버 일정 이름).
+    기록이 min_n 회 미만이거나 컨센서스가 없으면 판정하지 않는다. 늘 컨센서스대로였던 지표(금리 결정)가 어긋나면 울린다.
+    (2026-10-30 결정 D4 — 옛 판정은 「과거 회차 간 변화 분포의 상위 20%」라 컨센서스와 무관하게 울릴 수 있었다)"""
     p = ev.get("params") or {}
-    need, edge = int(p.get("min_history", 24)), 1 - float(p.get("pct_rank", 0.8))
+    need, k = int(p.get("min_n", 6)), float(p.get("ratio", 2.5))
+    stats = ((((ctx.data or {}).get("economicCalendar") or {}).get("consensusHistory") or {}).get("stats")) or {}
     hits = []
     for e, stars in _released_today(ctx, ev):
         act, fore = _num(e.get("act")), _num(e.get("fore"))
-        if act is None or fore is None:
+        s = stats.get(e.get("name") or "")
+        if act is None or fore is None or not s or int(s.get("n") or 0) < need:
             continue
-        h = _hist_values(ctx.data, e.get("name") or "")
-        gaps = [abs(b - a) for a, b in zip(h, h[1:])]
-        if len(gaps) < need:
-            continue
-        gap = act - fore
-        share = (sum(1 for g in gaps if g >= abs(gap) - 1e-9) + 1) / (len(gaps) + 1)
-        if share > edge:
-            continue
+        gap, band = act - fore, float(s.get("meanAbs") or 0)
         dec = len(m.group(1)) if (m := re.search(r"\.(\d+)", str(e.get("act")))) else 0
+        if abs(gap) < 10 ** -dec / 2:
+            continue
+        ratio = abs(gap) / band if band > 0 else float("inf")
+        if ratio < k:
+            continue
         suffix = "%p" if "%" in str(e.get("act")) else "K" if "K" in str(e.get("act")) else ""
+        why = (f"평소 어긋나는 폭 ±{band:.{max(dec, 2) if suffix == '%p' else dec}f}{suffix}의 {ratio:.1f}배" if band > 0
+               else f"지난 1년 {s.get('n')}회 모두 컨센서스대로였다")
         hits.append(Hit(target=_target(ev, "calendar"), dir="new", value=e.get("act"), unit="",
                         asOf=f"{e['iso']}:{e.get('name')}", fresh="live", fields={
                             "event_name": e.get("name"), "act": e.get("act"), "fore": e.get("fore"),
-                            "gap": f"{gap:+.{min(dec, 2)}f}{suffix}", "hist_n": len(gaps),
-                            "rank_pct": f"{share * 100:.0f}%", "stars": stars, "next_event": _next_star3(ctx)}))
+                            "gap": f"{gap:+.{min(dec, 2)}f}{suffix}", "why_line": why,
+                            "stars": stars, "next_event": _next_star3(ctx)}))
     return _unseen(ctx, ev, hits)
 
 

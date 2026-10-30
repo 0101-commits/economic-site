@@ -159,7 +159,7 @@ function computeRiskScore(d) {
 
 const _RISK_LABELS = { g: '안정', y: '주의', r: '경계' };
 const _RISK_DESC = {
-  g: '시장 안정. 위험선호 국면', y: '중립·주의. 일부 위험 신호 감지', r: '경계. 복수 지표가 위험 신호',
+  g: '시장 안정: 위험선호 국면', y: '중립·주의: 일부 위험 신호 감지', r: '경계: 복수 지표가 위험 신호',
 };
 
 function renderRiskLight(d) {
@@ -1411,7 +1411,7 @@ function styImport(input) {
     styRenderAll();
     if(typeof showToast === 'function') {
       // 파일 복원 실패를 조용히 넘기면 사용자는 기기 이관 후 첨부가 사라진 것을 뒤늦게 발견한다.
-      showToast('가져오기 완료. 기록 ' + p.sessions.length + '건' +
+      showToast('가져오기 완료: 기록 ' + p.sessions.length + '건' +
                 (fileOk ? ' · 파일 ' + fileOk + '개' : '') +
                 (fileFail ? ' · 파일 ' + fileFail + '개 복원 실패(백업에 파일이 없거나 손상)' : '') + '.',
                 fileFail ? 6000 : 3000);
@@ -1970,10 +1970,10 @@ function econMarketStatus(now) {
     var t = cal && cal.marketCalendarKr && cal.marketCalendarKr.today;
     if (t && t.date === ymd) holiday = (t.open === false);
   } catch (_) {}
-  if (dow === 0 || dow === 6 || holiday) return { label: '휴장', open: false, hint: '주말·공휴일. 직전 거래일 종가' };
+  if (dow === 0 || dow === 6 || holiday) return { label: '휴장', open: false, hint: '주말·공휴일: 직전 거래일 종가' };
   if (hm >= 540 && hm <= 930)  return { label: 'KRX 정규장', open: true,  hint: '09:00~15:30 · 시세 최대 15분 지연' };
   if (hm > 930 && hm <= 1200)  return { label: '애프터마켓', open: true,  hint: '15:40~20:00 시간외 단일가' };
-  if (hm > 1200 || hm < 540)   return { label: '장마감', open: false, hint: '정규장 종료. 종가 기준' };
+  if (hm > 1200 || hm < 540)   return { label: '장마감', open: false, hint: '정규장 종료: 종가 기준' };
   return { label: '장마감', open: false, hint: '' };
 }
 function renderMarketStatus() {

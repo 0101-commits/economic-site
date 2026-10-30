@@ -3136,7 +3136,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <div class="home-sec" id="homeSecCompare" data-sec="compare" style="position:relative;">
         <div class="widget">
           <div class="econ-head">
-            <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">지표 비교 차트 <span class="econ-stat__unit" id="cmpPairSummary">두 지표 오버레이. 기본 지수화(=100) 단일축</span></h3>
+            <h3 class="widget-title seed-list-header seed-list-header--variant_boldSolid econ-head__title">지표 비교 차트 <span class="econ-stat__unit" id="cmpPairSummary">두 지표 오버레이: 기본 지수화(=100) 단일축</span></h3>
             <div class="econ-head__tools">
               <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
                 <span class="seed-select-trigger__prefixIcon econ-dot econ-dot--a" aria-hidden="true"></span>
@@ -3308,7 +3308,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
             </table>
           </div>
           <div id="pfCardList"></div>
-          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">행 클릭 = 상세 차트 · = 카카오 알림 조건 · 평단가/수량은 셀에서 바로 수정됩니다. <b>「☁ 목록 저장」</b>을 누르면 관심종목·그룹이 서버에 저장돼 다른 기기/플랫폼에서 <b>「⬇ 불러오기」</b>로 같은 목록을 볼 수 있습니다(동기화 키 필요 · ⚙ 설정). 평단가·수량은 공개 노출 방지를 위해 이 브라우저에만 저장됩니다.</div>
+          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">평단가/수량은 셀에서 바로 수정됩니다. <b>「☁ 목록 저장」</b>을 누르면 관심종목·그룹이 서버에 저장돼 다른 기기/플랫폼에서 <b>「⬇ 불러오기」</b>로 같은 목록을 볼 수 있습니다(동기화 키 필요 · ⚙ 설정). 평단가·수량은 공개 노출 방지를 위해 이 브라우저에만 저장됩니다.</div>
         </div>
 
         <!-- 우: 자산 비중 파이 차트 -->
@@ -4288,6 +4288,11 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
           </div>
         </div>
         <div style="position:relative;height:180px;"><canvas role="img" aria-label="경제 캘린더 지표 상세 차트" id="calDetailChart"></canvas></div>
+        <div id="calDetailCons" style="display:none;margin-top:12px;">
+          <div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:4px;">회차별 컨센서스 대비 차이 <span class="econ-stat__unit">발표값 − 컨센서스</span></div>
+          <p id="calDetailConsLine" class="note-line" style="margin:0 0 6px;"></p>
+          <div style="position:relative;height:150px;"><canvas role="img" aria-label="회차별 컨센서스 대비 차이 막대그래프" id="calDetailConsChart"></canvas></div>
+        </div>
         <div id="calDetailGuide" style="display:none;margin-top:10px;padding:10px 12px;background:var(--c-surface);border-radius:var(--r-sm);border-left:3px solid var(--c-accent);font-size:var(--font-size-sm);color:var(--c-txt);line-height:1.7;"></div>
       </div>
 
@@ -4402,7 +4407,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
 
               <button type="button" class="study-drop btn-plain" id="styDrop"
                    onclick="document.getElementById('styFileInput').click()">
-                파일을 여기로 끌어다 놓거나 클릭해서 선택<br/>
+                파일을 여기로 끌어다 놓거나 눌러서 선택<br/>
                 <span style="font-size:var(--font-size-xs);">PDF · 이미지 · 문서 · 영상(mp4/webm) · 음성(mp3/m4a/wav)</span>
               </button>
               <input id="styFileInput" type="file" multiple style="display:none;" onchange="styAddFiles(this.files); this.value='';"/>
@@ -5168,7 +5173,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <details class="widget" style="margin-bottom:14px;" open>
         <summary style="cursor:pointer;list-style:none;">
           <h3 class="widget-title" style="margin-bottom:0;">글로벌 연기금 자산배분 교차 비교
-            <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">주식 / 채권 / 대체투자 / 기타·혼합. 비중 정규화(100%) 기준</span>
+            <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">주식 / 채권 / 대체투자 / 기타·혼합 · 비중 정규화(100%) 기준</span>
           </h3>
         </summary>
         <div class="h-230" style="position:relative;margin-top:10px">
@@ -5464,7 +5469,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
       <!-- 오늘의 결론(기획 2026-09-29 §5.2) — 결론 줄 → 숫자 칸 4 → 지금 볼 것 3 → 발동 중인 사슬 → 접힘 묶음.
            반원 게이지 2개는 폐지(결정 D1). 아래 위젯 7개는 접힘 패널(.econ-fold__panel) — 열기 전엔 그리지 않는다. -->
       <div class="widget" id="merlensLead">
-        <h3 class="widget-title">메르 렌즈. 오늘의 결론 <span class="econ-stat__unit" id="merlensAsof"></span></h3>
+        <h3 class="widget-title">메르 렌즈: 오늘의 결론 <span class="econ-stat__unit" id="merlensAsof"></span></h3>
         <div id="merlensLeadBox"></div>
         <div id="merlensKpis"></div>
         <div class="econ-sec" id="merlensWatch"></div>
@@ -5527,7 +5532,7 @@ table td, table th, .up-txt, .down-txt, [id^="kpi-"] { word-break: normal; }
         <p class="econ-prose" style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin:0 0 8px;">테두리=경보 단계 상태(점선은 자료 없음) · 오른쪽 배지=뷰(확대·중립·축소) · 선 굵기=근거 건수 · 색=방향. 노드·선을 누르면 출처가 열립니다.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
           <span class="seed-select-trigger__root seed-select-trigger__root--size_medium econ-select">
-            <select id="merGraphPreset" onchange="_merGraphSetPreset(this.value)" aria-label="경로 프리셋 선택"><option value="">경로 프리셋. 전체</option></select>
+            <select id="merGraphPreset" onchange="_merGraphSetPreset(this.value)" aria-label="경로 프리셋 선택"><option value="">경로 프리셋: 전체</option></select>
           </span>
           <div id="merGraphHorizonChips" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
         </div>

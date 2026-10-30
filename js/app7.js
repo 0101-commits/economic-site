@@ -898,7 +898,7 @@ function _merRenderGraph(d) {
   svgWrap.innerHTML = _merGraphSvgMarkup(layout, edges, _merGraphNodesById);
   mobileWrap.innerHTML = _merGraphMobileHtml(d.chains || []);
   if (presetSel && !presetSel.dataset.built) {
-    presetSel.innerHTML = '<option value="">경로 프리셋. 전체</option>' + (d.chains || []).map(function (c) {
+    presetSel.innerHTML = '<option value="">경로 프리셋: 전체</option>' + (d.chains || []).map(function (c) {
       return '<option value="' + c.id + '">' + _merEsc(c.id + ' ' + c.label) + ' (n=' + c.n + ')</option>';
     }).join('');
     presetSel.dataset.built = '1';

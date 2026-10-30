@@ -1197,7 +1197,7 @@ function pfExportCsv() {
       results.innerHTML = '<div class="econ-search__hint">맞는 지표가 없습니다. 이름 일부만 적어도 됩니다(예: 금리).</div>';
       return;
     }
-    var head = q ? '' : '<div class="econ-search__hint">질문으로 찾기. 무엇이 궁금한지 고르세요</div>';
+    var head = q ? '' : '<div class="econ-search__hint">질문으로 찾기: 무엇이 궁금한지 고르세요</div>';
     results.innerHTML = head + items.map(function (it, i) {
       if (it.kind === 'preset') {
         return '<button type="button" role="option" data-i="' + i + '" aria-selected="' + (i === cursor) + '">' +
@@ -1402,7 +1402,7 @@ window.econFoldControls = function (root) {
       b.className = 'ctl-fold__sum btn-plain';
       b.setAttribute('aria-expanded', 'false');
       // 낭독기에는 값만 읽히면 무엇의 요약인지 알 수 없다 — 이름을 따로 준다.
-      b.setAttribute('aria-label', '컨트롤 펼치기. 현재 ' + (w.label || '선택 없음'));
+      b.setAttribute('aria-label', '컨트롤 펼치기: 현재 ' + (w.label || '선택 없음'));
       grp.id = grp.id || ('ctlfold-' + Math.random().toString(36).slice(2, 8));
       b.setAttribute('aria-controls', grp.id);
       b.innerHTML = '<span class="ctl-fold__now"></span><span aria-hidden="true">▾</span>';
@@ -1421,7 +1421,7 @@ window.econFoldControls = function (root) {
           }));
           var now = b.querySelector('.ctl-fold__now');
           if (now.textContent !== nl) now.textContent = nl;
-          b.setAttribute('aria-label', '컨트롤 펼치기. 현재 ' + (nl || '선택 없음'));
+          b.setAttribute('aria-label', '컨트롤 펼치기: 현재 ' + (nl || '선택 없음'));
         }
         setTimeout(function () { window._foldBusy = false; }, 0);
       });

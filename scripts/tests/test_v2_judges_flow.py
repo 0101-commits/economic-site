@@ -140,16 +140,21 @@ def test_e2_release_time_guard(tmp_path):
     assert h.fields["level"] == "alarm" and h.fields["next_event"] == "10/2 08:00 한국 소비자물가동향"
 
 
-def test_e3_surprise(tmp_path, monkeypatch):
-    calm = [0.1, 0.2] * 15                                         # 회차 간 변화 0.1 × 29
-    monkeypatch.setattr(J, "_hist_values", lambda data, name: calm if name == "미국 PCE 물가지수" else [])
-    hits = _run("E3", _ctx(tmp_path, "2026-10-01T21:31:00+09:00"))
-    assert len(hits) == 1
-    assert hits[0].fields["gap"] == "+0.2%p" and hits[0].fields["hist_n"] == 29
-    assert hits[0].fields["rank_pct"] == "3%"
-    wild = [0.0, 1.0] * 15                                         # 변화 1.0 × 29 → 0.2 는 평범
-    monkeypatch.setattr(J, "_hist_values", lambda data, name: wild)
-    assert _run("E3", _ctx(tmp_path, "2026-10-01T21:31:00+09:00")) == []
+def test_e3_surprise(tmp_path):
+    """E3 = 컨센서스 대비 차이가 평소 폭의 2.5배 이상(「매우 큼」). 픽스처 PCE = 발표 +0.3% · 컨센서스 +0.1% → 차이 +0.2%p."""
+    def hist(meanAbs, n=12):
+        def edit(data, _mer):
+            data["economicCalendar"]["consensusHistory"] = {"stats": {"미국 PCE 물가지수": {"n": n, "meanAbs": meanAbs, "unit": "%"}}}
+        return edit
+    at = "2026-10-01T21:31:00+09:00"
+    hits = _run("E3", _ctx(tmp_path, at, edit=hist(0.05)))                     # 0.2 ÷ 0.05 = 4배
+    assert len(hits) == 1 and hits[0].fields["gap"] == "+0.2%p"
+    assert hits[0].fields["why_line"] == "평소 어긋나는 폭 ±0.05%p의 4.0배"
+    assert _run("E3", _ctx(tmp_path, at, edit=hist(0.1))) == []                # 2배 = 「큼」 — 울리지 않는다
+    assert _run("E3", _ctx(tmp_path, at, edit=hist(0.05, n=3))) == []          # 기록 6회 미만
+    assert _run("E3", _ctx(tmp_path, at)) == []                                # 기록 없음
+    z = _run("E3", _ctx(tmp_path, at, edit=hist(0.0)))                        # 늘 컨센서스대로였던 지표가 어긋남
+    assert len(z) == 1 and z[0].fields["why_line"] == "지난 1년 12회 모두 컨센서스대로였다"
 
 
 def test_e4_policy_rate(tmp_path):

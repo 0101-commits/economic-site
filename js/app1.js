@@ -3708,11 +3708,11 @@ function _renderReHistChartIndex(histName) {
     각 국가/시장의 대표 주가지수. 시장 전체의 흐름과 투자자 심리를 반영합니다.<br><br>
     <strong>해석:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li>1년 +20% 이상. 강세장 (불확실성 누적, 차익실현 압력 ↑)</li>
+      <li>1년 +20% 이상: 강세장 (불확실성 누적, 차익실현 압력 ↑)</li>
       <li>1년 +5~+20%. 정상 상승</li>
       <li>1년 -10~+5%. 보합</li>
       <li>1년 -20~-10%. 조정 / 약세</li>
-      <li>1년 -20% 이하. 베어마켓 (경기침체 시그널)</li>
+      <li>1년 -20% 이하: 베어마켓 (경기침체 시그널)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 단기 변동성보다 장기 추세 (분기/연) 단위로 보는 것이 노이즈 적음.`;
   if(guideEl) {
@@ -6409,7 +6409,7 @@ function ensoMacroHTML(phaseKey, live) {
   </div>`;
   return `<div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-      <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.03em;">③ 시간축 거시 파급. 신호등 매트릭스</span>
+      <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.03em;">③ 시간축 거시 파급: 신호등 매트릭스</span>
       <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:${conf.c};border:1px solid ${conf.c}66;border-radius:var(--r-full);padding:1px 8px;">${conf.t}</span>
     </div>
     ${gauge}${legend}
@@ -6602,7 +6602,7 @@ function ensoCommoditiesHTML(s) {
   const left = col('▲ 상방 ' + ups.length, ups);
   const right = col(rightHead, downs.concat(mix));
   const both = left && right;
-  return '<div class="econ-sec"><h4 class="econ-sec__h">원자재. 어느 방향으로, 얼마나<span>막대 길이 = 변동성(높음·중간·낮음)</span></h4>' +
+  return '<div class="econ-sec"><h4 class="econ-sec__h">원자재: 어느 방향으로, 얼마나<span>막대 길이 = 변동성(높음·중간·낮음)</span></h4>' +
     (both ? '<div class="g-2">' + left + right + '</div>' : (left || right)) + '</div>';
 }
 
@@ -6611,7 +6611,7 @@ function ensoSectorsHTML(s) {
   const LAB = { pos: ['수혜', ''], neg: ['부담', ''], mixed: ['혼조', ''] };   // 방향색은 결론 줄 두 곳만(R5)
   const keyOf = x => (x.effect === 'pos' || x.effect === 'neg') ? x.effect : 'mixed';
   const rows = ['pos', 'neg', 'mixed'].map(k => ({ k, items: s.sectors.filter(x => keyOf(x) === k) })).filter(g => g.items.length);
-  return '<div class="econ-sec"><h4 class="econ-sec__h">국내 섹터. 수혜와 부담</h4>' + rows.map(g =>
+  return '<div class="econ-sec"><h4 class="econ-sec__h">국내 섹터: 수혜와 부담</h4>' + rows.map(g =>
     '<div class="econ-dir-row econ-dir-row--sec"><span class="econ-dir-row__name ' + LAB[g.k][1] + '">' + LAB[g.k][0] + '</span><span>' +
     g.items.map(x => '<b>' + x.sector.replace(/\s*\(.*\)\s*$/, '') + '</b><small>' + x.tickers + ': ' + x.note + '</small>').join(' &nbsp;·&nbsp; ') +
     '</span></div>').join('') + '</div>';
@@ -8141,7 +8141,8 @@ function _calRenderFloatSurprise(e) {
   el.style.display = 'block';
   el.style.background = 'var(--c-card-hi)';
   el.style.color = v.dir === 'up' ? window.CUP : window.CDN;
-  el.textContent = v.text;
+  const sz = _calVsSize(e, v);
+  el.textContent = v.text + (sz ? ` (차이 ${sz})` : '');
 }
 // 실제값 셀 렌더 (플로팅/상세 공용) — 이슈1·3·7·9.
 //  • 색: 기존 beat 의미 유지(호재→pos/악재→neg/중립). beat 는 지표 성격을 반영(물가·실업은 낮을수록 호재)하므로
@@ -8715,6 +8716,7 @@ function mergeServerCalendar() {
       act: ev.act || '',
       beat: ev.beat || null,
       consSrc: ev.consSrc || '',        // 컨센서스 출처(나스닥 경제 일정) — 있으면 컨센서스 대비 칸을 채운다
+      _srvName: ev.name,                 // 서버 일정 이름 — 컨센서스 기록(consensusHistory)의 열쇠
       actSrc: ev.actSrc || '',
       _src: ev.source || 'server',
       _iso: ev.iso || '',
@@ -8746,6 +8748,29 @@ function _calVsCons(e) {
   if(Math.abs(diff) < Math.pow(10, -dec) / 2) return { diff: 0, dir: 'eq', label: '같음', text: '컨센서스와 같음' };
   const word = diff > 0 ? '높음' : '낮음', mag = Math.abs(diff).toFixed(dec) + unit;
   return { diff, dir: diff > 0 ? 'up' : 'down', label: `${diff > 0 ? '▲' : '▼'} ${mag} ${word}`, text: `컨센서스보다 ${mag} ${word}` };
+}
+// 컨센서스 대비 차이의 크기 — 그 지표 최근 1년 |발표값 − 컨센서스| 평균(평소 어긋나는 폭)에 견준다.
+// 같은 0.2%p 라도 미국 CPI(평소 0.07%p)에선 매우 큰 차이고 미국 GDP(평소 0.5%p)에선 보통이다.
+// 기록 = data.json economicCalendar.consensusHistory(scripts/consensus.py). 열쇠는 서버 일정 이름(_srvName).
+function _calConsHist() {
+  const d = (typeof _latestDataForIndicators !== 'undefined') ? _latestDataForIndicators : null;
+  return (d && d.economicCalendar && d.economicCalendar.consensusHistory) || null;
+}
+function _calConsStats(e) {
+  const h = _calConsHist();
+  const key = e && (e._srvName || e.name);
+  return (h && h.stats && key && h.stats[key]) || null;
+}
+function _calVsSize(e, v) {
+  if(!v || v.dir === 'eq') return '';
+  const s = _calConsStats(e);
+  if(!s || (s.n || 0) < 6) return '';                     // 기록이 6회 미만이면 크기를 말하지 않는다
+  const r = s.meanAbs > 0 ? Math.abs(v.diff) / s.meanAbs : Infinity;   // 늘 같았던 지표(금리 결정)가 어긋나면 매우 큼
+  return r >= 2.5 ? '매우 큼' : r >= 1.5 ? '큼' : '보통';
+}
+function _calSizeHtml(sz) {
+  if(!sz) return '';
+  return ` <span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);${sz === '보통' ? '' : 'font-weight:var(--font-weight-bold);'}">${sz}</span>`;
 }
 // 화면 표기 — 서버 일정 이름(「미국 CPI (전월비)」)은 알림 · 백필 표의 열쇠라 그대로 두고 보이는 글자만 바꾼다.
 function calNameText(e) {
@@ -8845,7 +8870,7 @@ function buildCalendar(){
       : 'border-bottom:1px solid var(--c-border);cursor:pointer;';
     const vsCell = !vc ? '' : vc.dir === 'eq'
       ? '<span style="color:var(--c-txt-dim);">같음</span>'
-      : `<span class="${vc.dir === 'up' ? 'up-txt' : 'down-txt'}">${vc.label}</span>`;
+      : `<span class="${vc.dir === 'up' ? 'up-txt' : 'down-txt'}">${vc.label}</span>${_calSizeHtml(_calVsSize(e, vc))}`;
     const dtCell = isToday
       ? `<td style="font-weight:var(--font-weight-semibold);color:var(--c-primary);">${calDtText(e)} <span class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_brand-variant_weak">오늘</span></td>`
       : `<td>${calDtText(e)}</td>`;
@@ -8945,10 +8970,48 @@ function showCalendarEventDetail(idx) {
   const actEl = document.getElementById('calDetailAct');
   _calRenderActual(e, 'calDetail');
   const dv = _calVsCons(e);
-  actEl.title = dv ? dv.text : '';
+  const dsz = _calVsSize(e, dv);
+  actEl.title = dv ? dv.text + (dsz ? ` (차이 ${dsz})` : '') : '';
   calDetailAlertSync();
   panel.scrollIntoView({behavior:'smooth', block:(window.matchMedia && window.matchMedia('(max-width:768px)').matches) ? 'start' : 'nearest'});
   _renderCalDetailChart();
+  _renderCalConsHistory(e);
+}
+
+// 회차별 컨센서스 대비 차이 — 최근 12회 막대(높음 = 상승색 · 낮음 = 하락색) + 한 줄 요약
+function _renderCalConsHistory(e) {
+  const box = document.getElementById('calDetailCons');
+  if(!box) return;
+  if(charts['calDetailConsChart']) { try { charts['calDetailConsChart'].destroy(); } catch(_) {} delete charts['calDetailConsChart']; }
+  const h = _calConsHist();
+  const key = e && (e._srvName || e.name);
+  const list = ((h && h.series && h.series[key]) || []).filter(x => x.a != null && x.c != null).slice(-12);
+  const s = _calConsStats(e);
+  if(list.length < 2 || !s) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const isPct = s.unit === '%', u = isPct ? '%p' : (s.unit || '');
+  const fx = v => (Math.round(v * 100) / 100).toFixed(isPct ? 2 : (Math.abs(v) < 10 ? 1 : 0));
+  const diffs = list.map(x => Math.round((x.a - x.c) * 10000) / 10000);
+  const hi = diffs.filter(v => v > 1e-9).length, lo = diffs.filter(v => v < -1e-9).length;
+  const line = document.getElementById('calDetailConsLine');
+  if(line) line.textContent = `최근 ${list.length}회: 컨센서스보다 높음 ${hi} · 같음 ${list.length - hi - lo} · 낮음 ${lo}. 평소 어긋나는 폭 ±${fx(s.meanAbs)}${u}`;
+  const canvas = document.getElementById('calDetailConsChart');
+  if(!canvas || typeof Chart === 'undefined') return;
+  const tc = (typeof getThemeColors === 'function') ? getThemeColors() : {};
+  const upC = window.CUPF || window.CUP, dnC = window.CDNF || window.CDN, eqC = tc.grid || tc.txt;
+  // 조회일(q)은 미국 동부 발표일 + 1 — 하루 빼서 발표 달을 적는다
+  const labels = list.map(x => { const d = new Date(x.q + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - 1); return `'${String(d.getUTCFullYear()).slice(2)}.${String(d.getUTCMonth() + 1).padStart(2, '0')}`; });
+  charts['calDetailConsChart'] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: '컨센서스 대비', data: diffs, minBarLength: 2, borderRadius: 2,
+      backgroundColor: diffs.map(v => v > 1e-9 ? upC : v < -1e-9 ? dnC : eqC) }] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => { const x = list[c.dataIndex]; return `발표값 ${x.a} · 컨센서스 ${x.c} · 차이 ${diffs[c.dataIndex] > 0 ? '+' : ''}${fx(diffs[c.dataIndex])}${u}`; } } } },
+      scales: { x: { grid: { display: false }, ticks: { color: tc.txt } },
+                y: { grid: { color: tc.grid }, ticks: { color: tc.txt } } } },
+    plugins: [_calZeroLine],
+  });
 }
 
 // 상세 패널의 「알림」 버튼 — 좁은 화면에서 접힌(.c-opt) 표의 알림 열을 여기서 되살린다.
@@ -12965,7 +13028,7 @@ function applyRealData(d) {
       ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">출처: ${srvSrc==='FAILED'?'<span style=\"color:var(--c-down)\">데이터 갱신 실패</span>':srvSrc}</div>`
       : '';
     return `<tr><td colspan="${cols}" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
-      <div>📡 ${label} 데이터 없음. 클라이언트에서 시도 중…</div>
+      <div>📡 ${label} 데이터 없음. 다시 받는 중…</div>
       ${diagLine}
       <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="manualRetryMovers(this)" style="margin-top:6px;">다시 시도</button>
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
@@ -12994,7 +13057,7 @@ function applyRealData(d) {
       ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">출처: ${srvSrc==='FAILED'?'<span style=\"color:var(--c-down)\">데이터 갱신 실패</span>':srvSrc}</div>`
       : '';
     return `<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
-      <div>📡 ${label} 데이터 없음. 클라이언트에서 시도 중…</div>
+      <div>📡 ${label} 데이터 없음. 다시 받는 중…</div>
       ${diagLine}
       <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshETFFromClient(this)" style="margin-top:6px;">다시 시도</button>
       <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
@@ -15468,7 +15531,8 @@ function _leadDashboard() {
   var RL = { g: '안정', y: '주의', r: '위험' };
   var head = r ? '시장 리스크 <b>' + (RL[r.light] || '') + ' ' + Math.round(r.score) + '</b>' : '시장 리스크 <b>자료 없음</b>';
   var chg = function (s) { return s && s !== '—' ? ' ' + _leadEsc(s.replace(/\s+/g, '')) : ''; };
-  return head + '. KOSPI <b>' + _leadEsc(kospi) + '</b>' + chg(kchg) + ', 원/달러 <b>' + _leadEsc(fx) + '</b>' + chg(fchg) + (rate && rate !== '—' ? ', 기준금리 ' + _leadEsc(rate) : '');
+  var consSub = ''; try { consSub = _leadConsSurprise(); } catch (_) {}
+  return head + '. KOSPI <b>' + _leadEsc(kospi) + '</b>' + chg(kchg) + ', 원/달러 <b>' + _leadEsc(fx) + '</b>' + chg(fchg) + (rate && rate !== '—' ? ', 기준금리 ' + _leadEsc(rate) : '') + consSub;
 }
 
 // 주식시장 — 지수 6개의 방향 집계 + 대표 둘
@@ -15602,7 +15666,34 @@ function _leadCalendar() {
   var big = week.filter(function (x) { return (x.e.stars || 0) >= 3; }).length;
   var next = upcoming[0];
   var nextTxt = next ? '. 다음 ' + _leadEsc((next.e.flag ? next.e.flag + ' ' : '') + next.e.name) + ' ' + (next.t.getMonth() + 1) + '/' + next.t.getDate() : '';
-  return '이번 주 발표 <b>' + week.length + '건</b>, 그중 중요(★★★) <b>' + big + '건</b>' + nextTxt;
+  var m30 = new Date(d0); m30.setDate(d0.getDate() - 30);
+  var vs = calEvents.map(function (e) { return { t: toDate(e), v: (typeof _calVsCons === 'function') ? _calVsCons(e) : null }; })
+    .filter(function (x) { return x.t && x.t >= m30 && x.t <= now && x.v; });
+  var sub = vs.length ? '<span class="econ-lead__sub">최근 30일 발표 ' + vs.length + '건 컨센서스 대비: 높음 ' +
+    vs.filter(function (x) { return x.v.dir === 'up'; }).length + ' · 같음 ' + vs.filter(function (x) { return x.v.dir === 'eq'; }).length +
+    ' · 낮음 ' + vs.filter(function (x) { return x.v.dir === 'down'; }).length + '</span>' : '';
+  return '이번 주 발표 <b>' + week.length + '건</b>, 그중 중요(★★★) <b>' + big + '건</b>' + nextTxt + sub;
+}
+
+// 홈 보조 줄 — 최근 36시간 안 발표 중 컨센서스와 「큼」 이상으로 어긋난 것 하나(가장 큰 것). 결론 줄 글자 수(R1)에는 안 센다.
+function _leadConsSurprise() {
+  var d = _latestDataForIndicators;
+  var evs = (d && d.economicCalendar && d.economicCalendar.events) || [];
+  var now = new Date(), best = null;
+  evs.forEach(function (ev) {
+    if (!ev || !ev.act || !ev.fore || !ev.iso) return;
+    var hm = String(ev.dt || '').replace('~', '').split(' ').pop() || '00:00';
+    var t = new Date(ev.iso + 'T' + (/^\d\d:\d\d$/.test(hm) ? hm : '00:00') + ':00+09:00');
+    if (isNaN(t) || t > now || now - t > 36 * 3600 * 1000) return;
+    var e = { name: ev.name, _srvName: ev.name, act: ev.act, fore: ev.fore };
+    var v = _calVsCons(e), sz = _calVsSize(e, v), s = _calConsStats(e);
+    if (!v || (sz !== '큼' && sz !== '매우 큼')) return;
+    var r = s && s.meanAbs > 0 ? Math.abs(v.diff) / s.meanAbs : Infinity;
+    if (!best || r > best.r) best = { r: r, e: e, v: v, sz: sz, t: t };
+  });
+  if (!best) return '';
+  var day = best.t.toDateString() === now.toDateString() ? '오늘' : '어제';
+  return '<span class="econ-lead__sub">' + day + ' 발표 ' + _leadEsc(calNameText(best.e)) + ' ' + _leadEsc(best.e.act) + ', ' + _leadEsc(best.v.text) + '(차이 ' + best.sz + ')</span>';
 }
 
 var _LEAD_BUILDERS = {
