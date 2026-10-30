@@ -59,7 +59,7 @@ async function loadAlertHistory(manual) {
   if(manual) el.textContent = '불러오는 중…';
   try {
     const r = await fetch('./alerts_state.json?_=' + Date.now(), { cache: 'no-store' });
-    if(!r.ok) { el.textContent = '이력 파일 없음 — 아직 서버 평가가 실행되지 않았습니다.'; return; }
+    if(!r.ok) { el.textContent = '이력 파일 없음. 아직 서버 평가가 실행되지 않았습니다.'; return; }
     const st = await r.json();
     const byId = {};
     try { ((pfState && pfState.alerts) || []).forEach(a => { if(a && a.id) byId[a.id] = a; }); } catch(_) {}
@@ -77,16 +77,16 @@ async function loadAlertHistory(manual) {
         const when = new Date((v.ts || 0) * 1000).toLocaleString('ko-KR',
           { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false });
         return '<div>🔔 <b>' + escapeHtml(String(name)) + '</b> ' + escapeHtml(cond) +
-               ' — <span style="color:var(--c-txt-muted);">' + when + ' 카카오 발송</span></div>';
+               '. <span style="color:var(--c-txt-muted);">' + when + ' 카카오 발송</span></div>';
       });
     el.innerHTML = rows.length ? rows.join('')
-      : '최근 발송된 알림이 없습니다. (조건 미충족 상태 — 평가는 장중 매분 실행 중)';
-  } catch(_) { el.textContent = '이력 조회 실패 — 네트워크를 확인하세요.'; }
+      : '최근 발송된 알림이 없습니다. (조건 미충족 상태. 평가는 장중 매분 실행 중)';
+  } catch(_) { el.textContent = '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요'; }
 }
 
 function _settingsMarkDirty() {
   var st = document.getElementById('settingsSyncStatus');
-  if (st) { st.textContent = '변경됨 — ☁ 서버에 저장 필요'; st.style.color = '#f0c75e'; }
+  if (st) { st.textContent = '변경됨. ☁ 서버에 저장 필요'; st.style.color = '#f0c75e'; }
 }
 window.settingsToggleNotif = function (on) {
   econSettings.patch({ notif: { globalEnabled: !!on } });
@@ -267,7 +267,7 @@ window.econMarkSources = function (root) {
       a.className = 'econ-src';
       a.href = '?p=' + target;
       a.textContent = econPageLabel(target) + ' ›';
-      a.title = name + ' 의 원본 화면으로 이동';
+      a.title = name + ' 의 지표 화면으로 이동';
       a.addEventListener('click', function (ev) {
         ev.preventDefault(); ev.stopPropagation();
         try { gotoCanonical(row.canonical); } catch (_) {}
@@ -315,7 +315,7 @@ window.econMarkContext = function (root) {
       if (slot.dataset.title === news.title) return;
       slot.dataset.title = news.title;
       slot.textContent = news.title;
-      slot.title = '관련 뉴스 · ' + (news.isoDate || '') + ' — ' + news.title;
+      slot.title = '관련 뉴스 · ' + (news.isoDate || '') + ': ' + news.title;
     });
   } catch (_) {}
 };
@@ -335,12 +335,12 @@ window.econPageHook = function (id) {
     try {
       if (id === 'dashboard') {
         mountGuideBanner(document.getElementById('cmpInfo'), 'cmp_dualaxis',
-          '<b>지표 비교 차트 사용법</b> — 두 지표를 고르면 좌(파랑)/우(주황) 이중 Y축으로 겹쳐 봅니다. 축 스케일 차이로 기울기가 과장될 수 있으니, 등락률만 비교하려면 <b>「⚖ 지수화 =100」</b> 버튼을 켜세요.', 'beforebegin');
+          '<b>지표 비교 차트 사용법</b>: 두 지표를 고르면 좌(파랑)/우(주황) 이중 Y축으로 겹쳐 봅니다. 축 스케일 차이로 기울기가 과장될 수 있으니, 등락률만 비교하려면 <b>「⚖ 지수화 =100」</b> 버튼을 켜세요.', 'beforebegin');
       }
       if (id === 'realestate') {
         var page = document.getElementById('page-realestate');
         mountGuideBanner(page ? page.querySelector('.widget') : null, 're_range',
-          '<b>구간 수익률 측정</b> — 부동산 가격 차트 위에서 <b>시작점을 클릭</b>하고 <b>끝점을 다시 클릭</b>하면 두 시점 사이 변동률이 자동 계산됩니다.', 'beforebegin');
+          '<b>구간 수익률 측정</b>: 부동산 가격 차트 위에서 <b>시작점을 클릭</b>하고 <b>끝점을 다시 클릭</b>하면 두 시점 사이 변화율이 자동 계산됩니다.', 'beforebegin');
       }
     } catch (_) {}
   }, 400);
@@ -358,7 +358,7 @@ window.showWidgetError = function (targetId, opts) {
     if (lu) lastOk = ' · 마지막 성공 ' + new Date(lu).toLocaleTimeString('ko-KR',
       { hour: '2-digit', minute: '2-digit', hour12: false });
   } catch (_) {}
-  var title = _escT6(opts.title || '데이터를 못 받았어요') + lastOk;
+  var title = _escT6(opts.title || '데이터 갱신 실패') + lastOk;
   var detail = opts.detail ? _escT6(String(opts.detail).slice(0, 160)) : '';
   // 컨테이너가 곧 '다시 받기' 버튼 — recipe 가 :is(button,a) 에서 pressed 를 준다.
   var tag = opts.retry ? 'button' : 'div';
@@ -383,7 +383,7 @@ window.showDataSourceBanner = function () {
   if (document.getElementById('dataSrcBanner')) return;
   var div = document.createElement('div');
   div.id = 'dataSrcBanner';
-  div.innerHTML = '⚠ 서버 데이터(data.json)를 불러오지 못해 <b>예시(Mock) 데이터</b>로 표시 중입니다.' +
+  div.innerHTML = '⚠ 데이터 갱신 실패. <b>예시 데이터</b>로 표시 중입니다.' +
     '<button onclick="retryLoadRealData(this)" class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText">재시도</button>' +
     '<button type="button" class="btn-plain btn-inline" style="cursor:pointer;font-weight:var(--font-weight-bold);padding:0 2px;" onclick="this.parentNode.remove()" title="닫기">✕</button>';
   document.body.appendChild(div);
@@ -397,10 +397,10 @@ window.retryLoadRealData = async function (btn) {
     await loadRealData();
     var b = document.getElementById('dataSrcBanner');
     if (b) b.remove();
-    if (typeof showToast === 'function') showToast('서버 데이터 연결 복구 — 실데이터로 전환되었습니다.');
+    if (typeof showToast === 'function') showToast('서버 데이터 연결 복구. 실데이터로 전환되었습니다.');
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = '재시도'; }
-    if (typeof showToast === 'function') showToast('아직 연결 불가 — 잠시 후 다시 시도하세요.');
+    if (typeof showToast === 'function') showToast('아직 연결 불가. 잠시 후 다시 시도하세요.');
   }
 };
 
@@ -457,7 +457,7 @@ window.exportAllUserData = async function (encrypt) {
     var fileObj, fname;
     var stamp = new Date().toISOString().slice(0, 10);
     if (encrypt) {
-      var p1 = prompt('백업 암호를 입력하세요 (복구 시 동일 암호 필요 — 분실 시 복구 불가):');
+      var p1 = prompt('백업 암호를 입력하세요 (복구 시 동일 암호 필요. 분실 시 복구 불가):');
       if (!p1) return;
       var p2 = prompt('암호를 한 번 더 입력하세요:');
       if (p1 !== p2) { alert('암호가 일치하지 않습니다.'); return; }
@@ -482,7 +482,7 @@ window.exportAllUserData = async function (encrypt) {
     a.download = fname;
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
-    if (st) { st.textContent = (encrypt ? '암호화 ' : '') + '백업 파일 생성 완료 — ' + Object.keys(payload.data).length + '개 항목'; st.style.color = window.CUP; }
+    if (st) { st.textContent = (encrypt ? '암호화 ' : '') + '백업 파일 생성 완료. ' + Object.keys(payload.data).length + '개 항목'; st.style.color = window.CUP; }
   } catch (e) {
     if (st) { st.textContent = '백업 실패: ' + (e && e.message); st.style.color = window.CDN; }
   }
@@ -534,7 +534,7 @@ window.pfRenderCards = function () {
   var items = pfVisibleItems();
   if (!items.length) {
     wrap.innerHTML = '<div style="padding:16px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">' +
-      (pfState.items.length ? '이 그룹에 종목이 없습니다.' : '종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)') + '</div>';
+      (pfState.items.length ? '이 그룹에 종목이 없습니다.' : '종목 코드를 조회해 추가하세요. (한국 6자리 / 미국 영문 코드)') + '</div>';
     return;
   }
   var fx = pfUsdKrw();
@@ -599,7 +599,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 오프라인이면 페치 시도 없이 즉시 안내 (기내모드·지하철에서 '완료' 오표시 방지)
     if(typeof navigator !== 'undefined' && navigator.onLine === false) {
       if(icon) icon.classList.remove('spin-anim');
-      if(lbl)  { lbl.textContent = '오프라인 — 연결 확인'; lbl.style.color = 'var(--c-down,#ef5350)'; }
+      if(lbl)  { lbl.textContent = '오프라인. 연결 확인'; lbl.style.color = 'var(--c-down,#ef5350)'; }
       setTimeout(function() { if(lbl) { lbl.textContent = '새로고침'; lbl.style.color = ''; } }, 3000);
       setTimeout(function() { _refreshCooldown = false; if(btn) { btn.disabled = false; btn.style.opacity = ''; } }, 3000);
       return;
@@ -632,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function () {
       } catch(_) {}
       if(icon) icon.classList.remove('spin-anim');
       if(lbl) {
-        if(okCount === 0)                { lbl.textContent = '갱신 실패 — 네트워크 확인'; lbl.style.color = 'var(--c-down,#ef5350)'; }
+        if(okCount === 0)                { lbl.textContent = '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요'; lbl.style.color = 'var(--c-down,#ef5350)'; }
         else if(okCount < results.length){ lbl.textContent = okCount + '/' + results.length + ' 갱신됨'; lbl.style.color = 'var(--c-warn,#f0c75e)'; }
         else                             { lbl.textContent = '새로고침 완료'; }
       }
@@ -920,7 +920,7 @@ function pfExportCsv() {
             if(st === 200) {
               try { localStorage.removeItem(PIN_KEY); } catch(_) {}
               writeFail(null);
-              render('setup', '동기화 키가 맞습니다 — 이 기기 PIN 을 지웠습니다.');
+              render('setup', '동기화 키가 맞습니다. 이 기기 PIN 을 지웠습니다.');
             } else if(st === 401) fail('동기화 키가 맞지 않습니다.');
             else if(st === -2) fail('마스터 키로만 PIN 을 지울 수 있습니다.');
             else if(st === 429) fail('시도가 너무 많습니다. 1분 뒤 다시 해 보세요.');
@@ -1157,7 +1157,7 @@ function pfExportCsv() {
     { q: '금리는 어디로',     cond: '국고·미국채 · 곡선', go: function () { gotoCanonical('market#bond'); } },
     { q: '환율 부담',         cond: 'USD/KRW · 최근 추이', go: function () { gotoCanonical('market#fx'); } },
     { q: '원자재 충격',       cond: '에너지·금속 · 재고', go: function () { gotoCanonical('market#commodity'); } },
-    { q: '물가 온도',         cond: 'CPI·PPI · 전년비', go: function () { showPage('macro', menuItemFor('macro')); setTimeout(function () { try { setMacroCatFilter('물가'); } catch (_) {} }, 400); } },
+    { q: '물가 온도',         cond: 'CPI·PPI · 전년 대비', go: function () { showPage('macro', menuItemFor('macro')); setTimeout(function () { try { setMacroCatFilter('물가'); } catch (_) {} }, 400); } },
     { q: '고용은 버티나',     cond: '실업률·고용 지표', go: function () { showPage('macro', menuItemFor('macro')); setTimeout(function () { try { setMacroCatFilter('고용'); } catch (_) {} }, 400); } },
     { q: '외국인은 사는가',   cond: '투자자별 순매매', go: function () { gotoCanonical('flow'); } },
     { q: '부동산 온도',       cond: '가격지수·거래·대출', go: function () { showPage('realestate', menuItemFor('realestate')); } }
@@ -1197,7 +1197,7 @@ function pfExportCsv() {
       results.innerHTML = '<div class="econ-search__hint">맞는 지표가 없습니다. 이름 일부만 적어도 됩니다(예: 금리).</div>';
       return;
     }
-    var head = q ? '' : '<div class="econ-search__hint">질문으로 찾기 — 무엇이 궁금한지 고르세요</div>';
+    var head = q ? '' : '<div class="econ-search__hint">질문으로 찾기. 무엇이 궁금한지 고르세요</div>';
     results.innerHTML = head + items.map(function (it, i) {
       if (it.kind === 'preset') {
         return '<button type="button" role="option" data-i="' + i + '" aria-selected="' + (i === cursor) + '">' +
@@ -1402,7 +1402,7 @@ window.econFoldControls = function (root) {
       b.className = 'ctl-fold__sum btn-plain';
       b.setAttribute('aria-expanded', 'false');
       // 낭독기에는 값만 읽히면 무엇의 요약인지 알 수 없다 — 이름을 따로 준다.
-      b.setAttribute('aria-label', '컨트롤 펼치기 — 현재 ' + (w.label || '선택 없음'));
+      b.setAttribute('aria-label', '컨트롤 펼치기. 현재 ' + (w.label || '선택 없음'));
       grp.id = grp.id || ('ctlfold-' + Math.random().toString(36).slice(2, 8));
       b.setAttribute('aria-controls', grp.id);
       b.innerHTML = '<span class="ctl-fold__now"></span><span aria-hidden="true">▾</span>';
@@ -1421,7 +1421,7 @@ window.econFoldControls = function (root) {
           }));
           var now = b.querySelector('.ctl-fold__now');
           if (now.textContent !== nl) now.textContent = nl;
-          b.setAttribute('aria-label', '컨트롤 펼치기 — 현재 ' + (nl || '선택 없음'));
+          b.setAttribute('aria-label', '컨트롤 펼치기. 현재 ' + (nl || '선택 없음'));
         }
         setTimeout(function () { window._foldBusy = false; }, 0);
       });
@@ -1546,7 +1546,7 @@ window.econMakeTablesSortable = function (root) {
       note.className = 'econ-failed';
       note.setAttribute('role', 'status');
       var msg = document.createElement('span');
-      msg.textContent = '차트를 불러오지 못했습니다.';
+      msg.textContent = '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요';
       note.appendChild(msg);
       var widget = cv.closest('.widget');
       var refresh = widget && widget.querySelector('[aria-label*="새로고침"], [title*="새로고침"]');

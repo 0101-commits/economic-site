@@ -133,7 +133,7 @@ def release(ev):
     if not ev or not ev.get("name") or not ev.get("act"):
         return None
     bare = re.sub(r"\s*\([^)]*\)", "", ev["name"]).strip()
-    fore = " (예상 %s)" % ev["fore"] if ev.get("fore") else ""
+    fore = " (컨센서스 %s)" % ev["fore"] if ev.get("fore") else ""
     return ("%s %s %s%s" % (_md(ev.get("date")), ev["name"], ev["act"], fore), "%s %s" % (bare, ev["act"]))
 
 

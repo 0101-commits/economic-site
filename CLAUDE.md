@@ -120,6 +120,7 @@ node tests/ui/structure.mjs                          # S10~S26 구조 통일(표
 node tests/ui/components.mjs                         # S27~S36 컴포넌트 규격(제목·도구 차례·버튼/칩/탭·숫자·표·간격·화면 머리)
 node tests/ui/readability2.mjs                       # R1~R8 가독성 골격(결론 줄·첫 판정·화면수·글자색/크기·상태색·이름 반복·빈 차트·말 사전)
 node tests/ui/firstload.mjs                          # data.json 을 4초 늦춰 딥링크 첫 도착 뒤 차트가 그려지는지(라이브는 늘 늦다 — 로컬에선 재현 안 됨)
+python scripts/check_terms.py                        # 화면 금지어(용어 정제 2026-10-30 사전) 0건 — pre-commit 훅에도 걸린다(install_hooks.py)
 ```
 
 **주소가 화면 상태다 (기획 `docs/superpowers/specs/2026-09-21-interaction-ux-plan-design.md`).**
@@ -380,6 +381,7 @@ data.json + js/app1.js(macroIndicators) + mer_signals.json
 | `scripts/fetch_data.py` | ~7 000-line data collector; runs in GitHub Actions |
 | `scripts/validate_data.py` | Data integrity gate — blocks bad `data.json` from commit |
 | `scripts/ai_briefing.py` | LLM macro summary → `data.json.aiBriefing`. 근거 목록(지표 · 수급 · 기사 · 일정)을 번호로 주고 문장 끝 `[n]` 을 refs 로 읽는다 — 숫자 · 일정 · 금지 낱말 · refs 대조에 걸린 문장은 버리고 `dropped` 로 센다. 회차는 `briefs/YYYY-MM-DD.json`(30일, Pages 허용 목록). 일정 「발표 전」 판정은 `act` 칸이 아니라 시각(`release_due`) — 2026-10-14 CPI 처럼 발표 전에 실제 값이 차면 요약이 「예정 발표 없음」이라고 썼다 |
+| `scripts/consensus.py` | 경제 일정 **컨센서스 · 공식 발표값** — 나스닥 경제 일정(`api.nasdaq.com/api/calendar/economicevents?date=`)에서 `fore`(컨센서스) · `act` · `prev` 를 채운다(`CONSENSUS_MAP` 14종, 한국 CPI · 금통위 · 미국 주요 지표 · ECB · BOJ). FRED 로 채운 act 를 덮는다 — 컨센서스와 견줄 값은 같은 자료원이어야 해서다(FRED 지수로 계산한 CPI 전월비가 반올림으로 0.1%p 어긋났다). 일일 런은 지난 62일~앞 10일, 그 밖의 런은 최근 6시간 안 발표만 다시 받고 나머지는 직전 data.json 에서 잇는다(`consSrc`·`actSrc`·`consAt`). 함정: 조회일 = 미국 동부 발표일 + 1, `gmt` 칸은 실제로 미국 동부 시각, 같은 이름 두 줄(전월 · 전년 → 직전 값 작은 쪽이 전월), 빈 칸 `&nbsp;`. 진단 `diagnostics.calendarConsensus`. 가드 `scripts/tests/test_consensus.py`. 화면의 「호재·악재」 판정은 쓰지 않고 「컨센서스보다 0.2%p 높음」 사실만 적는다 |
 | `scripts/stock_reasons.py` | 종목 「왜 움직였나」 — 관심 + 거래대금 상위(ETF 제외, ≤30) 종목별 네이버 뉴스 검색 + 지수 동행 · 공시 · 52주 → 규칙 문장 → Gemini 다듬기(새 숫자 금지, 실패하면 규칙 문장) → `data.json.stockNews` · `stockReasons` → `home.reasons`(오늘 것만). 풀 런 KST 08~20시. 계약 `docs/superpowers/specs/2026-10-14-struct-bench-plan.md` C4 |
 | `scripts/fetch_merblog.py` + `scripts/merblog_lib.py` | 메르 블로그(ranto28) 최근 365일 메타 + 최신 20편 원문 → `merblog.json`. 공개 저장소라 원문 전량 커밋 금지 |
 | `scripts/mer_extract.py` | 메르 글 → 구조화 JSON(`mer_extract_cache.jsonl`). 인용은 80자 이하 + **원문 실재 검증 통과분만** 저장(날조 차단), 원문 자체는 저장 안 함(공개 저장소). 키는 `ANTHROPIC_API_KEY` → `GEMINI_API_KEY` 순, 둘 다 없으면 건너뛰고 캐시 보존. `--limit N` 으로 백필을 회차로 쪼갠다 |

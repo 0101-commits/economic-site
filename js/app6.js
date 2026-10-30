@@ -147,14 +147,14 @@ function pfShowTab(name, noUrl) {
 /* ── 개념 ⓘ 레이어 — 메르식 비유 사전 ───────────────────── */
 var PF_DICT = {
   var:      { t: 'VaR (Value at Risk)', d: '"내일 95% 확률로 강수량 10mm를 넘지 않는다"는 일기예보처럼, 위험을 한 장의 숫자로 요약. 1일 95% VaR 100만원 = 20일 중 1일은 100만원 이상 잃을 수 있다는 뜻.', q: '외국인들이 국장을 던지는 비밀 1' },
-  cvar:     { t: 'cVaR', d: 'VaR가 "열이 38.5도 넘는 날이 생긴다"라면, cVaR는 "그날 평균 체온이 40도"라는 것 — 최악의 날들의 평균 손실.', q: '외국인들이 국장을 던지는 비밀 1' },
-  varlimit: { t: 'VaR 한도 (위험예산)', d: '항공사 수하물 20kg 제한과 비슷함. 짐(변동성)이 무거워지면 개수(보유금액)를 줄여야 함 — 필요 없어서가 아니라 한도를 맞추려고 파는 것.', q: '외국인들이 국장을 던지는 비밀 1' },
-  sharpe:   { t: '샤프지수', d: '수익률이 같아도 난폭운전 택시보다 안전운전 택시가 낫다 — "위험 1단위당 수익". (수익률−무위험수익률)÷변동성. 오르내림 전부를 위험으로 봄.', q: '외국인들이 국장을 던지는 비밀 2' },
-  sortino:  { t: '소르티노지수', d: '샤프와 달리 하락만 위험으로 보고 위로 튄 것은 빼줌 — "주가가 위로 튄 건 돈을 벌었다는 말". 연기금들이 주로 쓰는 지표.', q: '외국인들이 국장을 던지는 비밀 외전' },
+  cvar:     { t: 'cVaR', d: 'VaR가 "열이 38.5도 넘는 날이 생긴다"라면, cVaR는 "그날 평균 체온이 40도"라는 것. 최악의 날들의 평균 손실.', q: '외국인들이 국장을 던지는 비밀 1' },
+  varlimit: { t: 'VaR 한도 (위험예산)', d: '항공사 수하물 20kg 제한과 비슷함. 짐(변동성)이 무거워지면 개수(보유금액)를 줄여야 함. 필요 없어서가 아니라 한도를 맞추려고 파는 것.', q: '외국인들이 국장을 던지는 비밀 1' },
+  sharpe:   { t: '샤프지수', d: '수익률이 같아도 난폭운전 택시보다 안전운전 택시가 낫다. "위험 1단위당 수익". (수익률−무위험수익률)÷변동성. 오르내림 전부를 위험으로 봄.', q: '외국인들이 국장을 던지는 비밀 2' },
+  sortino:  { t: '소르티노지수', d: '샤프와 달리 하락만 위험으로 보고 위로 튄 것은 빼줌. "주가가 위로 튄 건 돈을 벌었다는 말". 연기금들이 주로 쓰는 지표.', q: '외국인들이 국장을 던지는 비밀 외전' },
   vkospi:   { t: 'VKOSPI', d: 'KOSPI200 옵션 가격에서 뽑은 향후 변동성 기대치(연율 %). 일간 변동성 근사 ≈ VKOSPI÷16. 50 이상이면 극단적 공포 구간으로 봄.', q: '외국인들이 국장을 던지는 비밀 1' },
   realized: { t: '실현변동성', d: '실제 지나간 20일의 종가 움직임에서 계산한 변동성(자체 계산). VKOSPI(기대치)와 달리 "실제로 이만큼 흔들렸다"는 실측치.', q: null },
-  homebias: { t: '자국편향', d: '다니는 회사 주식에 전 재산을 몰빵하는 것과 비슷함 — 경제가 흔들리면 월급(소득)과 주식(자산)이 한꺼번에 무너짐. 노르웨이 국부펀드는 자국주식 거의 0%.', q: '외국인들이 국장을 던지는 비밀 외전' },
-  smoothing:{ t: '스무딩 오퍼레이션', d: '"울퉁불퉁한 걸 매끄럽게" — 환율이 급하게 움직이면 외환당국이 직접 달러를 사고팔아 속도를 늦추는 것.', q: '원화는 왜 강해지고 있을까?' },
+  homebias: { t: '자국편향', d: '다니는 회사 주식에 전 재산을 몰빵하는 것과 비슷함. 경제가 흔들리면 월급(소득)과 주식(자산)이 한꺼번에 무너짐. 노르웨이 국부펀드는 자국주식 거의 0%.', q: '외국인들이 국장을 던지는 비밀 외전' },
+  smoothing:{ t: '스무딩 오퍼레이션', d: '"울퉁불퉁한 걸 매끄럽게". 환율이 급하게 움직이면 외환당국이 직접 달러를 사고팔아 속도를 늦추는 것.', q: '원화는 왜 강해지고 있을까?' },
   fxexpo:   { t: '환노출', d: '환헤지 없이 해외자산을 들고 있는 상태. 원화가 강해지면 해외자산의 원화 평가액이 깎이고, 약해지면 이중으로 번다.', q: '원화는 왜 강해지고 있을까?' }
 };
 function pfDictShow(ev, key) {
@@ -280,9 +280,9 @@ function pfBriefRender() {
     var best = sortedT[0], worst = sortedT[sortedT.length - 1];
     var regime = vk.value == null ? '' : (vk.value >= 80 ? ' · 변동성 극단권' : (vk.value >= 50 ? ' · 변동성 공포권' : (vk.value >= 30 ? ' · 변동성 주의권' : '')));
     oneLine = '<div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:10px;line-height:1.6;">📌 보유 ' + withPct.length + '종 중 <b class="up-txt">' + upN + '종 상승</b>' +
-      (best ? ' — 최고 ' + pfEsc(best.name) + ' <b class="' + _pfTone(best.pct) + '">' + (best.pct >= 0 ? '+' : '') + best.pct.toFixed(1) + '%</b>' : '') +
+      (best ? '. 최고 ' + pfEsc(best.name) + ' <b class="' + _pfTone(best.pct) + '">' + (best.pct >= 0 ? '+' : '') + best.pct.toFixed(1) + '%</b>' : '') +
       (worst && worst !== best ? ', 최저 ' + pfEsc(worst.name) + ' <b class="' + _pfTone(worst.pct) + '">' + (worst.pct >= 0 ? '+' : '') + worst.pct.toFixed(1) + '%</b>' : '') +
-      regime + ' <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">(기기 내 규칙 생성 — 보유 정보 외부 전송 없음)</span></div>';
+      regime + ' <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">(기기 내 규칙 생성. 보유 정보 외부 전송 없음)</span></div>';
   }
 
   var tiles = oneLine +
@@ -319,7 +319,7 @@ function pfBriefRender() {
 
   /* 오늘의 차트 (P3: 변화량 스코어링으로 VKOSPI vs 환율 자동 선정) + 이번 주 일정 */
   var chartMode = _pfBriefChartMode(d);
-  var chart = _pfCard('오늘의 차트 — ' + chartMode.title + ' × 외국인 순매매 (30거래일) ' + _pfI(chartMode.key === 'fx' ? 'fxexpo' : 'varlimit'),
+  var chart = _pfCard('오늘의 차트. ' + chartMode.title + ' × 외국인 순매매 (30거래일) ' + _pfI(chartMode.key === 'fx' ? 'fxexpo' : 'varlimit'),
     '<div class="h-220" style="position:relative;"><canvas id="pfBriefChartCanvas" role="img" aria-label="' + chartMode.title + '와 외국인 순매매 30일 비교 차트"></canvas></div>' +
     '<div id="pfBriefChartNote" style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;"></div>');
   var cal = _pfBriefCalendarHtml(d, agg);
@@ -327,7 +327,7 @@ function pfBriefRender() {
 
   el.innerHTML = tiles + heat +
     '<div class="pf-brief-2col" style="display:grid;gap:12px;">' + chart + cal + '</div>' + merBox +
-    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기준: 시세=무료 소스(지연 가능) · 지표=' + ((d.lastUpdated || '').slice(0, 16).replace('T', ' ') || '-') + ' 빌드 · ' + asof.getHours() + ':' + String(asof.getMinutes()).padStart(2, '0') + ' 렌더</div>';
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기준: 시세=무료 출처(지연 가능) · 지표=' + ((d.lastUpdated || '').slice(0, 16).replace('T', ' ') || '-') + ' 빌드 · ' + asof.getHours() + ':' + String(asof.getMinutes()).padStart(2, '0') + ' 렌더</div>';
 
   _pfBriefChartRender(d, chartMode);
   /* 개별 종목 실적 발표일 병합 (P2 — fundamentals.json us[].earningsDate) */
@@ -424,8 +424,8 @@ function _pfBriefChartRender(d, mode) {
   var f20 = daily.slice(-20).reduce(function (s, r) { return s + (+r.foreign || 0); }, 0);
   var note = document.getElementById('pfBriefChartNote');
   if (note) note.textContent = (mode.key === 'fx'
-    ? '읽는 법 · 외국인 매도 달러가 빠져나가면 환율이 오른다(4편) — 매도세와 환율 방향을 같이 본다.'
-    : '읽는 법 · 변동성(선)이 꺾이는 구간에서 외국인 매도(파란 막대)가 멈추는지 본다 — VaR 한도 논리.') +
+    ? '읽는 법 · 외국인 매도 달러가 빠져나가면 환율이 오른다(4편). 매도세와 환율 방향을 같이 본다.'
+    : '읽는 법 · 변동성(선)이 꺾이는 구간에서 외국인 매도(파란 막대)가 멈추는지 본다. VaR 한도 논리.') +
     ' 최근 20거래일 외국인 순매매 ' + (f20 >= 0 ? '+' : '') + _pfNum(f20, 0) + '억원. (차트 축은 최근 5일 변화량 스코어로 자동 선정)';
   // 참고: y1(수급)·y2(라인)는 단위가 달라 이중축이 불가피한 조합 — 각 축을 범례 라벨에 명시해 오독을 막는다.
 }
@@ -462,7 +462,7 @@ function pfSignalRender() {
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);line-height:1.4;">' + sub + '</div></div>';
   }
   var hot = vkNow != null && vkNow >= 50;
-  var chain = _pfCard('외국인은 왜 파는가 — 변동성의 기계적 사슬 ' + _pfI('varlimit'),
+  var chain = _pfCard('외국인은 왜 파는가. 변동성의 기계적 사슬 ' + _pfI('varlimit'),
     '<div class="g-auto-140" style="display:grid;gap:8px;margin-top:4px;">' +
     chainNode('① 변동성', vkNow != null ? vkNow.toFixed(1) : '-', 'VKOSPI' + (dailyVol ? ' · 일간 ≈ ' + dailyVol.toFixed(1) + '%' : '') + (vk.stale ? ' · ⏸지연' : ''), hot) +
     chainNode('② VaR 부풀음', ratio ? '×' + ratio.toFixed(1) : '—', ratio ? '연초(' + vkStart.toFixed(0) + ') 대비 위험 계산치 배율 (추정)' : '연초 데이터 없음', hot && ratio != null && ratio > 1.3) +
@@ -473,7 +473,7 @@ function pfSignalRender() {
 
   /* 변동성 카드 — 내재 vs 실현 + 미터 */
   var meterPos = vkNow != null ? Math.min(97, Math.max(2, vkNow)) : null;
-  var vol = _pfCard('변동성 — 내재 vs 실현 ' + _pfI('vkospi'),
+  var vol = _pfCard('변동성. 내재 vs 실현 ' + _pfI('vkospi'),
     (meterPos != null
       ? '<div style="position:relative;height:12px;border-radius:6px;background:linear-gradient(90deg,color-mix(in srgb,var(--c-down) 25%,transparent),var(--c-surface) 38%,color-mix(in srgb,var(--color-warning,#c98500) 30%,transparent) 60%,color-mix(in srgb,var(--c-up) 30%,transparent));margin:8px 0 4px;">' +
         '<div style="position:absolute;left:' + meterPos + '%;top:-4px;width:3px;height:20px;border-radius:2px;background:var(--c-txt);"></div></div>' +
@@ -482,7 +482,7 @@ function pfSignalRender() {
     '<div style="display:flex;gap:18px;margin-top:10px;font-family:var(--font-num);font-size:var(--font-size-sm);flex-wrap:wrap;">' +
     '<span><b style="font-size:var(--font-size-lg);">' + (vkNow != null ? vkNow.toFixed(1) : '-') + '</b> <span style="color:var(--c-txt-dim);">VKOSPI(내재)' + (vk.as_of ? ' · ' + vk.as_of.slice(5) : '') + (vk.stale ? ' <span style="color:var(--color-warning,#c98500);">⏸지연</span>' : '') + '</span></span>' +
     '<span><b style="font-size:var(--font-size-lg);">' + (vk.realized20d != null ? (+vk.realized20d).toFixed(1) + '%' : '-') + '</b> <span style="color:var(--c-txt-dim);">KOSPI 실현(20D, 자체계산)' + (vk.realized_asof ? ' · ' + vk.realized_asof.slice(5) : '') + '</span> ' + _pfI('realized') + '</span></div>' +
-    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">읽는 법 · 내재(시장의 기대)와 실현(실제 움직임)의 괴리가 신호. VKOSPI 소스 지연 시 실현변동성이 대체 계기판.</div>');
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">읽는 법 · 내재(시장의 기대)와 실현(실제 움직임)의 괴리가 신호. VKOSPI 출처 지연 시 실현변동성이 대체 계기판.</div>');
 
   /* 외국인 순매매 — 월별 다이버징 바 */
   var byMonth = {};
@@ -518,9 +518,9 @@ function pfSignalRender() {
   var chips = chip(f20 >= 0 ? 'g' : 'r', '외국인 주식자금 ' + (f20 >= 0 ? '유출 완화' : '유출 지속'));
   if (krRate != null && usRate != null) chips += chip(usRate - krRate <= 1.0 ? 'g' : 'y', '한미 금리차 ' + (usRate - krRate).toFixed(2) + '%p');
   chips += chip('y', 'WGBI·당국 개입: 뉴스 참고');
-  var fxCard = _pfCard('환율 요인 보드 — USDKRW ' + (fxObj.rate != null ? (+fxObj.rate).toFixed(1) : '-') + ' ' + _pfI('smoothing'),
+  var fxCard = _pfCard('환율 요인 보드. USDKRW ' + (fxObj.rate != null ? (+fxObj.rate).toFixed(1) : '-') + ' ' + _pfI('smoothing'),
     '<div>' + chips + '</div>' +
-    '<div style="font-size:var(--font-size-sm);margin-top:8px;">내 포트폴리오 환노출 <b style="font-family:var(--font-num);">' + (agg.evalKrw > 0 ? Math.round(agg.usdEval / agg.evalKrw * 100) + '%' : '-') + '</b>' + (agg.usdEval ? ' (' + pfFmtKrw(agg.usdEval) + ')' : '') + ' — 포트폴리오 탭 what-if로 시나리오 확인</div>' +
+    '<div style="font-size:var(--font-size-sm);margin-top:8px;">내 포트폴리오 환노출 <b style="font-family:var(--font-num);">' + (agg.evalKrw > 0 ? Math.round(agg.usdEval / agg.evalKrw * 100) + '%' : '-') + '</b>' + (agg.usdEval ? ' (' + pfFmtKrw(agg.usdEval) + ')' : '') + '. 포트폴리오 탭 what-if로 시나리오 확인</div>' +
     '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">읽는 법 · 메르 4편의 요인 분해(수급·금리차·정책). 칩은 데이터 기반 규칙 판정, WGBI·개입은 데이터가 없어 참고 표기.</div>');
 
   /* NPS 카드 */
@@ -551,15 +551,15 @@ function pfSignalRender() {
   }
   var shCard = (shK || shS) ? _pfCard('시장 샤프 비교 (최근 1년) ' + _pfI('sharpe'),
     '<div style="display:flex;gap:26px;justify-content:center;padding:4px 0;">' + shCell('KOSPI', shK) + shCell('S&amp;P500', shS) + '</div>' +
-    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">읽는 법 · 명목 수익률이 높아도 변동성이 크면 위험조정 점수는 낮다 — 외국인이 국장 비중을 정하는 눈. 동일 무위험수익률(' + rfK + '%) 기준 단순 비교.</div>') : '';
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">읽는 법 · 명목 수익률이 높아도 변동성이 크면 위험조정 점수는 낮다. 외국인이 국장 비중을 정하는 눈. 동일 무위험수익률(' + rfK + '%) 기준 단순 비교.</div>') : '';
 
   /* 위험예산 시뮬레이터 (P2) — 메르 1편 32~43항 계산기 */
-  var simCard = _pfCard('위험예산 시뮬레이터 — 변동성이 바뀌면 기관은 얼마나 팔아야 하나 ' + _pfI('varlimit'),
+  var simCard = _pfCard('위험예산 시뮬레이터. 변동성이 바뀌면 기관은 얼마나 팔아야 하나 ' + _pfI('varlimit'),
     '<div style="font-size:var(--font-size-sm);">일간변동성 가정 <b id="pfSimVol" style="font-family:var(--font-num);">1.9</b>% ' +
     '<input type="range" min="0.5" max="6" step="0.1" value="1.9" oninput="pfSimUpdate(this.value)" style="vertical-align:middle;width:200px;accent-color:var(--c-accent);" aria-label="일간변동성 가정 슬라이더">' +
     (dailyVol ? ' <button onclick="pfSimUpdate(' + dailyVol.toFixed(1) + ');document.querySelector(\'#pfTab-signal input[type=range]\').value=' + dailyVol.toFixed(1) + '" style="font-size:var(--font-size-xs);padding:2px 8px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">현재 VKOSPI 수준(' + dailyVol.toFixed(1) + '%)로</button>' : '') + '</div>' +
     '<div id="pfSimOut" class="g-auto-150" style="display:grid;gap:8px;margin-top:10px;font-family:var(--font-num);font-size:var(--font-size-sm);"></div>' +
-    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">가상 기관(위험예산 100억)의 교육용 계산 — 담을 수 있는 금액 = 예산 ÷ (일간변동성 × 1.645). 시장 전체 매도 물량 예측이 아닙니다.</div>');
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">가상 기관(위험예산 100억)의 교육용 계산. 담을 수 있는 금액 = 예산 ÷ (일간변동성 × 1.645). 시장 전체 매도 물량 예측이 아닙니다.</div>');
 
   el.innerHTML = chain +
     '<div class="pf-sig-2col" style="display:grid;gap:12px;">' + vol + inv + fxCard + npsCard + '</div>' +
@@ -683,7 +683,7 @@ function pfRiskRender() {
 
   var riskCards;
   if (m.n < 60) {
-    riskCards = '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:8px 0;">위험 지표 데이터 축적 중 (' + m.n + '/60일) — 평단가·수량이 입력된 상태로 방문한 날마다 1건씩 쌓입니다. 60일 미만의 수치는 신뢰 구간 미달이라 표시하지 않습니다.</div>';
+    riskCards = '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:8px 0;">위험 지표 데이터 축적 중 (' + m.n + '/60일). 평단가·수량이 입력된 상태로 방문한 날마다 1건씩 쌓입니다. 60일 미만의 수치는 신뢰 구간 미달이라 표시하지 않습니다.</div>';
   } else {
     var annRet = m.mean * 252 * 100;
     var annVol = m.sd * Math.sqrt(252) * 100;
@@ -696,13 +696,13 @@ function pfRiskRender() {
       '<div class="kpi-card"><span class="widget-title econ-stat__label">내 1일 95% VaR ' + _pfI('var') + '</span>' +
         '<div class="down-txt" style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);font-family:var(--font-num);">−' + pfFmtKrw(varAmt) + '</div>' +
         '<div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">"20일 중 1일은 이 이상 잃을 수 있다" · cVaR ' + _pfI('cvar') + ' <b>−' + pfFmtKrw(cvarAmt) + '</b></div>' +
-        '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">= 평가액 × 일간변동성 ' + (m.sd * 100).toFixed(2) + '% × 1.645 · 스냅샷 ' + m.n + '일 · 정규분포 가정, 최악을 보증하지 않음</div></div>' +
-      '<div class="kpi-card"><span class="widget-title econ-stat__label">위험조정수익률 — 두 렌즈</span>' +
+        '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">= 평가액 × 일간변동성 ' + (m.sd * 100).toFixed(2) + '% × 1.645 · 저장값 ' + m.n + '일 · 정규분포 가정, 최악을 보증하지 않음</div></div>' +
+      '<div class="kpi-card"><span class="widget-title econ-stat__label">위험조정수익률. 두 렌즈</span>' +
         '<div style="display:flex;gap:16px;font-family:var(--font-num);">' +
         '<span><b style="font-size:var(--font-size-xl);">' + (sharpe != null ? sharpe.toFixed(2) : '-') + '</b><br><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">샤프 ' + _pfI('sharpe') + '<br>국민연금 방식</span></span>' +
         '<span><b style="font-size:var(--font-size-xl);">' + (sortino != null ? sortino.toFixed(2) : '-') + '</b><br><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">소르티노 ' + _pfI('sortino') + '<br>연기금 방식</span></span>' +
         '<span><b style="font-size:var(--font-size-xl);">' + (m.mdd * 100).toFixed(1) + '%</b><br><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">MDD<br>최대 낙폭</span></span></div>' +
-        '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">' + (sortino != null && sharpe != null ? (sortino > sharpe ? '소르티노 > 샤프 — 변동은 컸지만 하락보다 상승 쪽' : '샤프 ≥ 소르티노 — 하락 변동의 비중이 큼') : '') + ' · 무위험수익률 ' + rf + '% 기준</div></div>' +
+        '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">' + (sortino != null && sharpe != null ? (sortino > sharpe ? '소르티노 > 샤프. 변동은 컸지만 하락보다 상승 쪽' : '샤프 ≥ 소르티노. 하락 변동의 비중이 큼') : '') + ' · 무위험수익률 ' + rf + '% 기준</div></div>' +
       '</div>';
   }
 
@@ -717,9 +717,9 @@ function pfRiskRender() {
   var npsAlloc2 = ((d.nps || {}).allocation || []);
   var npsKr2 = null;
   for (var nj = 0; nj < npsAlloc2.length; nj++) { if (npsAlloc2[nj].asset === '국내주식') { npsKr2 = npsAlloc2[nj]; break; } }
-  var bias = krPct == null ? '' : _pfCard('자국편향 진단 — 내 국장 비중 ' + _pfI('homebias'),
+  var bias = krPct == null ? '' : _pfCard('자국편향 진단. 내 국장 비중 ' + _pfI('homebias'),
     biasRow('내 포트폴리오', krPct, true) + biasRow('국민연금 목표', 20.8) + (npsKr2 ? biasRow('국민연금 실제', npsKr2.pct) : '') + biasRow('캐나다 CPP', 12) + biasRow('노르웨이 GPFG', 0.5) +
-    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">한국에서 일하며 한국 주식 ' + krPct + '% — 급여·연금·자산이 같은 충격에 노출된다는 진단(메르 외전). 진단만 표기하며 리밸런싱 권고는 하지 않습니다.</div>');
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">한국에서 일하며 한국 주식 ' + krPct + '%. 급여·연금·자산이 같은 충격에 노출된다는 진단(메르 외전). 진단만 표기하며 리밸런싱 권고는 하지 않습니다.</div>');
 
   /* 손익 분해 워터폴 (P3: 배당 원장 반영) + 환노출 what-if */
   var ledger = pfLedgerLoad();
@@ -765,8 +765,8 @@ function pfRiskRender() {
     '<input id="pfLedAmt" type="number" min="0" step="any" placeholder="금액(원)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="금액">' +
     '<input id="pfLedMemo" placeholder="메모(선택)" style="width:110px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:4px 6px;font-size:var(--font-size-xs);" aria-label="메모">' +
     '<button onclick="pfLedgerAdd()" style="font-size:var(--font-size-xs);padding:4px 12px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">＋ 기록</button></div>' +
-    (ledRows || '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기록 없음 — 배당을 기록하면 손익 워터폴에 반영됩니다.</div>') +
-    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">입출금 기록은 참고용 — 위 위험 지표는 평가/매입 비율 기반이라 추가매수에는 원래 강건하며, 대규모 입출금 시 벤치마크 비교 왜곡 고지는 기존과 동일.</div>');
+    (ledRows || '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">기록 없음. 배당을 기록하면 손익 워터폴에 반영됩니다.</div>') +
+    '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;line-height:1.6;">입출금 기록은 참고용. 위 위험 지표는 평가/매입 비율 기반이라 추가매수에는 원래 강건하며, 대규모 입출금 시 벤치마크 비교 왜곡 고지는 기존과 동일.</div>');
 
   el.innerHTML = '<h3 class="widget-title" style="margin:4px 0 10px;">메르 위험 패널 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">— 내 계좌를 연기금처럼 본다 · ⓘ = 메르식 설명</span></h3>' +
     riskCards + '<div class="pf-risk-2col" style="display:grid;gap:12px;margin-top:12px;">' + (wf || '') + (bias || '') + '</div>' + whatif + ledCard;
@@ -818,7 +818,7 @@ function pfStockRender() {
       '<div class="widget" style="margin-bottom:12px;">' +
       '<h3 class="widget-title">종목 검색</h3>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
-      '<input id="pfStockQ" placeholder="종목코드/티커/한글명 (예: 005930, AAPL, 삼성전자)" onkeydown="if(event.key===\'Enter\')pfStockSearch()" style="flex:1;min-width:200px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:6px 9px;font-size:var(--font-size-sm);" aria-label="분석할 종목 검색">' +
+      '<input id="pfStockQ" placeholder="종목 코드/한글명 (예: 005930, AAPL, 삼성전자)" onkeydown="if(event.key===\'Enter\')pfStockSearch()" style="flex:1;min-width:200px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-xs);padding:6px 9px;font-size:var(--font-size-sm);" aria-label="분석할 종목 검색">' +
       '<button onclick="pfStockSearch()" style="font-size:var(--font-size-sm);padding:6px 14px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:var(--c-accent);color:var(--c-on-accent);cursor:pointer;">분석</button></div>' +
       '<div id="pfStockCandidates" style="margin-top:6px;"></div>' +
       (chips ? '<div style="margin-top:8px;font-size:var(--font-size-xs);color:var(--c-txt-muted);">보유·관심: ' + chips + '</div>' : '') +
@@ -841,7 +841,7 @@ async function pfStockSearch() {
       var nm = String(h.name || '').replace(/['"<>]/g, '');
       return '<button onclick="pfStockOpen({symbol:\'' + h.code + '\',market:\'KR\',name:\'' + nm + '\'})" style="font-size:var(--font-size-xs);padding:3px 10px;margin:2px;border:1px solid var(--c-border);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">' + pfEsc(h.name) + ' <span style="color:var(--c-txt-muted);">' + h.code + '</span></button>';
     }).join('');
-  } catch (_) { if (cand) cand.innerHTML = '<span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">검색 실패 — 코드를 직접 입력하세요</span>'; }
+  } catch (_) { if (cand) cand.innerHTML = '<span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);">검색 실패. 코드를 직접 입력하세요</span>'; }
 }
 async function pfStockOpen(spec, keep) {
   _pfStockCur = spec;
@@ -940,7 +940,7 @@ async function pfStockOpen(spec, keep) {
     vs.setData(candles.map(function (c) { return { time: c.time, value: c.volume || 0, color: (c.close >= c.open ? (window.CUP || '#d13c3c') : (window.CDN || '#2a78d6')) + '55' }; }));
     _pfStockLw.timeScale().fitContent();
   } else if (wrap) {
-    wrap.innerHTML = '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:30px;text-align:center;">차트 데이터를 불러오지 못했습니다.</div>';
+    wrap.innerHTML = '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);padding:30px;text-align:center;">데이터 갱신 실패. 잠시 뒤 새로고침 해주세요</div>';
   }
 
   /* 펀더멘털 (P2 — fundamentals.json) */
@@ -953,8 +953,8 @@ async function pfStockOpen(spec, keep) {
       box.innerHTML = (spec.secType === 'etf' || (held && held.secType === 'etf'))
         ? 'ETF 는 개별 기업 재무가 없어 펀더멘털을 제공하지 않습니다.'
         : (isKr
-          ? '데이터 없음 — <code>OPENDART_API_KEY</code> 시크릿 등록 후 일일 런부터 수집됩니다.'
-          : '데이터 없음 — 다음 일일 런에서 수집됩니다(관심목록 등록 종목 대상).');
+          ? '데이터 없음. <code>OPENDART_API_KEY</code> 시크릿 등록 후 일일 런부터 수집됩니다.'
+          : '데이터 없음. 다음 일일 런에서 수집됩니다(관심목록 등록 종목 대상).');
       return;
     }
     // PER/PBR 은 저장 EPS/BPS × 현재가로 재계산(신선도). 실패 시 저장값 폴백.
@@ -972,7 +972,7 @@ async function pfStockOpen(spec, keep) {
       (isKr ? '<div>부채비율 <b>' + fv(row.debtRatio, '%', 0) + '</b></div>' : '<div>실적 발표 <b style="font-size:var(--font-size-xs);">' + (row.earningsDate || '-') + '</b></div>') +
       '</div>' +
       '<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;">' +
-      (isKr ? row.year + '년 사업보고서(OpenDART) 기준 · PER/PBR 은 현재가로 재계산' : 'yfinance 기준 · ' + (row.fetchedAt || '')) + '</div>';
+      (isKr ? row.year + '년 사업보고서(OpenDART) 기준 · PER/PBR 은 현재가로 재계산' : '야후 파이낸스 기준 · ' + (row.fetchedAt || '')) + '</div>';
   });
 
   /* 메르 언급 */
@@ -1041,7 +1041,7 @@ function _pfFlowsRender(spec, q) {
 
   box.innerHTML =
     '<div class="widget" style="margin-bottom:12px;">' +
-    '<h3 class="widget-title">수급 — 투자자별 순매수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 주 · 토스증권 Open API · 수집 ' + pfEsc(gen) + '</span></h3>' +
+    '<h3 class="widget-title">수급. 투자자별 순매수 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: 주 · 토스증권 Open API · 수집 ' + pfEsc(gen) + '</span></h3>' +
     '<div style="height:190px;"><canvas id="pfFlowsCanvas"></canvas></div>' +
     (stat.length ? '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:var(--font-size-xs);color:var(--c-txt);font-family:var(--font-num);">' + stat.map(function (s) { return '<span>' + s + '</span>'; }).join('') + '</div>' : '') +
     '</div>';

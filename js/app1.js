@@ -338,7 +338,7 @@ function _refreshFeedback(btn, state, msg) {
     btn.style.background = 'color-mix(in srgb, var(--ind-pos) 18%, transparent)';
     btn.style.borderColor = 'color-mix(in srgb, var(--ind-pos) 40%, transparent)';
     btn.style.color = 'var(--ind-pos)';
-    _a11ySay(msg ? ('데이터 갱신 완료 — ' + msg) : '데이터 갱신 완료');
+    _a11ySay(msg ? ('데이터 갱신 완료. ' + msg) : '데이터 갱신 완료');
     restore(1400);
   } else if(state === 'warn') {
     btn.disabled = false;
@@ -346,7 +346,7 @@ function _refreshFeedback(btn, state, msg) {
     btn.style.background = 'color-mix(in srgb, var(--c-warn) 15%, transparent)';
     btn.style.borderColor = 'color-mix(in srgb, var(--c-warn) 40%, transparent)';
     btn.style.color = 'var(--c-warn)';
-    _a11ySay(msg ? ('데이터 일부 갱신 실패 — ' + msg) : '데이터 일부 갱신 실패');
+    _a11ySay(msg ? ('데이터 일부 갱신 실패. ' + msg) : '데이터 일부 갱신 실패. 잠시 뒤 새로고침 해주세요');
     restore(1800);
   } else if(state === 'error') {
     btn.disabled = false;
@@ -354,7 +354,7 @@ function _refreshFeedback(btn, state, msg) {
     btn.style.background = 'color-mix(in srgb, var(--ind-neg) 15%, transparent)';
     btn.style.borderColor = 'color-mix(in srgb, var(--ind-neg) 40%, transparent)';
     btn.style.color = 'var(--ind-neg)';
-    _a11ySay(msg ? ('데이터 갱신 실패 — ' + msg) : '데이터 갱신 실패');
+    _a11ySay(msg ? ('데이터 갱신 실패. ' + msg) : '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요');
     restore(2200);
   } else if(state === 'reset') {
     btn.textContent      = btn._refreshOrig || '새로고침';
@@ -527,7 +527,7 @@ function injectChartRefreshButtons() {
     // font-size 종수를 늘리던 자리였다.
     btn.className = 'seed-action-button seed-action-button--variant_ghost'
                   + ' seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly';
-    btn.setAttribute('aria-label', '이 위젯 데이터 새로고침');
+    btn.setAttribute('aria-label', '필드 데이터 새로고침');
     btn.innerHTML = '<span class="mat" aria-hidden="true">refresh</span>';
     btn.onclick = (e) => { e.stopPropagation(); refreshChartByCanvasId(id, btn); };
     title.appendChild(btn);
@@ -563,7 +563,7 @@ function injectChartRefreshButtons() {
     // font-size 종수를 늘리던 자리였다.
     btn.className = 'seed-action-button seed-action-button--variant_ghost'
                   + ' seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly';
-    btn.setAttribute('aria-label', '이 위젯 데이터 새로고침');
+    btn.setAttribute('aria-label', '필드 데이터 새로고침');
     btn.innerHTML = '<span class="mat" aria-hidden="true">refresh</span>';
     btn.onclick = (e) => { e.stopPropagation(); try { handler(btn); } catch(_) { refreshAllData(btn); } };
     title.appendChild(btn);
@@ -1546,7 +1546,7 @@ function econNoticeUnknownPage(name) {
     box.className = 'econ-notice';
     box.setAttribute('role', 'status');
     var msg = document.createElement('span');
-    msg.textContent = '‘' + String(name).slice(0, 40) + '’ 화면이 없습니다 — 대시보드로 왔습니다.';
+    msg.textContent = '‘' + String(name).slice(0, 40) + '’ 화면이 없습니다. 대시보드로 왔습니다.';
     var open = document.createElement('button');
     open.type = 'button';
     open.className = 'btn-plain econ-notice__act';
@@ -1757,7 +1757,7 @@ const krRegionMapShapes = [
   {code:'50', label:'제주', labelX:175, labelY:460, path:'M 140 445 L 200 440 L 220 460 L 200 475 L 150 475 L 135 460 Z'},
 ];
 
-// 시군구별 아파트 매매가격지수 변동률 (전월比, %) — 시도 클릭 시 드릴다운 표시.
+// 시군구별 아파트 매매가격지수 변화율 (전월比, %) — 시도 클릭 시 드릴다운 표시.
 // 17개 시도 전체에 대해 시군구 분포 시드를 제공한다 (한국부동산원 R-ONE 전국주택가격동향조사
 // 2026년 4월 기준). data.json 의 realestate.kr.region_sub[코드] 가 채워지면 그 라이브 값으로
 // 자동 대체된다(_getSubRegions). 세종(36)은 시군구 분류가 없는 단층 광역시라 드릴다운 대신
@@ -2012,8 +2012,8 @@ function openRegionDrill(d, sub) {
   const period  = sub.period || '최근월';
   const fmt = v => (v >= 0 ? '+' : '') + Number(v).toFixed(2);
   const subs = sub.subs.slice().filter(s => s && typeof s.val === 'number').sort((a,b) => b.val - a.val);
-  if(titleEl) titleEl.textContent = `${d.label} · 시군구별 아파트 매매가격지수 변동률`;
-  if(metaEl)  metaEl.textContent  = `${period} 기준 · 전월比 % · 한국부동산원 R-ONE`;
+  if(titleEl) titleEl.textContent = `${d.label} · 시군구별 아파트 매매가격지수 변화율`;
+  if(metaEl)  metaEl.textContent  = `${period} 기준 · 전월 대비 % · 한국부동산원 R-ONE`;
   // 요약 카드 3개: 시도 변동률 / 상위 2 / 하위 2
   if(sumEl) {
     const top2 = subs.slice(0, 2);
@@ -2021,7 +2021,7 @@ function openRegionDrill(d, sub) {
     const chip = (s, color) => `<div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);line-height:1.5;">${s.name} <span style="color:${color};">${fmt(s.val)}%</span></div>`;
     sumEl.innerHTML = `
       <div style="background:var(--c-surface);border-radius:var(--r-sm);padding:10px;">
-        <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:2px;">${d.label} 변동률</div>
+        <div style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:2px;">${d.label} 변화율</div>
         <div style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);color:${d.val>=0?window.CUP:window.CDN};">${fmt(d.val)}%</div>
       </div>
       <div style="background:var(--c-surface);border-radius:var(--r-sm);padding:10px;border-left:3px solid var(--c-up);">
@@ -2207,7 +2207,7 @@ function closeInfoModal() {
 // ── 접근성 보강: 폼 라벨(aria-label) · 장식 스파크라인 aria-hidden · 사이드바 랜드마크 ──
 (function(){
   var LABELS = {
-    pfSymbolInput:'종목코드 또는 티커', pfAddAvg:'평균 매입가', pfAddQty:'보유 수량', pfAddGroup:'그룹 선택',
+    pfSymbolInput:'종목 코드 입력', pfAddAvg:'평균 매입가', pfAddQty:'보유 수량', pfAddGroup:'그룹 선택',
     pfAlertType:'알림 종류', pfAlertMaPair:'이동평균 조합', pfAlertLimit:'알림 빈도 제한', pfAlertValue:'알림 기준값',
     noteTitle:'노트 제목(필수)', noteAuthor:'작성자(필수)', noteBody:'노트 본문',
     noteMacro:'거시경제 메모', noteEquity:'주식 메모', noteBond:'금리 메모', noteFx:'환율 메모', noteCom:'원자재 메모', noteRE:'부동산 메모',
@@ -2241,7 +2241,7 @@ function closeInfoModal() {
 const LOAN_REG_DETAIL = {
   LTV: {
     title: 'LTV · 담보인정비율 (Loan To Value)',
-    meta: '주택 담보가치 대비 대출 한도 — 단위 %',
+    meta: '주택 담보가치 대비 대출 한도. 단위 %',
     rows: [
       ['정의', '주택의 담보가치(KB시세·감정가) 대비 빌릴 수 있는 최대 대출액 비율. <b>LTV 70%</b> = 6억 주택이면 최대 4.2억.'],
       ['규제지역', '투기과열지구·조정대상지역은 강화 적용(예: <b>40%</b>대), 비규제지역은 완화(<b>70%</b>대).'],
@@ -2252,7 +2252,7 @@ const LOAN_REG_DETAIL = {
   },
   DTI: {
     title: 'DTI · 총부채상환비율 (Debt To Income)',
-    meta: '연소득 대비 (해당 주담대 원리금 + 기타대출 이자) 비율 — 단위 %',
+    meta: '연소득 대비 (해당 주담대 원리금 + 기타대출 이자) 비율. 단위 %',
     rows: [
       ['정의', '연소득 대비 <b>해당 주택담보대출의 원리금 + 기타 대출의 이자</b> 합계 비율. 소득 대비 상환 부담을 본다.'],
       ['산식', 'DTI = (주담대 연원리금 + 기타대출 연이자) ÷ 연소득 × 100.'],
@@ -2262,7 +2262,7 @@ const LOAN_REG_DETAIL = {
   },
   DSR: {
     title: 'DSR · 총부채원리금상환비율 (Debt Service Ratio)',
-    meta: '연소득 대비 모든 대출의 원리금 합계 비율 — 단위 %',
+    meta: '연소득 대비 모든 대출의 원리금 합계 비율. 단위 %',
     rows: [
       ['정의', '연소득 대비 보유한 <b>모든 대출(주담대·신용·전세·카드론 등)의 연간 원리금 합계</b> 비율. 가장 포괄적인 규제.'],
       ['차주단위 한도', '은행권 <b>40%</b>, 2금융권 <b>50%</b>가 일반 기준. 1억원 초과 대출 보유 차주에 적용 확대.'],
@@ -2316,7 +2316,7 @@ function showSubscriptionDetail(regionKey) {
   const sub = ((_latestDataForIndicators||{}).subscription) || {};
   const liveList = (sub.byRegion && Array.isArray(sub.byRegion[regionKey])) ? sub.byRegion[regionKey] : null;
 
-  let body = `<div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:8px;">세부 지역 · ${r.label} 1순위 평균 경쟁률 <b>${r.rate || '—'}</b> <span style="color:var(--c-txt-dim);">(경쟁률은 수집 경로가 없다 — 종전 표기는 상수였다)</span></div>`;
+  let body = `<div style="font-size:var(--font-size-sm);color:var(--c-txt-dim);margin-bottom:8px;">세부 지역 · ${r.label} 1순위 평균 경쟁률 <b>${r.rate || '—'}</b> <span style="color:var(--c-txt-dim);">(경쟁률은 수집 경로가 없다. 종전 표기는 상수였다)</span></div>`;
   // 세부 지역 칩
   body += `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">` +
     r.subs.map(s=>`<span style="background:var(--c-card-hi);border:1px solid var(--c-border);border-radius:var(--r-lg);padding:4px 11px;font-size:11.5px;color:var(--c-txt);">${s}</span>`).join('') +
@@ -2350,7 +2350,7 @@ function showSubscriptionDetail(regionKey) {
   }
   const meta = (sub.lastFetched ? `청약홈 수집: ${new Date(sub.lastFetched).toLocaleDateString('ko-KR')} · ` : '') +
     `<a href="https://www.applyhome.co.kr" target="_blank" rel="noopener noreferrer" style="color:var(--c-primary);">청약홈에서 보기 →</a>`;
-  openInfoModal(`청약 경쟁률 — ${r.label}`, meta, body);
+  openInfoModal(`청약 경쟁률: ${r.label}`, meta, body);
 }
 
 function _regionColorForVal(v) {
@@ -2372,7 +2372,7 @@ function buildKoreaRegionMap() {
     // 정렬: 등락률 내림차순
     const sorted = krRegionData.filter(r => r.val != null).sort((a,b)=>b.val-a.val);
     if(!sorted.length) {
-      showNoDataOverlay('reRegionChart', '시도별 등락률이 이번 수집에 없습니다(R-ONE 미응답) — 다음 수집에서 채워집니다.');
+      showNoDataOverlay('reRegionChart', '시도별 등락률이 이번 수집에 없습니다(R-ONE 미응답). 다음 수집에서 채워집니다.');
     } else hideNoDataOverlay('reRegionChart');
     if(sorted.length) charts['reRegionChart'] = new Chart(regionCtx, {
       type:'bar',
@@ -2388,7 +2388,7 @@ function buildKoreaRegionMap() {
                 y:{ticks:{color:tc.txt,font:{size:9},callback:v=>(v>=0?'+':'')+v.toFixed(2)+'%'},grid:{color:tc.grid}}},
         plugins:{legend:{display:false},
           tooltip:{backgroundColor:tc.tooltip,titleColor:tc.ttTitle,bodyColor:tc.ttBody,borderColor:tc.ttBorder,borderWidth:1,
-            callbacks:{label:c=>(c.parsed.y>=0?'+':'')+c.parsed.y.toFixed(2)+'%'+( _getSubRegions(sorted[c.dataIndex] && sorted[c.dataIndex].code) ? '  · 클릭 → 시군구' : '' )}}}}
+            callbacks:{label:c=>(c.parsed.y>=0?'+':'')+c.parsed.y.toFixed(2)+'%'+( _getSubRegions(sorted[c.dataIndex] && sorted[c.dataIndex].code) ? '' : '' )}}}}
     });
   }
   // 지도 빌드 — SVG (실제 지리 윤곽 기반)
@@ -2901,7 +2901,7 @@ function buildUsReCharts() {
           plugins: {
             legend:{display:false},
             tooltip:{ backgroundColor:tc.tooltip, titleColor:tc.ttTitle, bodyColor:tc.ttBody, borderColor:tc.ttBorder,
-              callbacks:{ label: c => (c.parsed.x>=0?'+':'')+c.parsed.x.toFixed(2)+'% 전월比' } },
+              callbacks:{ label: c => (c.parsed.x>=0?'+':'')+c.parsed.x.toFixed(2)+'% 전월 대비' } },
           },
         },
       });
@@ -3398,7 +3398,7 @@ function renderAnnotations(chartName) {
     html+=`<button onclick="removeAnnotation('${chartName}',${i})" style="background:none;border:none;color:var(--c-txt-dim);cursor:pointer;font-size:var(--font-size-sm);padding:0 2px;line-height:1;">✕</button>`;
     html+=`</span>`;
   });
-  if(pend) html+=`<span class="ann-pending"><span class="dot"></span>시작점 ${pend.label} 선택됨 — 끝점을 클릭하면 구간 수익률이 계산됩니다</span>`;
+  if(pend) html+=`<span class="ann-pending"><span class="dot"></span>시작점 ${pend.label} 선택됨. 끝점을 클릭하면 구간 수익률이 계산됩니다</span>`;
   el.innerHTML=html;
 }
 
@@ -3444,7 +3444,7 @@ function initMainChart(unit, customPriceData) {
       mainAllData = real;
       hideNoDataOverlay('mainChart');
     } else {
-      showNoDataOverlay('mainChart', 'KOSPI 시계열 데이터가 아직 수집되지 않았습니다. 다음 자동 업데이트(매 정각) 후 표시됩니다.');
+      showNoDataOverlay('mainChart', 'KOSPI 데이터 수집중');
       return;
     }
   }
@@ -3547,7 +3547,7 @@ function applyBondCustomRange() {
       showNoDataOverlay('bondChart', `${from} ~ ${to} 구간에 데이터가 없습니다.`);
     }
   } else {
-    showNoDataOverlay('bondChart', `${from} ~ ${to} 구간의 국채 수익률 시계열 데이터가 아직 수집되지 않았습니다.`);
+    showNoDataOverlay('bondChart', `${from} ~ ${to} 구간의 국채 수익률 데이터 수집중`);
   }
 }
 function resetBondCustomRange() {
@@ -3617,7 +3617,7 @@ function applyCustomRange(which) {
     const to   = document.getElementById('fxDateTo').value;
     if(!from || !to) return;
     if(!fxAllSeries) {
-      showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다.');
+      showNoDataOverlay('fxChart', '환율 데이터 수집중');
       return;
     }
     const filtered = sliceByDateRange(fxAllSeries, from, to);
@@ -3658,8 +3658,8 @@ function buildGlobalTable() {
   const fmtVal = v => v == null ? skel('60%')
     : v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
   tb.innerHTML = globalIndices.map((d,i)=>`
-    <tr aria-selected="${i===mainSelectedGlobalIdx}" title="${d.name} — 행을 누르면 메인 차트가 바뀌어요">
-      <td><button type="button" class="gidx-btn" onclick="selectGlobalIndex(${i},this.closest('tr'))" aria-pressed="${i===mainSelectedGlobalIdx}" aria-label="${d.name} — 메인 차트에 표시">${d.name}</button></td>
+    <tr aria-selected="${i===mainSelectedGlobalIdx}" title="${d.name}. 행을 누르면 메인 차트가 바뀌어요">
+      <td><button type="button" class="gidx-btn" onclick="selectGlobalIndex(${i},this.closest('tr'))" aria-pressed="${i===mainSelectedGlobalIdx}" aria-label="${d.name}. 메인 차트에 표시">${d.name}</button></td>
       <td class="econ-table--num" onclick="selectGlobalIndex(${i},this.parentElement)"><span class="econ-numcell"><span class="econ-numcell__val">${fmtVal(d.val)}</span><span class="econ-numcell__chg">${d.chg == null ? skel('44%') : fmtChg(d.chg)}</span></span></td>
       <td class="econ-table--num econ-table--tiny">
         <button onclick="event.stopPropagation(); showGlobalIndexDetail('${d.name}')" class="seed-action-button seed-action-button--variant_ghost seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_iconOnly" aria-label="${d.name} 상세 차트" title="상세 차트"><span class="mat" aria-hidden="true">candlestick_chart</span></button>
@@ -3708,11 +3708,11 @@ function _renderReHistChartIndex(histName) {
     각 국가/시장의 대표 주가지수. 시장 전체의 흐름과 투자자 심리를 반영합니다.<br><br>
     <strong>해석:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li>1년 +20% 이상 — 강세장 (불확실성 누적, 차익실현 압력 ↑)</li>
-      <li>1년 +5~+20% — 정상 상승</li>
-      <li>1년 -10~+5% — 보합</li>
-      <li>1년 -20~-10% — 조정 / 약세</li>
-      <li>1년 -20% 이하 — 베어마켓 (경기침체 시그널)</li>
+      <li>1년 +20% 이상. 강세장 (불확실성 누적, 차익실현 압력 ↑)</li>
+      <li>1년 +5~+20%. 정상 상승</li>
+      <li>1년 -10~+5%. 보합</li>
+      <li>1년 -20~-10%. 조정 / 약세</li>
+      <li>1년 -20% 이하. 베어마켓 (경기침체 시그널)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 단기 변동성보다 장기 추세 (분기/연) 단위로 보는 것이 노이즈 적음.`;
   if(guideEl) {
@@ -3720,13 +3720,13 @@ function _renderReHistChartIndex(histName) {
     guideEl.style.display = 'block';
     guideEl.style.borderLeftColor = 'var(--c-accent)';
   }
-  if(metaEl) metaEl.innerHTML = `<span style="color:var(--c-primary);">단위:</span> ${unit||'지수'} &nbsp; <span style="color:var(--c-primary);">출처:</span> yfinance / data.json.history.indices`;
+  if(metaEl) metaEl.innerHTML = `<span style="color:var(--c-primary);">단위:</span> ${unit||'지수'} &nbsp; <span style="color:var(--c-primary);">출처:</span> 야후 파이낸스`;
   destroyChart('reHistChart');
   if(typeof _setReHistEmpty==='function') _setReHistEmpty('');
   // 데이터 추출 — data.json.history.indices
   const real = (typeof getHistoricalSeries === 'function') ? getHistoricalSeries('indices', histName) : null;
   if(!real || real.length < 2) {
-    if(noteEl) noteEl.textContent = `${title} 시계열 데이터 없음 — 데이터 갱신 시 자동 표시됩니다.`;
+    if(noteEl) noteEl.textContent = `${title} 시계열 데이터 없음. 데이터 갱신 시 자동 표시됩니다.`;
     return;
   }
   const labels = real.map(p => (typeof p.x === 'string' ? p.x : (p.date || ''))).filter(Boolean);
@@ -3736,7 +3736,7 @@ function _renderReHistChartIndex(histName) {
     return;
   }
   const resampled = _resampleHistSeries(labels, values, period, timeUnit);
-  if(noteEl) noteEl.textContent = `출처: yfinance${period!=='all'?' · 기간: '+period:''}${timeUnit!=='M'?' · 단위: '+({Q:'분기',H:'반기',Y:'연'}[timeUnit]||timeUnit):''}`;
+  if(noteEl) noteEl.textContent = `출처: 야후 파이낸스${period!=='all'?' · 기간: '+period:''}${timeUnit!=='M'?' · 단위: '+({Q:'분기',H:'반기',Y:'연'}[timeUnit]||timeUnit):''}`;
   const ctx = document.getElementById('reHistChart');
   if(!ctx || !resampled.values.length) return;
   const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
@@ -3776,7 +3776,7 @@ function selectGlobalIndex(idx, el) {
   // 스크린리더용 차트 설명 동적 갱신
   try {
     const cv = document.getElementById('mainChart');
-    if(cv) cv.setAttribute('aria-label', d.name + ' 지수 시계열 차트' + (d.val != null ? ' — 현재 ' + d.val.toLocaleString() + ', 등락 ' + (d.chg == null ? '—' : d.chg.toFixed(2) + '%') : ''));
+    if(cv) cv.setAttribute('aria-label', d.name + ' 지수 시계열 차트' + (d.val != null ? '. 현재 ' + d.val.toLocaleString() + ', 등락 ' + (d.chg == null ? '—' : d.chg.toFixed(2) + '%') : ''));
   } catch(_) {}
   // Rebuild table (for highlight update)
   buildGlobalTable();
@@ -3791,7 +3791,7 @@ function selectGlobalIndex(idx, el) {
   } else {
     mainAllData = [];
     destroyChart('mainChart');
-    showNoDataOverlay('mainChart', `${d.name} 시계열 데이터가 아직 수집되지 않았습니다.`);
+    showNoDataOverlay('mainChart', `${d.name} 데이터 수집중`);
   }
 }
 
@@ -3891,7 +3891,7 @@ function _sentCaption(elId, asOf, base) {
     cap.textContent = base + ' · 기준 ' + dateStr;
     const age = (Date.now() - new Date(dateStr).getTime()) / 864e5;
     cap.style.color = age > 3 ? 'var(--c-warn)' : '';
-    cap.title = age > 3 ? `기준일이 ${Math.round(age)}일 지났습니다 — 수집 실패로 직전 값이 유지되고 있을 수 있습니다` : '';
+    cap.title = age > 3 ? `기준일이 ${Math.round(age)}일 지났습니다. 데이터 갱신에 실패해 직전 값이 표시되고 있을 수 있습니다` : '';
   } else {
     cap.textContent = base;
     cap.style.color = '';
@@ -4111,13 +4111,13 @@ function buildMoverTable(dir) {
     const diag = (_latestDataForIndicators || {}).diagnostics || {};
     const srvSrc = diag.stockMoversSource;
     const diagLine = srvSrc
-      ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">서버측 소스 상태: ${srvSrc==='FAILED'?'<span style=\"color:var(--ind-neg)\">서버 수집 실패 (한국거래소·네이버 모두 응답 없음)</span>':srvSrc}</div>`
+      ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">출처 상태: ${srvSrc==='FAILED'?'<span style=\"color:var(--ind-neg)\">데이터 갱신 실패. 잠시 뒤 새로고침 해주세요</span>':srvSrc}</div>`
       : '';
     const stateMsg = isLoading
       ? `<div style="margin-bottom:4px;">📡 종목 데이터 가져오는 중…</div>
-         <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">클라이언트 시도 ${_clientMoverFetchAttempts}/${_MAX_AUTO_MOVER_FETCH}</div>
+         <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">시도 ${_clientMoverFetchAttempts}/${_MAX_AUTO_MOVER_FETCH}</div>
          ${diagLine}`
-      : `<div style="margin-bottom:4px;color:var(--c-warn);">실시간 시세를 불러오지 못했습니다 (네트워크 차단 또는 일시 오류)</div>
+      : `<div style="margin-bottom:4px;color:var(--c-warn);">데이터 갱신 실패. 잠시 뒤 새로고침 해주세요</div>
          <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-bottom:6px;">${_clientMoverLastError || '여러 차례 시도했으나 응답 없음'}</div>
          ${diagLine}`;
     tb.innerHTML = `<tr><td colspan="4" style="padding:16px;text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-sm);">
@@ -4139,7 +4139,7 @@ function buildMoverTable(dir) {
   }
   tb.innerHTML = data.map(d=>`
     <tr style="border-bottom:1px solid var(--c-border);">
-      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="${escapeHtml(d.name)} — 네이버 증권에서 보기">${escapeHtml(d.name)}</a>${d.type==='etf'?'<span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-left:4px;">ETF</span>':''}</td>
+      <td style="padding:5px 0;"><a href="${naverStockUrl(d)}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;border-bottom:1px dotted transparent;" onmouseover="this.style.borderBottomColor='currentColor'" onmouseout="this.style.borderBottomColor='transparent'" title="${escapeHtml(d.name)}. 네이버 증권에서 보기">${escapeHtml(d.name)}</a>${d.type==='etf'?'<span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-left:4px;">ETF</span>':''}</td>
       <td style="text-align:right;padding:5px;">${d.price}</td>
       <td style="text-align:right;padding:5px;" class="${isUp?'up-txt':'down-txt'}">${d.chg}</td>
       <td style="text-align:right;padding:5px;color:var(--c-txt-dim);">${d.vol||'—'}</td>
@@ -4547,7 +4547,7 @@ async function refreshNews(feedId, arrName, btn) {
     }
   } catch(e) {
     console.warn('refresh failed', e);
-    _refreshFeedback(btn, 'error', '네트워크 오류');
+    _refreshFeedback(btn, 'error', '갱신 실패');
   }
 }
 
@@ -4700,7 +4700,7 @@ function toggleFxDir() {
   fxInverted = !fxInverted;
   updateFxHeader();
   if(!fxAllSeries) {
-    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('fxChart', '환율 데이터 수집중');
     return;
   }
   hideNoDataOverlay('fxChart');
@@ -4730,7 +4730,7 @@ function selectFxPair(idx, el) {
   } else {
     fxAllSeries = null;
     destroyChart('fxChart');
-    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다. data.json 의 history.fx 필드에 yfinance 데이터가 채워지면 표시됩니다.');
+    showNoDataOverlay('fxChart', '환율 데이터 수집중');
   }
 }
 
@@ -4748,7 +4748,7 @@ function setFxPeriod(p, btn) {
   }
   if(panel) panel.style.display='none';
   if(!fxAllSeries) {
-    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('fxChart', '환율 데이터 수집중');
     return;
   }
   hideNoDataOverlay('fxChart');
@@ -4811,7 +4811,7 @@ function updateFxHeader() {
       const lu = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators.lastUpdated : null;
       const dt = lu ? new Date(lu) : new Date();
       const tsStr = dt.toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
-      const srcLabel = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators?.sources?.fx) || 'open.er-api.com + yfinance';
+      const srcLabel = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators?.sources?.fx) || 'open.er-api.com + 야후 파이낸스';
       asOfEl.textContent = `기준 시점: ${tsStr} · 출처: ${srcLabel}`;
     }
   }
@@ -4925,7 +4925,7 @@ function buildFxPage() {
   } else {
     fxAllSeries = null;
     destroyChart('fxChart');
-    showNoDataOverlay('fxChart', '실시간 환율 시계열 데이터가 아직 수집되지 않았습니다. data.json 의 history.fx 필드가 채워지면 표시됩니다.');
+    showNoDataOverlay('fxChart', '환율 데이터 수집중');
   }
   updateFxHeader();
   // FX 테이블 — displayMult 반영 (100 JPY 기준 등)
@@ -5118,7 +5118,7 @@ async function buildBondTimeSeriesFromYC(cc, bondItem) {
   const fromLocal = yieldCurveData[fallbackKey];
   const yc = fromData || fromLocal;
   if(!yc) {
-    showNoDataOverlay('bondChart', `${bondItem.label} 시계열 데이터가 아직 수집되지 않았습니다. (현재: ${bondItem.rate})`);
+    showNoDataOverlay('bondChart', `${bondItem.label} 데이터 수집중 (현재: ${bondItem.rate})`);
     return;
   }
   // 1) data.json에 series가 있으면 사용 (FRED DGS 1년치)
@@ -5151,7 +5151,7 @@ function buildBondPage() {
   // Bond table (clickable)
   const tb = document.getElementById('bondTable');
   if(tb) tb.innerHTML = bondItems.map((b,i)=>`
-    <tr onclick="selectBond(${i},this)" style="border-bottom:1px solid var(--c-border);cursor:pointer;${i===bondCurrentIdx?'border-left:2px solid var(--c-accent)':''}" title="클릭하면 차트 업데이트">
+    <tr onclick="selectBond(${i},this)" style="border-bottom:1px solid var(--c-border);cursor:pointer;${i===bondCurrentIdx?'border-left:2px solid var(--c-accent)':''}">
       <td style="padding:8px 4px;"><button type="button" class="btn-plain btn-inline">${b.label}</button></td>
       <td style="text-align:right;padding:8px;">${b.rate}</td>
       <td style="text-align:right;padding:8px;" class="${b.chg.startsWith('-')?'down-txt':'up-txt'}">${b.chg}</td>
@@ -5244,11 +5244,11 @@ function buildYieldCurveChart(bondCC) {
   document.querySelectorAll('.ycCompareBtn').forEach(btn => {
     const ok = _hasCurve(yc[_yieldCurveCompareKeys[btn.dataset.cmp]]);
     btn.disabled = !ok;
-    btn.title = ok ? '' : '이 시점 곡선은 아직 수집되지 않았습니다';
+    btn.title = ok ? '' : '이 시점 곡선 데이터 수집중';
     btn.style.opacity = ok ? '' : '0.4';
   });
   if(!_hasCurve(yc.current)) {
-    showNoDataOverlay('yieldCurveChart', '수익률 곡선 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('yieldCurveChart', '수익률 곡선 데이터 수집중');
     return;
   }
   hideNoDataOverlay('yieldCurveChart');
@@ -5503,13 +5503,13 @@ function selectEquityIndex(idx, btn) {
   } else {
     equityAllSeries = null;
     destroyChart('equityIndexChart');
-    showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('equityIndexChart', '지수 데이터 수집중');
   }
 }
 
 function renderEquityChart() {
   if(!equityAllSeries) {
-    showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('equityIndexChart', '지수 데이터 수집중');
     return;
   }
   hideNoDataOverlay('equityIndexChart');
@@ -5567,7 +5567,7 @@ function buildInvestorChart() {
     // (2026~ KRX 정보데이터시스템 로그인 요구로 비는 경우가 대표적 → Secrets KRX_ID/KRX_PW 안내)
     const _diag = (_latestDataForIndicators && _latestDataForIndicators.diagnostics) || {};
     const _reason = _diag.investorTradingReason
-      || '투자자별 순매매 실시간 데이터(KRX)를 수집 중입니다. 다음 자동 갱신 시 반영됩니다.';
+      || '투자자별 순매매 데이터 수집중';
     if(typeof showNoDataOverlay==='function') showNoDataOverlay('investorChart', _reason);
     const tb0 = document.getElementById('investorSummaryTable');
     if(tb0) tb0.innerHTML = '<tr><td colspan="4" style="padding:12px;text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-sm);">'+_reason+'</td></tr>';
@@ -5694,7 +5694,7 @@ function buildEquityPage() {
   } else {
     equityAllSeries = null;
     destroyChart('equityIndexChart');
-    showNoDataOverlay('equityIndexChart', '실시간 지수 시계열 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('equityIndexChart', '지수 데이터 수집중');
   }
   buildInvestorChart();
   // 투자자별 순매매 — 기본 조회 기간을 '일주일(1W)'로 최초 1회 적용 (2026-06 사용자 요청 기본값).
@@ -5780,7 +5780,7 @@ function buildEquityRankings() {
 // KOSDAQ 표 = stockMovers.kosdaqGainers/Losers, 시장 폭 = marketBreadth, 업종 = sectorMoves.
 // 셋 다 첫 수집 전·실패 시 키째 없을 수 있다 → 고르기 칩·위젯을 숨긴다(다른 값으로 메우지 않는다).
 let _eqMoverMkt = 'KOSPI';
-const _PRESERVED_CHIP = '<span class="w-fresh-chip" style="color:var(--c-warn);cursor:default;" title="이번 수집이 실패해 직전 값을 보여줍니다">이전 값</span>';
+const _PRESERVED_CHIP = '<span class="w-fresh-chip" style="color:var(--c-warn);cursor:default;" title="데이터 갱신에 실패해 직전 값 표시 중">이전 값</span>';
 function _eqMd(iso) { const m = /^\d{4}-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? m[1] + '.' + m[2] : String(iso || ''); }
 function _eqVolFmt(v) {
   if(v == null || v === '' || v === '—') return '—';
@@ -6011,7 +6011,7 @@ function buildComDetailChartMulti() {
   });
   // 하나라도 실데이터가 없으면 안내 메시지
   if(!anyReal || seriesPerSel.some(s => !s)) {
-    showNoDataOverlay('comDetailChart', '원자재 시계열 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('comDetailChart', '원자재 데이터 수집중');
     return;
   }
   hideNoDataOverlay('comDetailChart');
@@ -6184,7 +6184,7 @@ async function refreshFreight(btn) {
     if(typeof loadRealData === 'function') await loadRealData().catch(()=>{});  // data.json 재페치(freight 포함)
     if(typeof buildFreightTable === 'function') buildFreightTable();
     const n = ((((_latestDataForIndicators||{}).freight)||{}).items||[]).length;
-    if(btn && typeof _refreshFeedback === 'function') _refreshFeedback(btn, n ? 'success' : 'warn', n ? `${n}건` : '수집 중');
+    if(btn && typeof _refreshFeedback === 'function') _refreshFeedback(btn, n ? 'success' : 'warn', n ? `${n}건` : '수집중');
   } catch(e) {
     if(btn && typeof _refreshFeedback === 'function') _refreshFeedback(btn, 'error', '실패');
   }
@@ -6312,10 +6312,10 @@ function cpcProbUrl(year) {
 const ensoForecastSources = [
   { region:'🇺🇸 미국', label:'NOAA CPC ENSO 확률', embed:'cpcProb',
     page:'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso/roni/probabilities/' },
-  { region:'🇺🇸 미국', label:'NOAA CFSv2 Niño3.4 예측',
+  { region:'🇺🇸 미국', label:'NOAA CFSv2 Niño3.4 전망',
     embed:'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/imagesInd3/nino34Mon.gif',
     page:'https://www.cpc.ncep.noaa.gov/products/people/wwang/cfsv2fcst/' },
-  { region:'🇺🇸 미국', label:'IRI ENSO 예측',
+  { region:'🇺🇸 미국', label:'IRI ENSO 전망',
     page:'https://iri.columbia.edu/our-expertise/climate/forecasts/enso/current/' },
   { region:'🇪🇺 유럽', label:'ECMWF SEAS5 Niño plume',
     page:'https://charts.ecmwf.int/products/seasonal_system5_standard_nino_plumes' },
@@ -6347,7 +6347,7 @@ function ensoMacroHTML(phaseKey, live) {
   if (!imp || !imp.map || !imp.map[phaseKey]) {
     return `<div style="background:var(--c-bg);border:1px dashed var(--c-border);border-radius:var(--r-sm);padding:18px 14px;text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-sm);line-height:1.7;">
       기후–거시경제 파급 데이터 갱신 대기 중<br>
-      <span style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">다음 일일 수집(NOAA ONI) 후 자동 표시됩니다 — 값을 임의로 채우지 않습니다.</span>
+      <span style="font-size:var(--font-size-sm);color:var(--c-txt-muted);">다음 일일 수집(NOAA ONI) 후 자동 표시됩니다. 값을 임의로 채우지 않습니다.</span>
     </div>`;
   }
   const node = imp.map[phaseKey];
@@ -6375,7 +6375,7 @@ function ensoMacroHTML(phaseKey, live) {
     </div>`;
   } else {
     gauge = `<div style="margin:2px 0 14px;font-size:var(--font-size-sm);color:var(--c-txt-muted);background:var(--c-bg);border:1px solid var(--c-border);border-radius:var(--r-sm);padding:7px 10px;line-height:1.6;">
-      ℹ️ 가정 시나리오 — 현재 실측 국면은 <b style="color:var(--c-txt-dim);">${ensoPhaseLabel(imp.activePhase)}</b> 입니다. 이 탭은 <b style="color:var(--c-txt-dim);">${ensoPhaseLabel(phaseKey)}</b> 국면의 전형 패턴을 보여줍니다.
+      ℹ️ 가정 시나리오. 현재 실측 국면은 <b style="color:var(--c-txt-dim);">${ensoPhaseLabel(imp.activePhase)}</b> 입니다. 이 탭은 <b style="color:var(--c-txt-dim);">${ensoPhaseLabel(phaseKey)}</b> 국면의 전형 패턴을 보여줍니다.
     </div>`;
   }
   // 위험/기회/혼조 범례
@@ -6409,7 +6409,7 @@ function ensoMacroHTML(phaseKey, live) {
   </div>`;
   return `<div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-      <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.03em;">③ 시간축 거시 파급 — 신호등 매트릭스</span>
+      <span style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.03em;">③ 시간축 거시 파급. 신호등 매트릭스</span>
       <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-bold);color:${conf.c};border:1px solid ${conf.c}66;border-radius:var(--r-full);padding:1px 8px;">${conf.t}</span>
     </div>
     ${gauge}${legend}
@@ -6436,14 +6436,14 @@ function ensoTrendForecastHTML(live){
       <figcaption style="font-size:var(--font-size-xs);color:var(--c-txt-dim);margin-bottom:3px;">${cap}</figcaption>
       <img src="${src}" loading="lazy" referrerpolicy="no-referrer" alt="${cap}" style="max-width:100%;border:1px solid var(--c-border);border-radius:var(--r-xs);display:block;"
            onerror="this.style.display='none';this.nextElementSibling.style.display='inline-block';">
-      <a href="${page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:var(--font-size-sm);color:var(--c-primary);">이미지 불러오기 실패 — 원본 보기 ↗</a>
+      <a href="${page}" target="_blank" rel="noopener noreferrer" style="display:none;font-size:var(--font-size-sm);color:var(--c-primary);">이미지 불러오기 실패. 출처에서 보기 ↗</a>
     </figure>`;
   // 공식 예측 블록 — 원본 이미지(확률 PNG·수치 플룸 GIF)만.
   const forecastBlock = `
-    <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">공식 예측 <span style="font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">(NOAA CPC 확률 · CFSv2 모델)</span></div>
+    <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">공식 전망 <span style="font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">(NOAA CPC 확률 · CFSv2 모델)</span></div>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
-      ${img(cpc,'🇺🇸 NOAA CPC · 엘니뇨/중립/라니냐 확률 예측',cpcPage)}
-      ${img(plume,'🇺🇸 NOAA CFSv2 · Niño3.4 수치 예측',plumePage)}
+      ${img(cpc,'🇺🇸 NOAA CPC · 엘니뇨/중립/라니냐 확률 전망',cpcPage)}
+      ${img(plume,'🇺🇸 NOAA CFSv2 · Niño3.4 수치 전망',plumePage)}
     </div>`;
   return `<div style="margin-bottom:14px;">
     <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-bold);color:var(--c-primary);letter-spacing:.04em;margin-bottom:6px;">ONI 기온 추이 <span style="font-weight:var(--font-weight-semibold);color:var(--c-txt-muted);">(실측 · 최근 10년)</span></div>
@@ -6464,7 +6464,7 @@ function buildEnsoTrendChart(live){
   if(!cv) return;
   const hist = (live && Array.isArray(live.oni_history)) ? live.oni_history : [];
   if(hist.length < 2){
-    if(typeof showNoDataOverlay==='function') showNoDataOverlay('ensoTrendChart','ONI 추이 데이터 수집 대기 — 다음 일일 수집(NOAA) 후 표시됩니다');
+    if(typeof showNoDataOverlay==='function') showNoDataOverlay('ensoTrendChart','ONI 추이 데이터 수집 대기. 다음 일일 수집(NOAA) 후 표시됩니다');
     return;
   }
   const tc = (typeof getThemeColors==='function') ? getThemeColors() : {txt:'#8d90a2',grid:'#2a2e3d55',tooltip:'#262a35',ttTitle:'#dfe2f2',ttBorder:'#2a2e3d'};
@@ -6543,11 +6543,11 @@ function ensoLeadHTML(s, live) {
     + (downs.length ? downs.join('·') + _koEunNeun(downs[downs.length - 1]) + ' <b class="down-txt">하방</b>' : '') + '이 전형적 패턴';
   const nameOf = (ph, str) => (ph === 'neutral') ? '중립' : ((ENSO_STR_KO[str] ? ensoStrengthLabel(str) + ' ' : '') + ensoPhaseLabel(ph));
   let head;
-  if (!_ensoIsLive(live)) head = '<b>자료 없음</b> — ONI 관측 대기, 아래는 ' + ensoPhaseLabel(ensoCurrent) + ' 국면의 전형 패턴';
-  else if (ensoCurrent !== live.phase) head = '<b>' + ensoPhaseLabel(ensoCurrent) + ' 시나리오</b>(가정) — 지금 실측은 ' + nameOf(live.phase, live.strength);
+  if (!_ensoIsLive(live)) head = '<b>자료 없음</b>. ONI 관측 대기, 아래는 ' + ensoPhaseLabel(ensoCurrent) + ' 국면의 전형 패턴';
+  else if (ensoCurrent !== live.phase) head = '<b>' + ensoPhaseLabel(ensoCurrent) + ' 시나리오</b>(가정). 지금 실측은 ' + nameOf(live.phase, live.strength);
   else if (live.phase === 'neutral') head = '<b>중립</b> 국면' + (ensoTrendLabel(live.trend) ? ', ' + ensoTrendLabel(live.trend) : '');
   else head = '<b>' + nameOf(live.phase, live.strength) + '</b>가 진행 중' + (ensoTrendLabel(live.trend) ? ', ' + ensoTrendLabel(live.trend) : '');
-  return '<p class="econ-lead">' + head + ' — ' + pattern + '</p>';
+  return '<p class="econ-lead">' + head + ': ' + pattern + '</p>';
 }
 
 // ONI 10년 스파크라인 — 회색 띠 = 중립 ±0.5, 점 = 지금(국면색). 축 없음(§6 숫자 칸 규격).
@@ -6602,7 +6602,7 @@ function ensoCommoditiesHTML(s) {
   const left = col('▲ 상방 ' + ups.length, ups);
   const right = col(rightHead, downs.concat(mix));
   const both = left && right;
-  return '<div class="econ-sec"><h4 class="econ-sec__h">원자재 — 어느 방향으로, 얼마나<span>막대 길이 = 변동성(높음·중간·낮음)</span></h4>' +
+  return '<div class="econ-sec"><h4 class="econ-sec__h">원자재. 어느 방향으로, 얼마나<span>막대 길이 = 변동성(높음·중간·낮음)</span></h4>' +
     (both ? '<div class="g-2">' + left + right + '</div>' : (left || right)) + '</div>';
 }
 
@@ -6611,9 +6611,9 @@ function ensoSectorsHTML(s) {
   const LAB = { pos: ['수혜', ''], neg: ['부담', ''], mixed: ['혼조', ''] };   // 방향색은 결론 줄 두 곳만(R5)
   const keyOf = x => (x.effect === 'pos' || x.effect === 'neg') ? x.effect : 'mixed';
   const rows = ['pos', 'neg', 'mixed'].map(k => ({ k, items: s.sectors.filter(x => keyOf(x) === k) })).filter(g => g.items.length);
-  return '<div class="econ-sec"><h4 class="econ-sec__h">국내 섹터 — 수혜와 부담</h4>' + rows.map(g =>
+  return '<div class="econ-sec"><h4 class="econ-sec__h">국내 섹터. 수혜와 부담</h4>' + rows.map(g =>
     '<div class="econ-dir-row econ-dir-row--sec"><span class="econ-dir-row__name ' + LAB[g.k][1] + '">' + LAB[g.k][0] + '</span><span>' +
-    g.items.map(x => '<b>' + x.sector.replace(/\s*\(.*\)\s*$/, '') + '</b><small>' + x.tickers + ' — ' + x.note + '</small>').join(' &nbsp;·&nbsp; ') +
+    g.items.map(x => '<b>' + x.sector.replace(/\s*\(.*\)\s*$/, '') + '</b><small>' + x.tickers + ': ' + x.note + '</small>').join(' &nbsp;·&nbsp; ') +
     '</span></div>').join('') + '</div>';
 }
 
@@ -6621,8 +6621,8 @@ function ensoSectorsHTML(s) {
 const ENSO_FOLDS = [
   { id: 'macro',    label: '시간축 거시 파급',   panel: 'ensoFold-macro' },
   { id: 'basis',    label: '원자재별 근거',      panel: 'ensoFold-basis' },
-  { id: 'oni',      label: 'ONI 추이·공식 예측', panel: 'ensoFold-oni' },
-  { id: 'agencies', label: '다른 기관 예측',     panel: 'ensoFold-agencies' },
+  { id: 'oni',      label: 'ONI 추이·공식 전망', panel: 'ensoFold-oni' },
+  { id: 'agencies', label: '다른 기관 전망',     panel: 'ensoFold-agencies' },
   { id: 'compare',  label: '시나리오 비교',      panel: 'ensoFold-compare' },
   { id: 'src',      label: '출처·산출 방법',     panel: 'ensoFold-src' },
 ];
@@ -6635,7 +6635,7 @@ function ensoAgencyLinksHTML() {
   const noFlag = t => String(t).replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
   return ensoForecastSources.map(src => '<div class="econ-dir-row econ-dir-row--sec"><span class="econ-dir-row__name">' + noFlag(src.region) + '</span>' +
     '<span><a href="' + src.page + '" target="_blank" rel="noopener noreferrer">' + src.label + ' ↗</a></span></div>').join('') +
-    '<p class="econ-cap">각 기관의 공식 예측 페이지. 예보는 갱신·정정될 수 있으며 투자 참고용.</p>';
+    '<p class="econ-cap">각 기관의 공식 전망 페이지. 예보는 갱신·정정될 수 있으며 투자 참고용.</p>';
 }
 function ensoCompareHTML(live) {
   const chips = Object.keys(ENSO_SCENARIOS).map(k => {
@@ -6655,7 +6655,7 @@ function _ensoFoldOpen(id, panel) {
   const s = ENSO_SCENARIOS[ensoCurrent], live = ensoData();
   if (id === 'macro') panel.innerHTML = ensoMacroHTML(ensoCurrent, live);
   else if (id === 'basis') panel.innerHTML = s.commodities.map(c =>
-    '<div class="econ-dir-row econ-dir-row--sec"><span class="econ-dir-row__name">' + c.name + '</span><span>' + _ensoDirWord(c.dir) + ' · 변동성 ' + (ENSO_VOL_KO[c.vol] || c.vol) + ' — ' + c.note + (c.detail ? '<small>' + c.detail + '</small>' : '') + '</span></div>').join('');
+    '<div class="econ-dir-row econ-dir-row--sec"><span class="econ-dir-row__name">' + c.name + '</span><span>' + _ensoDirWord(c.dir) + ' · 변동성 ' + (ENSO_VOL_KO[c.vol] || c.vol) + ': ' + c.note + (c.detail ? '<small>' + c.detail + '</small>' : '') + '</span></div>').join('');
   else if (id === 'oni') { panel.innerHTML = ensoTrendForecastHTML(live); buildEnsoTrendChart(live); }
   else if (id === 'agencies') panel.innerHTML = ensoAgencyLinksHTML();
   else if (id === 'compare') panel.innerHTML = ensoCompareHTML(live);
@@ -6740,7 +6740,7 @@ function buildCommodityPage() {
     });
     const validDs = datasets.filter(d => d != null);
     if(validDs.length === 0) {
-      showNoDataOverlay(canvasId, '시계열 데이터가 아직 수집되지 않았습니다.');
+      showNoDataOverlay(canvasId, '데이터 수집중');
       return;
     }
     hideNoDataOverlay(canvasId);
@@ -6854,7 +6854,7 @@ function buildBaseMetalChart(days) {
   // (삭제) 아연·니켈 — 수집 소스가 없어 정의부 상수 가격 위에 추세+사인파 노이즈로 합성한
   // 가짜 선을 그렸다(2026-09-24 감사). 소스가 생기기 전까지 그리지 않는다(재고는 LME 표가 실측).
   if(!anyReal && !datasets.length) {
-    showNoDataOverlay('baseMetalChart', '비철금속 시계열 데이터가 아직 수집되지 않았습니다.');
+    showNoDataOverlay('baseMetalChart', '비철금속 데이터 수집중');
     return;
   }
   hideNoDataOverlay('baseMetalChart');
@@ -6974,7 +6974,7 @@ function resetLmeHighlight() {
 const MACRO_CCS = ['kr','us','eu','cn','jp','de','uk'];
 const macroData = Object.fromEntries(MACRO_CCS.map(cc => [cc, {gdpLabels:[], gdp:[], cpiLabels:[], cpi:[], unemp:[], exports:[]}]));
 // 계열 정의가 나라마다 다른 곳은 범례에 적는다(같은 축에 다른 정의를 몰래 섞지 않는다).
-const MACRO_DEF_NOTE = { gdp: { kr:' (전기비)', us:' (연율 전기비)', cn:' (연간)' }, exports: { kr:' (월평균)' } };
+const MACRO_DEF_NOTE = { gdp: { kr:' (전기 대비)', us:' (연율 전기 대비)', cn:' (연간)' }, exports: { kr:' (월평균)' } };
 function applyMacroDataFromReal(d) {
   const e = (d && d.economicIndicators) || {};
   const node = (cc, key) => ((e[cc] || {})[key]) || null;
@@ -7070,8 +7070,8 @@ function initMacroTopicPage(topic) {
   ['gdpTopic','cpiTopic','unempTopic','tradeTopic'].forEach(destroyChart);
   const mc = document.getElementById('macroContent');
   const topicMeta = {
-    gdp:   {title:'GDP 성장률 (전년동기비, %)', id:'gdpTopic',   key:'gdp',     labels:'gdpLabels',  unit:'%',  freq:'Q'},
-    cpi:   {title:'소비자물가 CPI (전년비, %)', id:'cpiTopic',   key:'cpi',     labels:'cpiLabels',  unit:'%',  freq:'M'},
+    gdp:   {title:'GDP 성장률 (전년 대비, %)', id:'gdpTopic',   key:'gdp',     labels:'gdpLabels',  unit:'%',  freq:'Q'},
+    cpi:   {title:'소비자물가 CPI (전년 대비, %)', id:'cpiTopic',   key:'cpi',     labels:'cpiLabels',  unit:'%',  freq:'M'},
     unemp: {title:'실업률 (%)',                 id:'unempTopic', key:'unemp',   labels:'gdpLabels',  unit:'%',  freq:'Q'},
     trade: {title:'수출 (억 달러)',             id:'tradeTopic', key:'exports', labels:'gdpLabels',  unit:'억$',freq:'Q'},
   };
@@ -7092,7 +7092,7 @@ function initMacroTopicPage(topic) {
   mc.innerHTML = `
     <div class="widget">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
-        <h3 class="widget-title" style="margin-bottom:0;">${m.title} — 국가별 비교 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: ${m.unit}</span></h3>
+        <h3 class="widget-title" style="margin-bottom:0;">${m.title}. 국가별 비교 <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);font-weight:var(--font-weight-normal);">단위: ${m.unit}</span></h3>
         <div style="display:flex;gap:4px;">
           ${periodOpts.map(o=>{ const on = macroTopicPeriod===o.key; return `<button type="button" onclick="setMacroTopicPeriod('${o.key}','${topic}',this)" class="${on?'active ':''}${CHIP_CLS}" aria-pressed="${on}"${on?' data-checked':''}>${chipLabel(o.label)}</button>`; }).join('')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="${m.id}" onclick="toggleYoY('${m.id}',this)" aria-pressed="false" title="주 국가의 전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
@@ -7109,7 +7109,7 @@ function initMacroTopicPage(topic) {
         <button type="button" onclick="selectAllMacroTopicCountries('${topic}')" class="seed-action-button seed-action-button--variant_neutralOutline seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" style="margin-left:8px;">전체</button>
       </div>
       <div class="h-280" style="position:relative;"><canvas id="${m.id}"></canvas></div>
-      <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">출처: FRED·ECOS·ECB·OECD·ONS 수집값(지표별 원천은 거시 표) · 빈 선 = 미수집</div>
+      <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:6px;text-align:right;">출처: FRED·ECOS·ECB·OECD·ONS 수집값(지표별 출처는 거시 표) · 빈 선 = 수집중</div>
     </div>`;
   const d0 = macroData['kr'];
   const allLabels = d0[m.labels];
@@ -7252,7 +7252,7 @@ const macroIndicators = [
   // 카드를 지운 지표 2건 — fetch_data 가 수집하지 않아 화면에 영구 '—' 로만 떴다(IA v3 P0). jp.cpi_jp 는 DBnomics 로 복구.
   // 되살리려면 수집부터: cn.ip_cn · jp.ip_jp (FRED OECD MEI 계열).
   // 한국 (ECOS)
-  {name:'GDP 성장률 (전기비)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',unit:'% (전기비)',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
+  {name:'GDP 성장률 (전기 대비)',cc:'🇰🇷',cat:'경기',src:'한국은행 ECOS',freq:'분기',unit:'% (전기 대비)',dataPath:'economicIndicators.kr.gdp_kr',fmt:v=>v?.toFixed(2)+'%'},
   {name:'소비자물가지수 (CPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2020=100)',dataPath:'economicIndicators.kr.cpi_kr',fmt:v=>v?.toFixed(2)},
   {name:'생산자물가지수 (PPI)',cc:'🇰🇷',cat:'물가',src:'한국은행 ECOS',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.kr.ppi_kr',fmt:v=>v?.toFixed(2)},
   {name:'실업률',cc:'🇰🇷',cat:'고용',src:'한국은행 ECOS',freq:'월간',unit:'% (원계열)',dataPath:'economicIndicators.kr.unemployment_kr',fmt:v=>v?.toFixed(2)+'%'},
@@ -7267,7 +7267,7 @@ const macroIndicators = [
    link:'https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1JG2105',linkLabel:'KOSIS 소매판매액지수'},
   {name:'기준금리',cc:'🇰🇷',cat:'통화',src:'한국은행',freq:'8회/년',unit:'% (연이율)',dataPath:'economicIndicators.kr.base_rate_kr',fmt:v=>v?.toFixed(2)+'%'},
   // 미국 (FRED)
-  {name:'GDP 성장률',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: A191RL1Q225SBEA)',freq:'분기',unit:'% (전기비 연율 SAAR)',dataPath:'economicIndicators.us.gdp_growth_us',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
+  {name:'GDP 성장률',cc:'🇺🇸',cat:'경기',src:'BEA (FRED: A191RL1Q225SBEA)',freq:'분기',unit:'% (전기 대비 연율 SAAR)',dataPath:'economicIndicators.us.gdp_growth_us',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'소비자물가지수 (CPI)',cc:'🇺🇸',cat:'물가',src:'BLS (FRED: CPIAUCSL)',freq:'월간',unit:'지수 (1982-84=100)',dataPath:'economicIndicators.us.cpi_us',fmt:v=>v?.toFixed(2)},
   {name:'PCE 물가지수',cc:'🇺🇸',cat:'물가',src:'BEA (FRED: PCE)',freq:'월간',unit:'지수 (2017=100)',dataPath:'economicIndicators.us.pce_us',fmt:v=>v?.toFixed(2)},
   {name:'실업률',cc:'🇺🇸',cat:'고용',src:'BLS (FRED: UNRATE)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.us.unemployment',fmt:v=>v?.toFixed(2)+'%'},
@@ -7311,18 +7311,18 @@ const macroIndicators = [
    dataPath:'economicIndicators.uk.gdp_uk',fmt:v=>v==null?'—':(v/1000).toFixed(1)+'B'},
   {name:'외환보유액 (금 제외)',cc:'🇰🇷',cat:'외환',src:'IMF IFS (FRED)',freq:'월간',unit:'십억 달러',
    dataPath:'economicIndicators.kr.fx_reserves_kr',fmt:v=>v==null?'—':(v/1000).toFixed(1)+'B'},
-  {name:'달러 인덱스 (DXY)',cc:'🇺🇸',cat:'외환',src:'ICE / yfinance DX-Y.NYB',freq:'일간',unit:'지수 (1973=100, ICE 발표)',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2),
+  {name:'달러 인덱스 (DXY)',cc:'🇺🇸',cat:'외환',src:'ICE / 야후 파이낸스 DX-Y.NYB',freq:'일간',unit:'지수 (1973=100, ICE 발표)',dataPath:'economicIndicators.us.dxy_idx',fmt:v=>v?.toFixed(2),
    link:'https://finance.yahoo.com/quote/DX-Y.NYB',linkLabel:'Yahoo Finance DXY'},
   {name:'Case-Shiller HPI',cc:'🇺🇸',cat:'부동산',src:'S&P (FRED: CSUSHPINSA)',freq:'월간',unit:'지수 (2000.1=100)',dataPath:'realestate.us.case_shiller_national',fmt:v=>v?.toFixed(1)},
   {name:'30년 모기지',cc:'🇺🇸',cat:'부동산',src:'Freddie Mac (FRED)',freq:'주간',unit:'% (연이율)',dataPath:'realestate.us.mortgage_30y',fmt:v=>v?.toFixed(2)+'%'},
   // 유로존 (FRED 국제 시리즈)
   {name:'HICP 물가지수',cc:'🇪🇺',cat:'물가',src:'Eurostat (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.eu.cpi_eu',fmt:v=>v?.toFixed(2)},
-  {name:'GDP 성장률',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.eu.gdp_yoy_eu',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
+  {name:'GDP 성장률',cc:'🇪🇺',cat:'경기',src:'Eurostat (FRED)',freq:'분기',unit:'% (전년 대비, 실질)',dataPath:'economicIndicators.eu.gdp_yoy_eu',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'실업률',cc:'🇪🇺',cat:'고용',src:'Eurostat (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.eu.unemployment_eu',fmt:v=>v?.toFixed(2)+'%'},
   {name:'기준금리 (ECB)',cc:'🇪🇺',cat:'통화',src:'ECB (FRED)',freq:'8회/년',unit:'% (예금금리)',dataPath:'economicIndicators.eu.base_rate_eu',fmt:v=>v?.toFixed(2)+'%'},
   // 중국 (FRED 국제 시리즈)
   {name:'소비자물가지수 (CPI)',cc:'🇨🇳',cat:'물가',src:'NBS (FRED OECD)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.cn.cpi_cn',fmt:v=>v?.toFixed(2)},
-  {name:'GDP 성장률',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'% (YoY, 명목 USD)',dataPath:'economicIndicators.cn.gdp_yoy_cn',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
+  {name:'GDP 성장률',cc:'🇨🇳',cat:'경기',src:'World Bank (FRED)',freq:'연간',unit:'% (전년 대비, 명목 USD)',dataPath:'economicIndicators.cn.gdp_yoy_cn',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'제조업 PMI·경기지수',cc:'🇨🇳',cat:'경기',src:'OECD (FRED BSCICP02CNM460S)',freq:'월간',unit:'지수',
     dataPath:'economicIndicators.cn.pmi_cn',fmt:v=>v?.toFixed(1),
     link:'http://www.stats.gov.cn/english/PressRelease/',linkLabel:'NBS 발표문'},
@@ -7348,9 +7348,9 @@ const macroIndicators = [
     link:'https://www.pmi.spglobal.com/Public/Home/PressRelease',linkLabel:'S&P PMI 보고서'},
   // 일본 (FRED 국제 시리즈)
   // 값이 이미 전년동월비(%)라 uk/cn 처럼 지수 환산 없이 그대로 표시한다.
-  {name:'소비자물가(전년비)',cc:'🇯🇵',cat:'물가',src:'DBnomics STATJP/CPIm (일본 총무성 통계국)',freq:'월간',unit:'% (전년동월비)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
+  {name:'소비자물가(전년 대비)',cc:'🇯🇵',cat:'물가',src:'DBnomics STATJP/CPIm (일본 총무성 통계국)',freq:'월간',unit:'% (전년 대비)',dataPath:'economicIndicators.jp.cpi_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
     link:'https://www.stat.go.jp/english/data/cpi/',linkLabel:'총무성 CPI'},
-  {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.jp.gdp_yoy_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
+  {name:'GDP 성장률',cc:'🇯🇵',cat:'경기',src:'내각부 (FRED)',freq:'분기',unit:'% (전년 대비, 실질)',dataPath:'economicIndicators.jp.gdp_yoy_jp',fmt:v=>v==null?'—':(+v).toFixed(1)+'%',
     link:'https://www.esri.cao.go.jp/jp/sna/menu.html',linkLabel:'내각부 발표'},
   {name:'실업률',cc:'🇯🇵',cat:'고용',src:'총무성 (FRED)',freq:'월간',unit:'% (15-64세, 계절조정)',dataPath:'economicIndicators.jp.unemployment_jp',fmt:v=>v?.toFixed(2)+'%',
     link:'https://www.stat.go.jp/data/roudou/',linkLabel:'노동력조사'},
@@ -7358,11 +7358,11 @@ const macroIndicators = [
     link:'https://www.boj.or.jp/en/mopo/mpmdeci/state_all/index.htm',linkLabel:'BOJ 정책결정'},
   // 독일 (FRED 국제 시리즈)
   {name:'소비자물가지수',cc:'🇩🇪',cat:'물가',src:'Destatis (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.de.cpi_de',fmt:v=>v?.toFixed(2)},
-  {name:'GDP 성장률',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.de.gdp_yoy_de',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
+  {name:'GDP 성장률',cc:'🇩🇪',cat:'경기',src:'Destatis (FRED)',freq:'분기',unit:'% (전년 대비, 실질)',dataPath:'economicIndicators.de.gdp_yoy_de',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'실업률',cc:'🇩🇪',cat:'고용',src:'Destatis (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.de.unemployment_de',fmt:v=>v?.toFixed(2)+'%'},
   // 영국 (FRED 국제 시리즈)
   {name:'소비자물가지수',cc:'🇬🇧',cat:'물가',src:'ONS (FRED)',freq:'월간',unit:'지수 (2015=100)',dataPath:'economicIndicators.uk.cpi_uk',fmt:v=>v?.toFixed(2)},
-  {name:'GDP 성장률',cc:'🇬🇧',cat:'경기',src:'ONS (FRED)',freq:'분기',unit:'% (YoY, 실질)',dataPath:'economicIndicators.uk.gdp_yoy_uk',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
+  {name:'GDP 성장률',cc:'🇬🇧',cat:'경기',src:'ONS (FRED)',freq:'분기',unit:'% (전년 대비, 실질)',dataPath:'economicIndicators.uk.gdp_yoy_uk',fmt:v=>v==null?'—':(+v).toFixed(1)+'%'},
   {name:'실업률',cc:'🇬🇧',cat:'고용',src:'ONS (FRED)',freq:'월간',unit:'% (계절조정)',dataPath:'economicIndicators.uk.unemployment_uk',fmt:v=>v?.toFixed(2)+'%'},
   {name:'기준금리 (BOE)',cc:'🇬🇧',cat:'통화',src:'BOE (FRED)',freq:'8회/년',unit:'% (Bank Rate)',dataPath:'economicIndicators.uk.base_rate_uk',fmt:v=>v?.toFixed(2)+'%'},
 ];
@@ -7439,7 +7439,7 @@ function showNoDataOverlay(canvasId, msg) {
     parent.style.position = 'relative';
     parent.appendChild(overlay);
   }
-  overlay.innerHTML = `<div style="font-size:var(--font-size-2xl);opacity:0.5;"></div><div style="font-weight:var(--font-weight-semibold);">데이터 추가 필요</div><div style="font-size:var(--font-size-sm);opacity:0.7;max-width:280px;line-height:1.5;">${msg || '실시간 시계열 데이터가 아직 수집되지 않았습니다. 다음 자동 업데이트(매 정각) 후 표시됩니다.'}</div>`;
+  overlay.innerHTML = `<div style="font-size:var(--font-size-2xl);opacity:0.5;"></div><div style="font-weight:var(--font-weight-semibold);">데이터 추가 필요</div><div style="font-size:var(--font-size-sm);opacity:0.7;max-width:280px;line-height:1.5;">${msg || '데이터 수집중'}</div>`;
   overlay.style.display = 'flex';
 }
 function hideNoDataOverlay(canvasId) {
@@ -7616,7 +7616,7 @@ function buildMacroIndicatorTable() {
       } else if(!r.dataPath) { missingApis.add(`${r.cc} ${r.name} (${r.src})`); }
       const indIdx = macroIndicators.indexOf(r);
       const linkBtn = r.link ? `<a href="${r.link}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" style="display:inline-block;margin-top:4px;font-size:var(--font-size-xs);padding:2px 6px;background:var(--c-accent)22;color:var(--c-accent);border:1px solid var(--c-accent)55;border-radius:var(--r-xs);text-decoration:none;">${r.linkLabel||'최신 보고서'} →</a>` : '';
-      return `<div class="clickable-card econ-inner" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" title="클릭 → 시계열 차트">
+      return `<div class="clickable-card econ-inner" onclick="showMacroHistoryChartByIdx(${indIdx})" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
         <div style="flex:1;min-width:0;">
           <div style="font-size:var(--font-size-sm);font-weight:var(--font-weight-semibold);color:var(--c-txt);"><button type="button" class="btn-plain btn-inline">${r.cc} ${escapeHtml(r.name)} <span style="font-size:var(--font-size-xs);color:var(--c-txt-muted);"></span></button></div>
           <div class="note-line" style="margin-top:2px;">${escapeHtml(srcStr)} · ${r.freq} · ${escapeHtml(periodStr)}</div>
@@ -7632,7 +7632,7 @@ function buildMacroIndicatorTable() {
     // 거시에도 금리·외환·부동산·시장 지표가 섞여 있는데, 그 값들의 원본은 각자 다른 화면이다.
     const catSrc = MACRO_CAT_CANONICAL[cat];
     const catLink = catSrc
-      ? `<a class="econ-src" href="?p=${econCanonicalPage(catSrc)}" title="${cat} 지표의 원본 화면"
+      ? `<a class="econ-src" href="?p=${econCanonicalPage(catSrc)}" title="${cat} 지표 화면"
             onclick="event.preventDefault();event.stopPropagation();gotoCanonical('${catSrc}');">${econPageLabel(econCanonicalPage(catSrc))} ›</a>`
       : '';
     return `<div class="widget pad-14">
@@ -7657,7 +7657,7 @@ function buildMacroIndicatorTable() {
       {name:'R-ONE (한국부동산원 가격지수)', keys:['realestate_kr']},
       {name:'data.go.kr (국토부 실거래가)', keys:['realestate_molit']},
       {name:'KRX OpenAPI (한국 주식/ETF/원자재)', keys:['stockMovers','etfMovers','indices','commodities']},
-      {name:'yfinance (해외 지수/원자재/농산물 시계열)', keys:['history']},
+      {name:'야후 파이낸스 (해외 지수/원자재/농산물 시계열)', keys:['history']},
     ];
     statusEl.innerHTML = apis.map(a => {
       const hit = a.keys.some(k => sources[k]);
@@ -7806,7 +7806,7 @@ function initMacroPage(t){
     <div class="g-2" style="margin-bottom:var(--gap-w);">
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
-          <h3 class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년동기비, %)</h3>
+          <h3 class="widget-title" style="margin-bottom:0;">GDP 성장률 (전년 대비, %)</h3>
           ${unitButtons('gdp')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="gdpMacro" onclick="toggleYoY('gdpMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.gdpSrc,meta.gdpNext)}
@@ -7815,7 +7815,7 @@ function initMacroPage(t){
       </div>
       <div class="widget">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px;">
-          <h3 class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년비 %)</h3>
+          <h3 class="widget-title" style="margin-bottom:0;">소비자물가 (CPI, 전년 대비 %)</h3>
           ${unitButtons('cpi')}
           <button class="yoy-btn seed-toggle-button seed-toggle-button--variant_neutralWeak seed-toggle-button--size_xsmall" data-yoy="cpiMacro" onclick="toggleYoY('cpiMacro',this)" aria-pressed="false" title="전년 동기 데이터를 점선으로 오버레이"><span aria-hidden="true" class="mat">compare_arrows</span><span class="yoy-btn-lbl">전년 비교</span></button>
           ${infoBlock(meta.cpiSrc,meta.cpiNext)}
@@ -7974,7 +7974,7 @@ function calRefText(e) {
 }
 function calNameHtml(e) {
   const r = calRefText(e);
-  return r ? `${e.name} <span class="econ-stat__unit">${r}</span>` : e.name;
+  return r ? `${calNameText(e)} <span class="econ-stat__unit">${r}</span>` : calNameText(e);
 }
 
 // 캘린더 그리드 상태 (이번 달 기준)
@@ -8110,7 +8110,8 @@ function buildCalendarGrid(filteredEvents) {
     events.slice(0,3).forEach((e) => {
       const idx = calEvents.indexOf(e);
       const starClr = 'var(--c-txt-dim)';   // 중요도는 별 개수가 말한다
-      const beatClr = e.beat===1 ? window.CUP : e.beat===-1 ? window.CDN : '#8d90a2';
+      const _v = _calVsCons(e);
+      const beatClr = _v && _v.dir === 'up' ? window.CUP : _v && _v.dir === 'down' ? window.CDN : 'var(--c-txt-muted)';
       const ev_dot = e.act ? `<span style="color:${beatClr};">●</span>` : `<span style="color:var(--c-txt-dim);">○</span>`;
       html += `<button type="button" class="btn-plain" onclick="showCalGridFloating(${idx}, event)" style="font-size:var(--font-size-xs);line-height:1.4;color:var(--c-txt);background:var(--c-card);border-left:2px solid ${starClr};padding:1px 4px;border-radius:var(--r-xs);margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${e.name}">${ev_dot} ${e.flag||''}${e.name.length>10?e.name.slice(0,10)+'…':e.name}</button>`;
     });
@@ -8135,13 +8136,12 @@ let _calFloatingState = { idx: null };
 function _calRenderFloatSurprise(e) {
   const el = document.getElementById('calFloatSurp');
   if(!el) return;
-  const surp = (e && (e.beat === 1 || e.beat === -1)) ? _calSurprise(e) : null;
-  if(!surp) { el.style.display = 'none'; return; }
-  const good = e.beat === 1;
+  const v = _calVsCons(e);
+  if(!v || v.dir === 'eq') { el.style.display = 'none'; return; }
   el.style.display = 'block';
-  el.style.background = good ? 'rgba(38,166,154,0.12)' : 'rgba(239,83,80,0.12)';
-  el.style.color = good ? window.CUP : window.CDN;
-  el.textContent = `${surp.big ? '⚡ 매크로 서프라이즈' : '서프라이즈'} — 예측 대비 ${surp.diffLabel} (${good ? '호재' : '악재'})`;
+  el.style.background = 'var(--c-card-hi)';
+  el.style.color = v.dir === 'up' ? window.CUP : window.CDN;
+  el.textContent = v.text;
 }
 // 실제값 셀 렌더 (플로팅/상세 공용) — 이슈1·3·7·9.
 //  • 색: 기존 beat 의미 유지(호재→pos/악재→neg/중립). beat 는 지표 성격을 반영(물가·실업은 낮을수록 호재)하므로
@@ -8152,25 +8152,20 @@ function _calRenderFloatSurprise(e) {
 function _calRenderActual(e, P){
   if(!e) return;
   const $ = id => document.getElementById(P + id);
-  const color = e.beat===1 ? 'var(--ind-pos)' : e.beat===-1 ? 'var(--ind-neg)' : 'var(--ind-neu)';
-  const a=_calParseNum(e.act), f=_calParseNum(e.fore), p=_calParseNum(e.prev);
-  let arrow='', dir='';
-  if(e.act && a!=null && f!=null){
-    const d=a-f;
-    if(Math.abs(d)<0.05){ arrow='─'; dir='예측과 동일'; }
-    else { arrow = d>0 ? '▲' : '▼'; dir = d>0 ? '예측 상회' : '예측 하회'; }
-  }
-  const good = e.beat===1 ? '호재' : e.beat===-1 ? '악재' : '';
-  const actEl=$('Act');   if(actEl){ actEl.textContent = e.act || '미발표'; actEl.style.color = e.act ? color : 'var(--c-txt-dim)'; }
+  const v = _calVsCons(e);
+  const color = !v || v.dir === 'eq' ? 'var(--ind-neu)' : v.dir === 'up' ? 'var(--c-up)' : 'var(--c-down)';
+  const f=_calParseNum(e.fore), p=_calParseNum(e.prev);
+  const arrow = !v ? '' : v.dir === 'eq' ? '─' : v.dir === 'up' ? '▲' : '▼';
+  const actEl=$('Act');   if(actEl){ actEl.textContent = e.act || '발표 전'; actEl.style.color = e.act ? color : 'var(--c-txt-dim)'; }
   const arrEl=$('Arrow'); if(arrEl){ arrEl.textContent = arrow; arrEl.style.color = e.act ? color : 'transparent'; }
   const bdgEl=$('Badge'); if(bdgEl){
-    if(e.act && a!=null && f!=null && Math.abs(a-f)<0.05){ bdgEl.textContent='예측 부합'; bdgEl.className='cal-chip'; bdgEl.style.display='inline-block'; }
+    if(v && v.dir === 'eq'){ bdgEl.textContent='컨센서스와 같음'; bdgEl.className='cal-chip'; bdgEl.style.display='inline-block'; }
     else { bdgEl.textContent=''; bdgEl.style.display='none'; }
   }
-  const eqEl=$('ForeEq'); if(eqEl){ eqEl.textContent = (p!=null && f!=null && Math.abs(p-f)<0.05) ? '(이전과 동일)' : ''; }
+  const eqEl=$('ForeEq'); if(eqEl){ eqEl.textContent = (p!=null && f!=null && Math.abs(p-f)<0.05) ? '(직전과 같음)' : ''; }
   const cellEl=$('ActCell'); if(cellEl){
-    cellEl.style.background = !e.act ? '' : e.beat===1 ? 'rgba(34,197,94,0.12)' : e.beat===-1 ? 'rgba(239,68,68,0.12)' : 'rgba(148,163,184,0.12)';
-    const aria = e.act ? ('실제 '+e.act + (dir?(', '+dir):'') + (good?(' ('+good+')'):'')) : '실제값 미발표';
+    cellEl.style.background = '';
+    const aria = e.act ? ('발표값 '+e.act + (v ? ', ' + v.text : '')) : '발표 전';
     cellEl.setAttribute('aria-label', aria); cellEl.title = aria;
   }
 }
@@ -8204,7 +8199,7 @@ function showCalGridFloating(idx, evt) {
   _calFloatPrevFocus = document.activeElement;   // 닫을 때 포커스 복원용
   _calFloatingState.idx = idx;  // 새로고침 시 참조용
   document.getElementById('calFloatFlag').textContent = calCountryLabel(e.cc, e.flag) + ' · ' + calDtText(e) + ' · ' + '★'.repeat(e.stars);
-  document.getElementById('calFloatName').textContent = e.name + (calRefText(e) ? ' (' + calRefText(e) + ')' : '');
+  document.getElementById('calFloatName').textContent = calNameText(e) + (calRefText(e) ? ' (' + calRefText(e) + ')' : '');
   document.getElementById('calFloatPrev').textContent = e.prev || '—';
   document.getElementById('calFloatFore').textContent = e.fore || '—';
   _calRenderActual(e, 'calFloat');
@@ -8519,6 +8514,10 @@ function autoBackfillCalendarActuals() {
   const curYear = now.getFullYear();
   let updated = 0, overrode = 0;
   for(const e of calEvents) {
+    // 서버 일정(_src)은 서버가 채운 값이 정답이다 — 여기서 「발표일 이하 최신 관측」으로 다시 채우면 다음 회차 값이
+    // 앞 회차에 물린다(2026-10-30 실측: 9/11 미국 CPI 칸에 10/14 발표값 +0.7%, 9/30 GDP 칸에 10/29 값 +3.4%).
+    // 서버는 발표 시각 · 기준 기간 · 회차 청구 규칙으로 채우고, 컨센서스와 같은 자료원(scripts/consensus.py)으로 덮는다.
+    if(e._src) continue;
     // 이벤트 날짜 파싱 ('MM.DD HH:mm' → Date, 현재 연도 기준)
     const m = e.dt.match(/(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})/);
     if(!m) continue;
@@ -8690,7 +8689,13 @@ function mergeServerCalendar() {
     if(!ev || !ev.dt || !ev.name) continue;
     const evNorm = normName(ev.name);
     const key = `${ev.dt}|${evNorm}`;
-    if(existing.has(key)) continue;
+    if(existing.has(key)) {
+      // 이미 있는 일정은 서버의 새 값으로 갱신한다 — 페이지를 연 채 발표 시각을 넘기면 발표값 칸이 그대로 비어 있었다.
+      const cur = calEvents.find(x => `${x.dt}|${normName(x.name)}` === key);
+      // 서버가 잠깐 빈 칸을 보내도 이미 보인 값을 지우지 않는다 — 값이 있는 칸만 덮는다
+      if(cur && cur._src) ['prev', 'fore', 'act', 'consSrc', 'actSrc'].forEach(k => { if(ev[k]) cur[k] = ev[k]; });
+      continue;
+    }
     // 동일 (cc, name, YYYY-MM) 중복 제거 (서버 dedup 안전망)
     if(!MULTI_PER_MONTH_NAMES.has(ev.name)) {
       const isoYM = (ev.iso || '').slice(0,7); // YYYY-MM
@@ -8709,6 +8714,8 @@ function mergeServerCalendar() {
       fore: ev.fore || '',
       act: ev.act || '',
       beat: ev.beat || null,
+      consSrc: ev.consSrc || '',        // 컨센서스 출처(나스닥 경제 일정) — 있으면 컨센서스 대비 칸을 채운다
+      actSrc: ev.actSrc || '',
       _src: ev.source || 'server',
       _iso: ev.iso || '',
       approx: ev.timeApprox === true,   // 발표 시각이 관례 추정 → 시각 앞 '~'
@@ -8721,27 +8728,28 @@ function mergeServerCalendar() {
   return added;
 }
 
-// ── 매크로 서프라이즈 인덱스 (UX 4.3) ──────────────────────────────────────
-// 예측 대비 실제값의 격차를 정량화해, 컨센서스를 크게 벗어난 발표(서프라이즈/쇼크)를
-// 캘린더 행 배경색으로 하이라이팅한다. 방향성(호재/악재)은 기존 beat 판정을 따른다.
+// ── 컨센서스 대비 차이 (2026-10-30, 기획서 EiKJcHkR) ──────────────────────────
+// 사실만 말한다 — 「컨센서스보다 0.2%p 높음」. 호재·악재 판정 · ⚡ 표시 · 행 배경 강조는 뺐다(물가가 높게 나온 것이
+// 누구에게 좋은지는 화면이 정하지 않는다). 색은 방향만(높음 = 상승색, 낮음 = 하락색).
 function _calParseNum(s) {
   if(s == null) return null;
   const m = String(s).replace(/,/g, '').match(/-?\d+(\.\d+)?/);
   return m ? parseFloat(m[0]) : null;
 }
-function _calSurprise(e) {
+function _calVsCons(e) {
   if(!e || !e.act || !e.fore) return null;
   const f = _calParseNum(e.fore), a = _calParseNum(e.act);
   if(f == null || a == null) return null;
+  const dec = Math.max(...[e.act, e.fore].map(s => { const m = String(s).match(/\.(\d+)/); return m ? m[1].length : 0; }));
+  const unit = (/%/.test(String(e.fore)) || /%/.test(String(e.act))) ? '%p' : /K/.test(String(e.act)) ? 'K' : '';
   const diff = a - f;
-  const isPct = /%/.test(String(e.fore)) || /%/.test(String(e.act));
-  const rel = Math.abs(f) > 1e-9 ? Math.abs(diff) / Math.abs(f) : null;
-  // 큰 서프라이즈: 예측 대비 ±15% 이상 괴리, 또는 %단위 지표에서 ±0.3%p 이상 괴리
-  const big = (rel != null && rel >= 0.15) || (isPct && Math.abs(diff) >= 0.3);
-  const diffLabel = isPct
-    ? `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}%p`
-    : (rel != null ? `${diff >= 0 ? '+' : ''}${(diff / Math.abs(f) * 100).toFixed(1)}%` : `${diff >= 0 ? '+' : ''}${diff.toFixed(2)}`);
-  return { diff, big, isPct, diffLabel };
+  if(Math.abs(diff) < Math.pow(10, -dec) / 2) return { diff: 0, dir: 'eq', label: '같음', text: '컨센서스와 같음' };
+  const word = diff > 0 ? '높음' : '낮음', mag = Math.abs(diff).toFixed(dec) + unit;
+  return { diff, dir: diff > 0 ? 'up' : 'down', label: `${diff > 0 ? '▲' : '▼'} ${mag} ${word}`, text: `컨센서스보다 ${mag} ${word}` };
+}
+// 화면 표기 — 서버 일정 이름(「미국 CPI (전월비)」)은 알림 · 백필 표의 열쇠라 그대로 두고 보이는 글자만 바꾼다.
+function calNameText(e) {
+  return String((e && e.name) || '').replace(/전월비/g, '전월 대비').replace(/전년비(?!교)/g, '전년 대비').replace(/전기비/g, '전기 대비');   // term-ok: 옛 표기를 바꾸는 줄
 }
 
 function buildCalendar(){
@@ -8817,30 +8825,27 @@ function buildCalendar(){
       </div>
       <div style="font-size:var(--font-size-base);font-weight:var(--font-weight-medium);line-height:1.4;">${calNameHtml(e)}</div>
       <div style="display:flex;gap:12px;margin-top:8px;font-size:var(--font-size-sm);color:var(--c-txt-dim);">
-        <span>이전: <strong style="color:var(--c-txt);">${e.prev || '—'}</strong></span>
-        <span>예측: <strong style="color:var(--c-primary);">${e.fore || '—'}</strong></span>
+        <span>직전: <strong style="color:var(--c-txt);">${e.prev || '—'}</strong></span>
+        <span>컨센서스: <strong style="color:var(--c-primary);">${e.fore || '—'}</strong></span>
       </div>
-    </div>`).join('') || '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);grid-column:1/-1;text-align:center;padding:20px;">해당 조건의 예정 이벤트가 없습니다</div>';
+    </div>`).join('') || '<div style="color:var(--c-txt-muted);font-size:var(--font-size-sm);grid-column:1/-1;text-align:center;padding:20px;">해당 조건의 예정 발표 없음</div>';
 
   document.getElementById('calendarTable').innerHTML = filtered.map((e, fi)=>{
     const actStyle = e.act===''
       ? 'style="color:var(--c-txt-muted);font-style:italic;"'
-      : e.beat===1  ? 'class="up-txt"'
-      : e.beat===-1 ? 'class="down-txt"'
+      : (_calVsCons(e) || {}).dir === 'up'   ? 'class="up-txt"'
+      : (_calVsCons(e) || {}).dir === 'down' ? 'class="down-txt"'
       : '';
+    const vc = _calVsCons(e);
     const calIdx = calEvents.indexOf(e);
     // 오늘 발표 이벤트 — 행 배경 약간 짙게 + 좌측 강조선
     const isToday = e.dt.startsWith(todayMD);
-    // 매크로 서프라이즈 — 예측을 크게 벗어난 발표는 행 전체를 호재(초록)/악재(빨강)로 강조 (4.3)
-    const surp = (e.beat === 1 || e.beat === -1) ? _calSurprise(e) : null;
-    const surpStyle = (surp && surp.big)
-      ? (e.beat === 1
-        ? 'background:rgba(38,166,154,0.10);border-left:3px solid var(--c-up);border-bottom:1px solid var(--c-border);cursor:pointer;'
-        : 'background:rgba(239,83,80,0.10);border-left:3px solid var(--c-down);border-bottom:1px solid var(--c-border);cursor:pointer;')
-      : null;
     const rowStyle = isToday
       ? 'background:rgba(41,98,255,0.10);border-left:3px solid var(--c-accent);border-bottom:1px solid var(--c-border);cursor:pointer;'
-      : (surpStyle || 'border-bottom:1px solid var(--c-border);cursor:pointer;');
+      : 'border-bottom:1px solid var(--c-border);cursor:pointer;';
+    const vsCell = !vc ? '' : vc.dir === 'eq'
+      ? '<span style="color:var(--c-txt-dim);">같음</span>'
+      : `<span class="${vc.dir === 'up' ? 'up-txt' : 'down-txt'}">${vc.label}</span>`;
     const dtCell = isToday
       ? `<td style="font-weight:var(--font-weight-semibold);color:var(--c-primary);">${calDtText(e)} <span class="seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_brand-variant_weak">오늘</span></td>`
       : `<td>${calDtText(e)}</td>`;
@@ -8848,16 +8853,17 @@ function buildCalendar(){
     const bellCell = e.stars >= 3
       ? `<td class="c-opt" style="text-align:center;padding:4px;"><button onclick="event.stopPropagation();toggleCalAlert(${calIdx},this)" title="${calAlertSubscribed(e) ? '알림 해제' : '발표 시 브라우저 알림 받기 (페이지가 열려 있는 동안)'}" style="background:transparent;border:none;cursor:pointer;font-size:var(--font-size-base);line-height:1;padding:2px;${calAlertSubscribed(e) ? '' : 'opacity:.45;filter:grayscale(1);'}">알림</button></td>`
       : `<td class="c-opt"></td>`;
-    return `<tr style="${rowStyle}" onclick="showCalendarEventDetail(${calIdx})" title="클릭하여 과거 추이 보기">
+    return `<tr style="${rowStyle}" onclick="showCalendarEventDetail(${calIdx})">
       ${dtCell}
       <td style="text-align:center;white-space:nowrap;">${calCountryLabel(e.cc, e.flag)}</td>
       <td>${calNameHtml(e)}<span class="cal-stars-m">${'★'.repeat(e.stars)}</span> <span style="font-size:var(--font-size-xs);color:var(--c-primary);">↓</span></td>
       <td class="c-opt" style="text-align:center;color:var(--c-txt-dim);"><button type="button" class="btn-plain btn-inline">${'★'.repeat(e.stars)}</button></td>
       <td style="text-align:right;color:var(--c-txt-dim);">${e.prev || '—'}</td>
       <td class="c-opt" style="text-align:right;color:var(--c-primary);">${e.fore || '—'}</td>
-      <td style="text-align:right;white-space:nowrap;" ${actStyle}>${e.act||'예정'}${(surp && surp.big) ? `<span title="매크로 서프라이즈 — 예측 대비 ${surp.diffLabel} (${e.beat===1?'호재':'악재'})" style="margin-left:4px;cursor:help;">⚡</span>` : ''}</td>
+      <td style="text-align:right;white-space:nowrap;" ${actStyle}>${e.act||'예정'}</td>
+      <td class="c-opt" style="white-space:nowrap;" title="${vc ? vc.text : ''}">${vsCell}</td>
       ${bellCell}
-    </tr>`;}).join('') || `<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--c-txt-muted);">해당 조건의 이벤트가 없습니다</td></tr>`;
+    </tr>`;}).join('') || `<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--c-txt-muted);">해당 조건의 발표 일정 없음</td></tr>`;
 
   // 시각적 캘린더 그리드 빌드 — 현재 표시 중인 월(_calGridMonth/_calGridYear) 기준
   // 필터링은 cc/stars 기준만 적용 (period 와 무관)
@@ -8933,15 +8939,13 @@ function showCalendarEventDetail(idx) {
   });
   panel.style.display = 'block';
   document.getElementById('calDetailFlag').textContent = calCountryLabel(e.cc, e.flag);
-  document.getElementById('calDetailName').textContent = e.name + (calRefText(e) ? ' (' + calRefText(e) + ')' : '') + ' · ' + calDtText(e);
+  document.getElementById('calDetailName').textContent = calNameText(e) + (calRefText(e) ? ' (' + calRefText(e) + ')' : '') + ' · ' + calDtText(e);
   document.getElementById('calDetailPrev').textContent = e.prev || '—';
   document.getElementById('calDetailFore').textContent = e.fore || '—';
   const actEl = document.getElementById('calDetailAct');
   _calRenderActual(e, 'calDetail');
-  // 매크로 서프라이즈 (4.3) — 예측 대비 격차를 툴팁으로 표기
-  const dSurp = (e.beat === 1 || e.beat === -1) ? _calSurprise(e) : null;
-  actEl.title = dSurp ? `예측 대비 ${dSurp.diffLabel}${dSurp.big ? ' — ⚡ 매크로 서프라이즈' : ''}` : '';
-  if(dSurp && dSurp.big) actEl.textContent += ' ⚡';
+  const dv = _calVsCons(e);
+  actEl.title = dv ? dv.text : '';
   calDetailAlertSync();
   panel.scrollIntoView({behavior:'smooth', block:(window.matchMedia && window.matchMedia('(max-width:768px)').matches) ? 'start' : 'nearest'});
   _renderCalDetailChart();
@@ -8967,7 +8971,10 @@ function _renderCalDetailChart() {
   // 가이드 표시 — 이벤트명으로 매크로 가이드 매칭
   const guideEl = document.getElementById('calDetailGuide');
   if(guideEl) {
-    const macroGuide = (typeof _getMacroGuide === 'function') ? _getMacroGuide('', e.name) : null;
+    // 해석 기준(MACRO_GUIDES)은 전년 대비 잣대다 — 전월 · 전기 대비 일정(미국 CPI 전월비 등)에 붙이면 0.6% 를
+    // 「안정」으로 읽게 된다(2026-10-30 발견). 그런 일정에는 붙이지 않는다.
+    const _short = /전월|전기|PPI|PCE|소매판매|산업생산/.test(e.name) || ((CAL_BACKFILL_MAP[e.name] || {}).mode === 'mom');
+    const macroGuide = (!_short && typeof _getMacroGuide === 'function') ? _getMacroGuide('', e.name) : null;
     if(macroGuide) {
       guideEl.innerHTML = macroGuide;
       guideEl.style.display = 'block';
@@ -9135,7 +9142,7 @@ function insertIndicatorSnapshot() {
   if(fg && fg.value != null) rows.push(`| CNN 공포·탐욕 | ${fg.value}${fg.rating ? ` (${fg.rating})` : ''} |`);
   if(!rows.length) { alert('박제할 지표 수치가 없습니다.'); return; }
   const ts = new Date().toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' });
-  const snap = `\n\n--- 지표 스냅샷 (${ts}, 데이터 기준 ${d.lastUpdated || '-'}) ---\n| 지표 | 수치 |\n|---|---|\n${rows.join('\n')}\n---\n`;
+  const snap = `\n\n--- 지표 저장값 (${ts}, 데이터 기준 ${d.lastUpdated || '-'}) ---\n| 지표 | 수치 |\n|---|---|\n${rows.join('\n')}\n---\n`;
   // 커서 위치에 삽입 (포커스 없으면 맨 뒤에)
   const pos = (document.activeElement === body && body.selectionStart != null) ? body.selectionStart : body.value.length;
   body.value = body.value.slice(0, pos) + snap + body.value.slice(pos);
@@ -9173,7 +9180,7 @@ function importNotesJsonFile(input) {
       renderBackupPanel();
       alert(`가져오기 완료 (${arr.length}건)`);
     } catch(_) {
-      alert('JSON 파일 파싱 실패. 형식이 올바른지 확인해주세요.');
+      alert('파일 읽지 못함');
     }
   };
   reader.readAsText(f);
@@ -9253,7 +9260,7 @@ function save(){
   // '저장된 것처럼' 보였고, 새로고침 시 수기 입력이 통째로 사라졌다(시크릿 모드/quota).
   if(!ok && !window._noteSaveWarned) {
     window._noteSaveWarned = true;
-    try { if(typeof showToast === 'function') showToast('노트 저장 실패 — 브라우저 저장공간 부족 또는 시크릿 모드입니다. 「텍스트로 내보내기」로 백업해 두세요.'); } catch(_) {}
+    try { if(typeof showToast === 'function') showToast('노트 저장 실패. 브라우저 저장공간 부족 또는 시크릿 모드입니다. 「텍스트로 내보내기」로 백업해 두세요.'); } catch(_) {}
   }
   // 백업 패널 갱신 (현재 페이지에 있을 때만)
   if(document.getElementById('noteBackupList')) renderBackupPanel();
@@ -9395,7 +9402,7 @@ function buildNpsReturnChart() {
   // 연도별은 공단 공시(npsHistory), 분기별(npsQuarterlyData)은 출처·기준일이 없는 손입력이다
   // (2026-09-24 감사) — 제목에 그 차이를 적는다. 검증된 공시가 붙기 전까지 '참고치'.
   const _t = document.getElementById('npsReturnChartTitle');
-  if(_t) setWidgetTitleText(_t, npsReturnView === 'annual' ? '연도별 수익률 (%) — 공식 발표' : '분기별 수익률 (%) — 참고치(출처·기준일 미확인)');
+  if(_t) setWidgetTitleText(_t, npsReturnView === 'annual' ? '연도별 수익률 (%). 공식 발표' : '분기별 수익률 (%). 참고치(출처·기준일 미확인)');
   if(npsReturnView==='annual') {
     charts['npsReturnChart'] = new Chart(retCtx,{type:'bar',
       data:{labels:npsHistory.map(h=>h.year),
@@ -9726,8 +9733,7 @@ function _renderBerkshire() {
   const bk = d.berkshire;
   if(!bk || !Array.isArray(bk.holdings) || !bk.holdings.length) {
     container.innerHTML = `<div class="widget pad-36-20" style="text-align:center;color:var(--c-txt-dim);font-size:var(--font-size-sm);line-height:1.9;">
-      버크셔 해서웨이 13F 보유 종목 데이터가 아직 수집되지 않았습니다.<br>
-      다음 데이터 갱신(GitHub Actions 주기 실행)에서 SEC EDGAR 13F 공시를 자동 수집합니다.</div>`;
+      버크셔 해서웨이 13F 보유 종목 데이터 수집중</div>`;
     return;
   }
   const fmtB = v => v == null ? '—' : '$' + (v / 1e9).toFixed(v >= 1e11 ? 0 : 1) + 'B';
@@ -9793,7 +9799,7 @@ function _renderBerkshire() {
         </table>
       </div>
       <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;line-height:1.6;">
-        ※ 13F 는 분기 종료 후 45일 이내 공시되는 미국 상장 주식 보유 현황입니다 — 현재 보유와 다를 수 있으며,
+        ※ 13F 는 분기 종료 후 45일 이내 공시되는 미국 상장 주식 보유 현황입니다. 현재 보유와 다를 수 있으며,
         평가액은 보고 기준일(${escapeHtml(bk.reportDate || '—')}) 시점 가격입니다. 비중은 13F 공시 포트폴리오 내 비중.
       </div>
     </div>`;
@@ -10028,43 +10034,43 @@ function buildInvestorPage() {
 // ============================
 const dataSourceMeta = [
   { key:'krx',    name:'KRX OpenAPI',     unit:'한국 공식',   sourceKeys:['indices','commodities'],
-    desc:'한국거래소 OpenAPI - KOSPI/KOSDAQ 지수·금·석유 일별 시세 (FLUC_RT 가 0 으로 오는 결함으로 종목 등락은 pykrx 사용)',
+    desc:'한국거래소 OpenAPI. KOSPI/KOSDAQ 지수·금·석유 일별 시세 (종목 등락은 거래소 직접 조회 자료 사용)',
     fetched:['KOSPI/KOSDAQ 지수','금(99.99 1Kg)','휘발유'] },
-  { key:'pykrx',  name:'pykrx',           unit:'KRX 직접 호출', sourceKeys:['stockMovers','etfMovers'],
-    desc:'pykrx 라이브러리 — KRX 정보데이터시스템(data.krx.co.kr)을 직접 호출. API 키 불필요, IP 차단 우회 가능, FLUC_RT 신뢰성 문제 없음. 종목·ETF Top10 의 PRIMARY 소스.',
+  { key:'pykrx',  name:'거래소 직접 조회', unit:'KRX', sourceKeys:['stockMovers','etfMovers'],
+    desc:'한국거래소 정보데이터시스템을 직접 호출. API 키 불필요. 종목·ETF Top10 의 기본 출처.',
     fetched:['KOSPI/KOSDAQ 종목 등락률 Top10','ETF 등락률 Top10','종목명/코드 매핑'] },
   { key:'stooq',  name:'Stooq',           unit:'실시간 지수', sourceKeys:[],  realtime:true,
-    desc:'무료 글로벌 시세 (CORS 허용) — 30분마다 자동 갱신',
+    desc:'무료 글로벌 시세 (CORS 허용). 30분마다 자동 갱신',
     fetched:['KOSPI/KOSDAQ','S&P500/NASDAQ/Nikkei','WTI/Brent/Gold/Silver/Copper'] },
   { key:'fx',     name:'open.er-api.com', unit:'환율',        sourceKeys:['fx'],
     desc:'무료 환율 API (USD 기준 전 통화). 30분마다 자동 갱신',
     fetched:['USD/KRW','EUR/KRW','JPY/KRW','EUR/USD','USD/JPY'] },
-  { key:'yfin',   name:'yfinance',        unit:'해외 지수',   sourceKeys:['history','indices'],
+  { key:'yfin',   name:'야후 파이낸스',   unit:'해외 지수',   sourceKeys:['history','indices'],
     desc:'Yahoo Finance 5년 일별 종가 시계열 (FX/지수/원자재/농산물)',
     fetched:['5년 일별 시계열 (KOSPI~Shanghai)','금/은/플라티넘/구리/WTI/Brent','밀/옥수수/콩/쌀'] },
   { key:'fred',   name:'FRED',            unit:'미국 경제·국채', sourceKeys:['economicIndicators_us','realestate_us','yieldCurve_us','economicIndicators_intl'],
-    desc:'St. Louis Fed 경제데이터베이스 — 미국 경제지표 + 국채 수익률 곡선 + OECD 국제 시리즈',
+    desc:'St. Louis Fed 경제데이터베이스. 미국 경제지표 + 국채 수익률 곡선 + OECD 국제 시리즈',
     fetched:['VIX/HY Spread','CPI/PCE/실업률/M2','국채 수익률 1M~30Y','일본·유로존·중국·독일·영국 OECD'] },
   { key:'ecos',   name:'ECOS',            unit:'한국은행',    sourceKeys:['economicIndicators_kr'],
-    desc:'한국은행 경제통계시스템 (ECOS) — 한국 경제지표',
+    desc:'한국은행 경제통계시스템 (ECOS). 한국 경제지표',
     fetched:['기준금리','소비자물가지수(CPI)','생산자물가지수(PPI)','실업률','경상수지','산업생산','수출 등'] },
   { key:'kosis',  name:'KOSIS',           unit:'통계청',       sourceKeys:['retail_kr_kosis'],
-    desc:'KOSIS 국가통계포털 (kosis.kr) — 통계청 공식 통계. ECOS 에 없거나 KOSIS 값과 다른 시리즈 보강용.',
+    desc:'KOSIS 국가통계포털 (kosis.kr). 통계청 공식 통계. ECOS 에 없거나 KOSIS 값과 다른 시리즈 보강용.',
     fetched:['소매판매액지수 (DT_1JG2105)','서비스업동향조사','도소매업조사 (선택)'] },
   { key:'rone',   name:'R-ONE',           unit:'한국부동산원', sourceKeys:['realestate_kr'],
-    desc:'한국부동산원 R-ONE OpenAPI — 부동산 가격지수',
+    desc:'한국부동산원 R-ONE OpenAPI. 부동산 가격지수',
     fetched:['전국 아파트 매매가격지수','전세가격지수'] },
   { key:'molit',  name:'data.go.kr',      unit:'국토부 실거래가', sourceKeys:['realestate_molit'],
-    desc:'공공데이터포털 — 국토교통부 실거래가 통합 API',
+    desc:'공공데이터포털. 국토교통부 실거래가 통합 API',
     fetched:['전국 아파트 매매 거래량 (월별)'] },
   { key:'nps',    name:'NPS 공시',        unit:'국민연금',    sourceKeys:[],
-    desc:'국민연금공단 자산 운용 공시 데이터 (분기별 정기 업데이트)',
+    desc:'국민연금공단 자산 운용 공시 데이터 (분기별 정기 갱신)',
     fetched:['국민연금 자산배분','국내·해외 Top 보유종목'] },
   { key:'gnews',  name:'Google News',     unit:'경제 뉴스',   sourceKeys:['news'],
-    desc:'Google News RSS — 매일 KST 9시 GitHub Actions 가 카테고리별 (주식·채권·외환·원자재·거시) 최신 기사 5건씩 미리 페치하여 data.json 에 저장. 클라이언트 RSS 폴백.',
+    desc:'구글 뉴스 RSS. 매일 오전 9시(한국 시간)에 카테고리별 (주식·채권·외환·원자재·거시) 최신 기사 5건씩 미리 저장. 실패하면 직접 조회로 대체.',
     fetched:['주식/채권/외환/원자재 뉴스','한국GDP·미국CPI·중국/일본/유로존 경제뉴스','한국수출/한국은행 정책'] },
   { key:'kis',    name:'한국투자증권 KIS', unit:'증시 실시간', sourceKeys:[],
-    desc:'한국투자증권 KIS Developers OpenAPI. 기본 비활성 (KIS_ENABLED=0) — 잦은 토큰 발급으로 인한 카카오톡 알람 차단 목적. pykrx 가 KOSPI/KOSDAQ 데이터를 직접 가져오므로 KIS 가 없어도 정상 동작. 활성화하려면 워크플로우 변수 KIS_ENABLED=1 설정.',
+    desc:'한국투자증권 KIS 개발자 API. 기본 비활성. 잦은 토큰 발급으로 인한 카카오톡 알람 차단이 목적. 거래소 자료로 KOSPI/KOSDAQ 데이터를 가져오므로 없어도 정상 동작.',
     fetched:['(비활성) KOSPI/KOSDAQ 지수','(비활성) 등락률 Top10','(비활성) 종목 일별 시세'] },
 ];
 
@@ -10085,22 +10091,22 @@ function computeDataSourceStatus(d) {
       const pykrxStock = sLabel.includes('pykrx');
       const pykrxEtf = eLabel.includes('pykrx');
       if(pykrxStock && pykrxEtf) {
-        status[src.key] = { state:'online', label:'주식+ETF 모두 pykrx' };
+        status[src.key] = { state:'online', label:'주식+ETF 모두 거래소 자료' };
       } else if(pykrxStock || pykrxEtf) {
-        status[src.key] = { state:'partial', label: pykrxStock ? '주식만 pykrx' : 'ETF만 pykrx' };
+        status[src.key] = { state:'partial', label: pykrxStock ? '주식만 거래소 자료' : 'ETF만 거래소 자료' };
       } else if(diag.pykrxAvailable === false) {
-        status[src.key] = { state:'offline', label:'라이브러리 미설치' };
+        status[src.key] = { state:'offline', label:'사용 불가' };
       } else {
-        status[src.key] = { state:'offline', label:'폴백 사용' };
+        status[src.key] = { state:'offline', label:'다른 자료 대체' };
       }
       continue;
     }
     if(src.key === 'kis') {
       const sLabel = sources.stockMovers || '';
       if(sLabel.includes('KIS')) {
-        status[src.key] = { state:'online', label:'KIS 활성' };
+        status[src.key] = { state:'online', label:'한투증권 활성' };
       } else if(diag.kisEnabled) {
-        status[src.key] = { state:'partial', label:'활성화이나 폴백 사용' };
+        status[src.key] = { state:'partial', label:'다른 자료 대체' };
       } else {
         status[src.key] = { state:'offline', label:'기본 비활성 (알람 차단)' };
       }
@@ -10115,7 +10121,7 @@ function computeDataSourceStatus(d) {
       } else if(filled > 0) {
         status[src.key] = { state:'partial', label: `${filled}/${cats.length} 카테고리` };
       } else {
-        status[src.key] = { state:'offline', label:'페치 실패' };
+        status[src.key] = { state:'offline', label:'데이터 갱신 실패' };
       }
       continue;
     }
@@ -10141,7 +10147,7 @@ function buildSidebarDataSources(d) {
     const dot = s.state==='online' ? '<span style="color:var(--c-success);font-size:var(--font-size-xs);" title="정상">●</span>'
               : s.state==='partial' ? '<span style="color:var(--c-warn);font-size:var(--font-size-xs);" title="일부 지연">◐</span>'
               : '<span style="color:var(--c-error);font-size:var(--font-size-xs);" title="응답 없음">○</span>';
-    return `<button type="button" class="ds-item btn-plain" onclick="showDataSourceDetail('${src.key}', this)" style="display:flex;align-items:center;gap:6px;border-radius:var(--r-xs);cursor:pointer;color:var(--c-txt);transition:background .1s;" title="클릭하여 상세 보기">
+    return `<button type="button" class="ds-item btn-plain" onclick="showDataSourceDetail('${src.key}', this)" style="display:flex;align-items:center;gap:6px;border-radius:var(--r-xs);cursor:pointer;color:var(--c-txt);transition:background .1s;">
       ${dot}
       <span style="flex:1;font-size:var(--font-size-sm);">${src.name}<span style="color:var(--c-txt-dim);font-size:var(--font-size-xs);margin-left:4px;">(${src.unit})</span></span>
       <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">›</span>
@@ -10214,17 +10220,17 @@ function showDataSourceDetail(key, btn) {
       actualStats += `<li>소매판매액지수: ${retail.value} (${retail.period})</li>`;
       actualStats += `<li style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">${retail.source}</li>`;
     } else if(retail) {
-      actualStats += `<li style="color:var(--c-warn);font-size:var(--font-size-sm);">ECOS 폴백 사용 중 (KOSIS 미연결)</li>`;
+      actualStats += `<li style="color:var(--c-warn);font-size:var(--font-size-sm);">한국은행 자료(통계청X)</li>`;
       actualStats += `<li>소매판매액지수: ${retail.value} (${retail.period}) · ${retail.source||'ECOS'}</li>`;
     } else {
-      actualStats += `<li style="color:var(--c-down);">소매판매액지수 미수집</li>`;
+      actualStats += `<li style="color:var(--c-down);">소매판매액지수 수집중</li>`;
       actualStats += `<li style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">KOSIS_API_KEY 또는 ECOS_API_KEY 확인 필요</li>`;
     }
   } else if(key === 'rone') {
     const kr = (d.realestate||{}).kr || {};
     if(kr.apt_price_idx_kr) actualStats += `<li>전국 아파트 매매: ${kr.apt_price_idx_kr.value} (${kr.apt_price_idx_kr.period})</li>`;
     if(kr.jns_price_idx_kr) actualStats += `<li>전국 아파트 전세: ${kr.jns_price_idx_kr.value} (${kr.jns_price_idx_kr.period})</li>`;
-    if(!actualStats) actualStats = '<li style="color:var(--c-down);">데이터 미수집 — R-ONE 인증키 확인 필요</li>';
+    if(!actualStats) actualStats = '<li style="color:var(--c-down);">데이터 갱신 실패. R-ONE 인증키 확인해주세요</li>';
   } else if(key === 'molit') {
     const kr = (d.realestate||{}).kr || {};
     if(kr.trade_count_kr) {
@@ -10235,7 +10241,7 @@ function showDataSourceDetail(key, btn) {
       });
     }
   } else if(key === 'nps') {
-    actualStats += '<li>분기별 정적 데이터 (수동 업데이트)</li>';
+    actualStats += '<li>분기별 저장값 (수동 갱신)</li>';
   } else if(key === 'gnews') {
     const news = d.news || {};
     const cats = Object.keys(news).filter(k => k !== 'lastFetched');
@@ -10245,24 +10251,23 @@ function showDataSourceDetail(key, btn) {
     if(news.lastFetched) {
       try {
         const dt = new Date(news.lastFetched);
-        actualStats += `<li style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">최종 페치: ${dt.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}</li>`;
+        actualStats += `<li style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">최종 수집: ${dt.toLocaleString('ko-KR',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false})}</li>`;
       } catch(_) {}
     }
-    if(totalArticles === 0) actualStats += '<li style="color:var(--c-down);">서버측 페치 실패 — 클라이언트 RSS 폴백 사용 중</li>';
+    if(totalArticles === 0) actualStats += '<li style="color:var(--c-down);">데이터 갱신 실패. 직접 조회로 대체 중</li>';
   } else if(key === 'kis') {
     const diag = d.diagnostics || {};
     const mv = d.stockMovers || {};
     const src = (d.sources || {}).stockMovers || '미사용';
     const kisOn = diag.kisEnabled === true;
-    actualStats += `<li>현재 사용 중인 종목 데이터 소스: ${src}</li>`;
+    actualStats += `<li>종목 데이터 출처: ${src}</li>`;
     actualStats += `<li>주식 상승/하락 Top10: ${mv.kospiGainers?.length||0}/${mv.kospiLosers?.length||0}건</li>`;
     if(src.includes('KIS')) {
-      actualStats += `<li style="color:var(--c-up);">한국투자증권 KIS OpenAPI 활성 — 카카오톡 알람 받음</li>`;
+      actualStats += `<li style="color:var(--c-up);">한국투자증권 KIS OpenAPI 활성. 카카오톡 알람 받음</li>`;
     } else if(kisOn) {
-      actualStats += `<li style="color:var(--c-warn);">KIS_ENABLED=1 이나 폴백 사용 중 (KIS 응답 검증 실패)</li>`;
+      actualStats += `<li style="color:var(--c-warn);">다른 자료 대체(한투증권X)</li>`;
     } else {
-      actualStats += `<li style="color:var(--c-up);font-size:var(--font-size-sm);">KIS 비활성 (기본값) — 카카오톡 알람 차단 상태</li>`;
-      actualStats += `<li style="color:var(--c-txt-dim);font-size:var(--font-size-xs);">활성화: 워크플로우 변수에 KIS_ENABLED=1 추가</li>`;
+      actualStats += `<li style="color:var(--c-up);font-size:var(--font-size-sm);">KIS 비활성(기본값). 카카오톡 알람 차단 상태</li>`;
     }
   } else if(key === 'pykrx') {
     const diag = d.diagnostics || {};
@@ -10271,15 +10276,13 @@ function showDataSourceDetail(key, btn) {
     const srcS = (d.sources || {}).stockMovers || '';
     const srcE = (d.sources || {}).etfMovers || '';
     const avail = diag.pykrxAvailable !== false;
-    actualStats += `<li>라이브러리 가용: ${avail ? '✓ 설치됨' : '✗ 미설치'}</li>`;
-    actualStats += `<li>종목 Top10: ${mv.kospiGainers?.length||0}/${mv.kospiLosers?.length||0}건 (소스: ${srcS || '없음'})</li>`;
-    actualStats += `<li>ETF Top10: ${etf.etfGainers?.length||0}/${etf.etfLosers?.length||0}건 (소스: ${srcE || '없음'})</li>`;
+    actualStats += `<li>거래소 자료: ${avail ? '✓ 사용 가능' : '✗ 사용 불가'}</li>`;
+    actualStats += `<li>종목 Top10: ${mv.kospiGainers?.length||0}/${mv.kospiLosers?.length||0}건 (출처: ${srcS || '없음'})</li>`;
+    actualStats += `<li>ETF Top10: ${etf.etfGainers?.length||0}/${etf.etfLosers?.length||0}건 (출처: ${srcE || '없음'})</li>`;
     if(srcS.includes('pykrx')) {
-      actualStats += `<li style="color:var(--c-up);">pykrx 가 종목 PRIMARY 소스로 동작 중</li>`;
+      actualStats += `<li style="color:var(--c-up);">거래소 자료 사용 중</li>`;
     } else if(avail) {
-      actualStats += `<li style="color:var(--c-warn);font-size:var(--font-size-xs);">pykrx 시도했으나 KRX 응답 없음 — 폴백 사용</li>`;
-    } else {
-      actualStats += `<li style="color:var(--c-down);">pykrx 가 설치되지 않음 — 워크플로우에 pip install pykrx 필요</li>`;
+      actualStats += `<li style="color:var(--c-warn);font-size:var(--font-size-xs);">거래소 응답 없음. 다른 자료 대체</li>`;
     }
   }
   bodyEl.innerHTML = `
@@ -10296,7 +10299,7 @@ function showDataSourceDetail(key, btn) {
     <ul style="margin:0 0 6px 18px;padding:0;color:var(--c-up,var(--c-success));font-size:var(--font-size-xs);">
       ${actualStats || '<li style="color:var(--c-down,var(--c-error));">데이터 없음</li>'}
     </ul>
-    <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;text-align:right;">최종 업데이트: ${d.lastUpdated ? new Date(d.lastUpdated).toLocaleString('ko-KR') : '—'}</div>
+    <div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:8px;text-align:right;">최종 갱신: ${d.lastUpdated ? new Date(d.lastUpdated).toLocaleString('ko-KR') : '—'}</div>
   `;
   popup.style.display = 'block';
 }
@@ -10377,7 +10380,7 @@ let _rate429CooldownUntil = 0;
 async function fetchWithRetry(url, { timeoutMs = 8000, retries = 2, init = {} } = {}) {
   let lastErr;
   for(let i = 0; i <= retries; i++) {
-    if(Date.now() < _rate429CooldownUntil) throw new Error('HTTP 429 (레이트리밋 쿨다운 중)');
+    if(Date.now() < _rate429CooldownUntil) throw new Error('요청 과다로 일시 중지. 1분 뒤 다시 시도해주세요');
     try {
       const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
       if(r.status === 429) { _rate429CooldownUntil = Date.now() + 30000; throw new Error('HTTP 429'); }
@@ -10748,7 +10751,7 @@ async function refreshMoversFromClient(showStatus=false) {
       _clientMoverLastError = null;
       return true;
     }
-    _clientMoverLastError = 'CORS 프록시 실패 — 모든 endpoint 응답 없음';
+    _clientMoverLastError = '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요';
   } catch(e) {
     console.warn('[NaverMovers] 클라이언트 페치 실패:', e);
     _clientMoverLastError = String(e?.message || e || 'unknown');
@@ -10825,22 +10828,22 @@ function _renderReHistChartMacro() {
   destroyChart('reHistChart');
   if(typeof _setReHistEmpty==='function') _setReHistEmpty('');
   if(!dataPath) {
-    if(noteEl) noteEl.innerHTML = `데이터 경로 없음 ${opts.link?'— 외부 보고서 참고':''}`;
+    if(noteEl) noteEl.innerHTML = `데이터 수집중${opts.link?'. 외부 보고서를 참고해주세요':''}`;
     return;
   }
   const d = _latestDataForIndicators || {};
   const node = getDataByPath(d, dataPath);
   let labels=[], values=[];
-  let dataSource = opts.src || '데이터 소스 미연결';
+  let dataSource = opts.src || '데이터 출처 미연결';
   if(node?.history && typeof node.history === 'object') {
     Object.keys(node.history).sort().forEach(p=>{ labels.push(p); values.push(node.history[p]); });
     dataSource = node.source || dataSource;
   } else if(node?.value != null) {
     labels = [node.period || '현재'];
     values = [node.value];
-    dataSource = (node.source || dataSource) + ' (단일 시점 — 시계열 추가 시 자동 확장)';
+    dataSource = (node.source || dataSource) + ' (단일 시점. 시계열 추가 시 자동 확장)';
   } else {
-    if(noteEl) noteEl.innerHTML = `${dataSource} — 데이터 미수집. ${opts.link?'외부 링크에서 최신 데이터 확인 가능.':''}`;
+    if(noteEl) noteEl.innerHTML = `${dataSource}: 데이터 수집중. ${opts.link?'외부 링크에서 최신 데이터 확인 가능.':''}`;
     return;
   }
   // 기간/단위 리샘플링
@@ -11123,21 +11126,11 @@ function _renderReHistChart() {
     values = [1859, 1869, 1875, 1867, 1853, 1862, 1875, 1886, 1882, 1896, 1913, 1927, 1921, 1935, 1948, 1962];
     dataSource = '내장 시계열 (한국은행 가계신용, 단위: 조원)';
   }
-  // 9) 미국 주별 HPI 폴백 — FRED 실데이터(case_shiller_state) 미수집 시, 지도에 내장된
-  //    history 로라도 차트가 보이게 한다(클릭 시 빈 차트 방지). FRED 연동 후 실데이터로 대체됨.
-  if(!values.length && /^case_shiller_[A-Z]{2}$/.test(key) && typeof usRegionData !== 'undefined') {
-    const _scode = key.slice('case_shiller_'.length);
-    const _reg = usRegionData.find(r => r.code === _scode);
-    if(_reg && Array.isArray(_reg.history) && _reg.history.length) {
-      const n = _reg.history.length, today = new Date();
-      for(let i=0;i<n;i++){ const dt = new Date(today.getFullYear(), today.getMonth()-(n-1-i), 1); labels.push(dt.toISOString().slice(0,7)); }
-      values = _reg.history.slice();
-      dataSource = '주별 주택가격지수 (참고용 내장 시계열 — FRED FHFA 연동 시 실데이터로 대체)';
-    }
-  }
+  // 9) (삭제 2026-10-30) 미국 주별 HPI 폴백 — FHFA 실데이터가 없을 때 지도에 박힌 10점 배열을 오늘부터 거꾸로 만든
+  //    날짜에 얹어 그렸다(값도 날짜도 지어낸 것). 실데이터가 없으면 아래 「데이터 없음」으로 끝낸다(값을 지어내지 않는다).
   const ctx = document.getElementById('reHistChart');
   if(!ctx || !values.length) {
-    if(noteEl) noteEl.textContent = '시계열 데이터 없음 — API 연동 시 자동 표시됩니다.';
+    if(noteEl) noteEl.textContent = '시계열 데이터 없음';
     return;
   }
   // 기간/단위 적용
@@ -11253,7 +11246,7 @@ async function refreshReHistoryChart(btn) {
     } else if(okCount > 0) {
       _refreshFeedback(btn, 'warn', `${okCount}/${totalCount} 갱신`);
     } else {
-      _refreshFeedback(btn, 'error', '네트워크 오류');
+      _refreshFeedback(btn, 'error', '갱신 실패');
     }
   } catch(e) {
     console.warn('[reHist] refresh 오류:', e);
@@ -11278,7 +11271,7 @@ async function refreshFxData(btn) {
     }
     const n = await loadRealtimeFx();   // 환율+변화율, 내부에서 FX 페이지/티커/헤더 재렌더
     if (n > 0) _refreshFeedback(btn, 'success', `${n}건 갱신`);
-    else       _refreshFeedback(btn, 'error', '네트워크 오류');
+    else       _refreshFeedback(btn, 'error', '갱신 실패');
   } catch (e) {
     console.warn('[FX] refresh 오류:', e);
     _refreshFeedback(btn, 'error', '실패');
@@ -11301,7 +11294,7 @@ async function refreshETFFromClient(btn) {
     }
   } catch(e) {
     console.warn('[ETF] 클라이언트 페치 오류:', e);
-    _refreshFeedback(btn, 'error', '네트워크 오류');
+    _refreshFeedback(btn, 'error', '갱신 실패');
   }
 }
 
@@ -11788,12 +11781,12 @@ const SENTIMENT_GUIDES = {
       S&P500 옵션의 향후 30일간 내재변동성을 지수화한 것으로, 시장의 <strong>"공포 지수"</strong>로 불립니다.<br><br>
       <strong>해석 기준 (역사적 평균 ~19):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-        <li><span style="color:var(--c-up);">● 12 이하</span> — 시장 안정 / 낙관 (저변동성, 위험자산 선호)</li>
-        <li><span style="color:var(--c-up);">● 12~15</span> — 정상 (역사적 평균 부근)</li>
-        <li><span style="color:var(--c-warn);">● 15~20</span> — 시장 과열 시작 (조정 위험 증가)</li>
-        <li><span style="color:var(--c-down);">● 20~30</span> — 시장 과열 / 불안 (변동성 확대)</li>
-        <li><span style="color:var(--ind-neg);">● 30~40</span> — 패닉 진입 (대규모 매도)</li>
-        <li><span style="color:var(--ind-neg);">● 40 이상</span> — 시스템 위기 (2008 금융위기 ~80, 2020 코로나 82.7 최고)</li>
+        <li><span style="color:var(--c-up);">● 12 이하</span>: 시장 안정 / 낙관 (저변동성, 위험자산 선호)</li>
+        <li><span style="color:var(--c-up);">● 12~15</span>: 정상 (역사적 평균 부근)</li>
+        <li><span style="color:var(--c-warn);">● 15~20</span>: 시장 과열 시작 (조정 위험 증가)</li>
+        <li><span style="color:var(--c-down);">● 20~30</span>: 시장 과열 / 불안 (변동성 확대)</li>
+        <li><span style="color:var(--ind-neg);">● 30~40</span>: 패닉 진입 (대규모 매도)</li>
+        <li><span style="color:var(--ind-neg);">● 40 이상</span>: 시스템 위기 (2008 금융위기 ~80, 2020 코로나 82.7 최고)</li>
       </ul>
       <strong style="color:var(--c-primary);">활용:</strong> VIX 가 급등하면 풋옵션 매수/안전자산(국채, 금) 선호, VIX 가 낮을 때 콜옵션/위험자산 매수 전략이 일반적입니다.
     `,
@@ -11809,11 +11802,11 @@ const SENTIMENT_GUIDES = {
       한국거래소(KRX) 가 정식 발표하는 KOSPI 200 옵션의 30일 내재변동성. 한국 시장의 <strong>변동성/공포 지수</strong>로, VIX의 한국판입니다. 네이버에서 보는 finance.naver.com/sise/sise_index.naver?code=KSVKOSPI 과 동일.<br><br>
       <strong>해석 기준 (역사적 평균 ~17):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-        <li><span style="color:var(--c-up);">● 15 이하</span> — 시장 안정 (낮은 변동성)</li>
-        <li><span style="color:var(--c-up);">● 15~20</span> — 정상 범위</li>
-        <li><span style="color:var(--c-warn);">● 20~30</span> — 시장 과열 (조정 위험)</li>
-        <li><span style="color:var(--c-down);">● 30~40</span> — 변동성 확대 (불안 심리)</li>
-        <li><span style="color:var(--ind-neg);">● 40 이상</span> — 패닉 (2008년 79, 2020년 코로나 69 최고)</li>
+        <li><span style="color:var(--c-up);">● 15 이하</span>: 시장 안정 (낮은 변동성)</li>
+        <li><span style="color:var(--c-up);">● 15~20</span>: 정상 범위</li>
+        <li><span style="color:var(--c-warn);">● 20~30</span>: 시장 과열 (조정 위험)</li>
+        <li><span style="color:var(--c-down);">● 30~40</span>: 변동성 확대 (불안 심리)</li>
+        <li><span style="color:var(--ind-neg);">● 40 이상</span>: 패닉 (2008년 79, 2020년 코로나 69 최고)</li>
       </ul>
       <strong style="color:var(--c-primary);">활용:</strong> VIX 와 비교하여 한국시장 고유의 변동성 변화를 측정. KSVKOSPI - VIX > 5 이면 한국 시장 특이 위험 신호.
     `,
@@ -11829,11 +11822,11 @@ const SENTIMENT_GUIDES = {
       미국 국채 옵션의 내재변동성. 채권시장의 <strong>"VIX"</strong>로, 금리 변동성과 통화정책 불확실성을 측정합니다.<br><br>
       <strong>해석 기준 (역사적 평균 ~80):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-        <li><span style="color:var(--c-up);">● 70 이하</span> — 채권시장 안정 (금리 변동 최소)</li>
-        <li><span style="color:var(--c-up);">● 70~100</span> — 정상 (역사적 평균 부근)</li>
-        <li><span style="color:var(--c-warn);">● 100~130</span> — 채권 변동성 확대 (금리 인상/인하 사이클 전환기)</li>
-        <li><span style="color:var(--c-down);">● 130~150</span> — 채권시장 불안 (2022~2023 금리인상 시기)</li>
-        <li><span style="color:var(--ind-neg);">● 150 이상</span> — 채권 패닉 (2008 금융위기 250+, 2023.03 SVB 사태 200)</li>
+        <li><span style="color:var(--c-up);">● 70 이하</span>: 채권시장 안정 (금리 변동 최소)</li>
+        <li><span style="color:var(--c-up);">● 70~100</span>: 정상 (역사적 평균 부근)</li>
+        <li><span style="color:var(--c-warn);">● 100~130</span>: 채권 변동성 확대 (금리 인상/인하 사이클 전환기)</li>
+        <li><span style="color:var(--c-down);">● 130~150</span>: 채권시장 불안 (2022~2023 금리인상 시기)</li>
+        <li><span style="color:var(--ind-neg);">● 150 이상</span>: 채권 패닉 (2008 금융위기 250+, 2023.03 SVB 사태 200)</li>
       </ul>
       <strong style="color:var(--c-primary);">활용:</strong> MOVE 가 높을수록 채권 금리 급변동 위험. 통화정책 회의 직전 상승 흔함. VIX 와 동반 상승 시 시스템 위험.
     `,
@@ -11849,11 +11842,11 @@ const SENTIMENT_GUIDES = {
       미국 하이일드(투기등급) 회사채 수익률과 동일 만기 국채 수익률의 차이. 신용시장의 <strong>위험 프리미엄</strong>을 측정합니다.<br><br>
       <strong>해석 기준 (역사적 평균 ~5%p):</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-        <li><span style="color:var(--c-up);">● 3%p 이하</span> — 신용시장 호황 (저위험 프리미엄, 자금조달 용이)</li>
-        <li><span style="color:var(--c-up);">● 3~4%p</span> — 정상 (역사적 평균 부근)</li>
-        <li><span style="color:var(--c-warn);">● 4~6%p</span> — 신용 우려 확산 (경기 둔화 우려)</li>
-        <li><span style="color:var(--c-down);">● 6~8%p</span> — 신용시장 불안 (디폴트 우려)</li>
-        <li><span style="color:var(--ind-neg);">● 8%p 이상</span> — 신용 위기 (2008 금융위기 21%, 2020 코로나 11%, 2016 에너지 위기 9%)</li>
+        <li><span style="color:var(--c-up);">● 3%p 이하</span>: 신용시장 호황 (저위험 프리미엄, 자금조달 용이)</li>
+        <li><span style="color:var(--c-up);">● 3~4%p</span>: 정상 (역사적 평균 부근)</li>
+        <li><span style="color:var(--c-warn);">● 4~6%p</span>: 신용 우려 확산 (경기 둔화 우려)</li>
+        <li><span style="color:var(--c-down);">● 6~8%p</span>: 신용시장 불안 (디폴트 우려)</li>
+        <li><span style="color:var(--ind-neg);">● 8%p 이상</span>: 신용 위기 (2008 금융위기 21%, 2020 코로나 11%, 2016 에너지 위기 9%)</li>
       </ul>
       <strong style="color:var(--c-primary);">활용:</strong> 경기침체 선행지표. 스프레드가 1년 내 3%p → 7%p 이상 급등 시 침체 가능성 ↑. VIX, MOVE 와 동반 상승 시 시스템 위험.
     `,
@@ -11869,13 +11862,13 @@ const SENTIMENT_GUIDES = {
       CNN Money 가 7가지 시장 지표(주가 모멘텀·강도·폭·풋콜비율·정크본드 수요·시장 변동성·안전자산 수요)를 종합한 <strong>시장 심리 지표</strong>. 0~100 점수로 표현됩니다.<br><br>
       <strong>해석 기준:</strong>
       <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-        <li><span style="color:var(--c-down);">● 0~24 (극도 공포)</span> — 매수 기회로 인식되기도 함 (역방향)</li>
-        <li><span style="color:var(--c-warn);">● 25~44 (공포)</span> — 시장 약세 심리, 변동성 확대</li>
-        <li><span style="color:var(--c-primary);">● 45~54 (중립)</span> — 균형 상태</li>
-        <li><span style="color:var(--c-up);">● 55~74 (탐욕)</span> — 시장 강세 심리</li>
-        <li><span style="color:var(--ind-pos);">● 75~100 (극도 탐욕)</span> — 과열 신호 (역방향, 조정 가능성)</li>
+        <li><span style="color:var(--c-down);">● 0~24 (극도 공포)</span>: 매수 기회로 인식되기도 함 (역방향)</li>
+        <li><span style="color:var(--c-warn);">● 25~44 (공포)</span>: 시장 약세 심리, 변동성 확대</li>
+        <li><span style="color:var(--c-primary);">● 45~54 (중립)</span>: 균형 상태</li>
+        <li><span style="color:var(--c-up);">● 55~74 (탐욕)</span>: 시장 강세 심리</li>
+        <li><span style="color:var(--ind-pos);">● 75~100 (극도 탐욕)</span>: 과열 신호 (역방향, 조정 가능성)</li>
       </ul>
-      <strong style="color:var(--c-primary);">활용:</strong> 역발상 지표로 활용 — 극단치(20 이하 / 80 이상) 진입 시 단기 추세 반전 가능성. 단일 지표보다는 VIX·PCR 과 함께 종합 판단.
+      <strong style="color:var(--c-primary);">활용:</strong> 역발상 지표로 활용. 극단치(20 이하 / 80 이상) 진입 시 단기 추세 반전 가능성. 단일 지표보다는 VIX·PCR 과 함께 종합 판단.
     `,
   },
 };
@@ -11887,25 +11880,25 @@ const MACRO_GUIDES = {
   // ──────── 거시경제 ────────
   cpi: `<strong style="color:var(--c-down);">CPI (소비자물가지수) 란?</strong><br>
     가계가 소비하는 상품·서비스 가격의 변동을 측정. 인플레이션의 핵심 지표.<br><br>
-    <strong>해석 기준 (전년동기비, 한국 목표 2%):</strong>
+    <strong>해석 기준 (전년 대비, 한국은행·연준 목표 2%):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-up);">● 0% 이하</span> — 디플레이션 (위험: 일본형 장기 침체)</li>
-      <li><span style="color:var(--c-up);">● 0~2%</span> — 안정 (목표 부근)</li>
-      <li><span style="color:var(--c-warn);">● 2~3%</span> — 정상 인플레이션</li>
-      <li><span style="color:var(--c-down);">● 3~5%</span> — 인플레이션 우려 (금리인상 압력)</li>
-      <li><span style="color:var(--ind-neg);">● 5% 이상</span> — 고물가 (2022~2023 미국 9.1%, 한국 6.3% 최고치)</li>
+      <li><span style="color:var(--c-up);">● 0% 이하</span>: 디플레이션 (위험: 일본형 장기 침체)</li>
+      <li><span style="color:var(--c-up);">● 0~2%</span>: 안정 (목표 부근)</li>
+      <li><span style="color:var(--c-warn);">● 2~3%</span>: 정상 인플레이션</li>
+      <li><span style="color:var(--c-down);">● 3~5%</span>: 인플레이션 우려 (금리인상 압력)</li>
+      <li><span style="color:var(--ind-neg);">● 5% 이상</span>: 고물가 (2022~2023 미국 9.1%, 한국 6.3% 최고치)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> Fed/한은 통화정책 결정의 1순위 지표. 근원 CPI(에너지/식품 제외)와 함께 봐야 정확.`,
 
   gdp: `<strong style="color:var(--c-up);">GDP 성장률 이란?</strong><br>
     국내총생산의 전년동기 또는 전기 대비 변화율. 경제 활동의 규모를 측정.<br><br>
-    <strong>해석 기준 (전년동기비):</strong>
+    <strong>해석 기준 (전년 대비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● -2% 이하</span> — 심각한 경기침체 (recession)</li>
-      <li><span style="color:var(--c-down);">● -2~0%</span> — 침체 (2분기 연속 마이너스 = 기술적 침체)</li>
-      <li><span style="color:var(--c-warn);">● 0~1%</span> — 저성장 (스태그플레이션 우려)</li>
-      <li><span style="color:var(--c-up);">● 1~3%</span> — 정상 성장 (선진국 평균)</li>
-      <li><span style="color:var(--ind-pos);">● 3% 이상</span> — 고성장 (한국 잠재성장률 2.0%, 미국 2.5% 부근)</li>
+      <li><span style="color:var(--ind-neg);">● -2% 이하</span>: 심각한 경기침체 (recession)</li>
+      <li><span style="color:var(--c-down);">● -2~0%</span>: 침체 (2분기 연속 마이너스 = 기술적 침체)</li>
+      <li><span style="color:var(--c-warn);">● 0~1%</span>: 저성장 (스태그플레이션 우려)</li>
+      <li><span style="color:var(--c-up);">● 1~3%</span>: 정상 성장 (선진국 평균)</li>
+      <li><span style="color:var(--ind-pos);">● 3% 이상</span>: 고성장 (한국 잠재성장률 2.0%, 미국 2.5% 부근)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 분기별 발표. 한국 잠재성장률 ~2.0%, 그 이하면 경기 둔화 신호.`,
 
@@ -11913,23 +11906,23 @@ const MACRO_GUIDES = {
     경제활동인구 중 실업자 비율. 노동시장 건강성과 경기 사이클을 반영.<br><br>
     <strong>해석 기준 (한국 자연실업률 ~3%, 미국 ~4.5%):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-up);">● 한국 3% 이하 / 미국 4% 이하</span> — 완전고용 (임금상승 압력)</li>
-      <li><span style="color:var(--c-up);">● 한국 3~4% / 미국 4~5%</span> — 정상</li>
-      <li><span style="color:var(--c-warn);">● 한국 4~5% / 미국 5~6%</span> — 경기둔화 신호</li>
-      <li><span style="color:var(--c-down);">● 한국 5% 이상 / 미국 6% 이상</span> — 경기침체 진입</li>
-      <li><span style="color:var(--ind-neg);">● 미국 7% 이상</span> — 침체 확정 (2008 10%, 2020 14.7% 코로나)</li>
+      <li><span style="color:var(--c-up);">● 한국 3% 이하 / 미국 4% 이하</span>: 완전고용 (임금상승 압력)</li>
+      <li><span style="color:var(--c-up);">● 한국 3~4% / 미국 4~5%</span>: 정상</li>
+      <li><span style="color:var(--c-warn);">● 한국 4~5% / 미국 5~6%</span>: 경기둔화 신호</li>
+      <li><span style="color:var(--c-down);">● 한국 5% 이상 / 미국 6% 이상</span>: 경기침체 진입</li>
+      <li><span style="color:var(--ind-neg);">● 미국 7% 이상</span>: 침체 확정 (2008 10%, 2020 14.7% 코로나)</li>
     </ul>
-    <strong style="color:var(--c-primary);">활용:</strong> Sahm Rule — 실업률 3M평균이 12개월 최저치 대비 +0.5%p 이상 상승 시 침체 신호.`,
+    <strong style="color:var(--c-primary);">활용:</strong> Sahm Rule. 실업률 3M평균이 12개월 최저치 대비 +0.5%p 이상 상승 시 침체 신호.`,
 
   base_rate: `<strong style="color:var(--c-primary);">기준금리 (정책금리) 란?</strong><br>
     중앙은행이 시중은행에 적용하는 금리. 통화정책의 핵심 도구.<br><br>
     <strong>해석 기준 (중립금리: 한국 ~2.5%, 미국 ~3%):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● 0~0.5%</span> — 양적완화/제로금리 (경기 부양 모드)</li>
-      <li><span style="color:var(--c-down);">● 0.5~2%</span> — 완화적 통화정책</li>
-      <li><span style="color:var(--c-warn);">● 2~3%</span> — 중립 부근</li>
-      <li><span style="color:var(--c-up);">● 3~5%</span> — 긴축 (인플레이션 억제)</li>
-      <li><span style="color:var(--ind-pos);">● 5% 이상</span> — 강한 긴축 (2023 미국 5.5%, 한국 3.5%)</li>
+      <li><span style="color:var(--ind-neg);">● 0~0.5%</span>: 양적완화/제로금리 (경기 부양 모드)</li>
+      <li><span style="color:var(--c-down);">● 0.5~2%</span>: 완화적 통화정책</li>
+      <li><span style="color:var(--c-warn);">● 2~3%</span>: 중립 부근</li>
+      <li><span style="color:var(--c-up);">● 3~5%</span>: 긴축 (인플레이션 억제)</li>
+      <li><span style="color:var(--ind-pos);">● 5% 이상</span>: 강한 긴축 (2023 미국 5.5%, 한국 3.5%)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 채권시장, 환율, 부동산, 주식 전반에 영향. 금리 인상기 = 채권가격 하락 / 인하기 = 채권가격 상승.`,
 
@@ -11937,10 +11930,10 @@ const MACRO_GUIDES = {
     주택 매매가격의 시계열 변화. 한국 R-ONE은 2021.6=100 기준, 미국 Case-Shiller는 1990=100 기준.<br><br>
     <strong>해석:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li>전월비 +0.5% 이상 — 강한 상승세 (과열 가능성)</li>
-      <li>전월비 0~0.5% — 정상 상승</li>
-      <li>전월비 0~-0.5% — 보합/약세</li>
-      <li>전월비 -0.5% 이하 — 하락세 (장기화 시 시장 침체)</li>
+      <li>전월 대비 +0.5% 이상: 강한 상승세 (과열 가능성)</li>
+      <li>전월 대비 0~0.5%: 정상 상승</li>
+      <li>전월 대비 0~-0.5%: 보합/약세</li>
+      <li>전월 대비 -0.5% 이하: 하락세 (장기화 시 시장 침체)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 주담대 금리, 가계부채, 인구 변화와 함께 종합 판단. 한국 2022년 정점 후 -10% 조정 → 2024년 회복.`,
 
@@ -11948,10 +11941,10 @@ const MACRO_GUIDES = {
     주택구입자금 대출의 평균 금리. 한국 신규 주담대, 미국 30년 고정 모기지가 대표.<br><br>
     <strong>해석 기준:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-up);">● 미국 3% 이하 / 한국 3% 이하</span> — 매우 낮음 (저금리 시대, 부동산 활황)</li>
-      <li><span style="color:var(--c-up);">● 미국 3~5% / 한국 3~4%</span> — 정상</li>
-      <li><span style="color:var(--c-warn);">● 미국 5~7% / 한국 4~5%</span> — 부담 (수요 위축)</li>
-      <li><span style="color:var(--c-down);">● 미국 7% 이상 / 한국 5% 이상</span> — 높은 부담 (구매력 ↓)</li>
+      <li><span style="color:var(--c-up);">● 미국 3% 이하 / 한국 3% 이하</span>: 매우 낮음 (저금리 시대, 부동산 활황)</li>
+      <li><span style="color:var(--c-up);">● 미국 3~5% / 한국 3~4%</span>: 정상</li>
+      <li><span style="color:var(--c-warn);">● 미국 5~7% / 한국 4~5%</span>: 부담 (수요 위축)</li>
+      <li><span style="color:var(--c-down);">● 미국 7% 이상 / 한국 5% 이상</span>: 높은 부담 (구매력 ↓)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 기준금리 + 스프레드 = 모기지 금리. Fed 정책 변화 직후 시장에 반영. 한국 코픽스(COFIX) 기준 변동금리 영향.`,
 
@@ -11961,11 +11954,11 @@ const MACRO_GUIDES = {
     월간 신고된 부동산 매매계약 건수. 시장 활성도와 수요·공급 균형을 판단하는 1차 지표.<br><br>
     <strong>해석 기준 (한국 전국 월간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● 3만 건 이하</span> — 거래 절벽 (2022~2023 침체기, 2~3만 건)</li>
-      <li><span style="color:var(--c-down);">● 3~5만 건</span> — 위축 (수요 부족)</li>
-      <li><span style="color:var(--c-warn);">● 5~7만 건</span> — 정상 (10년 평균 6.5만 부근)</li>
-      <li><span style="color:var(--c-up);">● 7~10만 건</span> — 활황</li>
-      <li><span style="color:var(--ind-pos);">● 10만 건 이상</span> — 과열 (2020 코로나 저금리기 11만+)</li>
+      <li><span style="color:var(--ind-neg);">● 3만 건 이하</span>: 거래 절벽 (2022~2023 침체기, 2~3만 건)</li>
+      <li><span style="color:var(--c-down);">● 3~5만 건</span>: 위축 (수요 부족)</li>
+      <li><span style="color:var(--c-warn);">● 5~7만 건</span>: 정상 (10년 평균 6.5만 부근)</li>
+      <li><span style="color:var(--c-up);">● 7~10만 건</span>: 활황</li>
+      <li><span style="color:var(--ind-pos);">● 10만 건 이상</span>: 과열 (2020 코로나 저금리기 11만+)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 가격지수에 약 3개월 선행. 거래량 ↓ + 가격 ↓ = 침체 진입, 거래량 ↑ + 가격 보합 = 회복 신호. 자료: 국토교통부 실거래가공개시스템.`,
 
@@ -11973,10 +11966,10 @@ const MACRO_GUIDES = {
     정부가 발급한 신규 주택 건설 허가 건수. 향후 1~3년 후 공급량을 예측하는 선행지표.<br><br>
     <strong>해석 기준 (한국 연간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● 30만 호 이하</span> — 공급 절벽 우려 (3년 후 가격 급등 위험)</li>
-      <li><span style="color:var(--c-down);">● 30~40만 호</span> — 위축 (2022~2023 ~40만 호)</li>
-      <li><span style="color:var(--c-warn);">● 40~50만 호</span> — 정상 (적정공급 50만 호 추정)</li>
-      <li><span style="color:var(--c-up);">● 50만 호 이상</span> — 충분 (2015~2017 ~70만 호 사상 최대)</li>
+      <li><span style="color:var(--ind-neg);">● 30만 호 이하</span>: 공급 절벽 우려 (3년 후 가격 급등 위험)</li>
+      <li><span style="color:var(--c-down);">● 30~40만 호</span>: 위축 (2022~2023 ~40만 호)</li>
+      <li><span style="color:var(--c-warn);">● 40~50만 호</span>: 정상 (적정공급 50만 호 추정)</li>
+      <li><span style="color:var(--c-up);">● 50만 호 이상</span>: 충분 (2015~2017 ~70만 호 사상 최대)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 미분양과 함께 보면 정확. 인허가 ↓ + 미분양 ↑ = 단기 공급과잉, 인허가 ↓ + 미분양 ↓ = 향후 가격 상승 압력. 자료: 국토교통부.`,
 
@@ -11984,22 +11977,22 @@ const MACRO_GUIDES = {
     실제 공사가 시작된 신규 주택의 건설 호수. 인허가보다 더 확실한 공급 선행지표 (1~2년 후 입주).<br><br>
     <strong>해석 기준 (한국 연간):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● 25만 호 이하</span> — 공급 절벽 (2~3년 후 시장 압박)</li>
-      <li><span style="color:var(--c-down);">● 25~35만 호</span> — 위축</li>
-      <li><span style="color:var(--c-warn);">● 35~45만 호</span> — 정상</li>
-      <li><span style="color:var(--c-up);">● 45만 호 이상</span> — 충분 (2015~2017 60만+)</li>
+      <li><span style="color:var(--ind-neg);">● 25만 호 이하</span>: 공급 절벽 (2~3년 후 시장 압박)</li>
+      <li><span style="color:var(--c-down);">● 25~35만 호</span>: 위축</li>
+      <li><span style="color:var(--c-warn);">● 35~45만 호</span>: 정상</li>
+      <li><span style="color:var(--c-up);">● 45만 호 이상</span>: 충분 (2015~2017 60만+)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 미국은 'Housing Starts' (FRED: HOUST) 로 발표. 인허가 → 착공 → 준공 (입주) 순으로 약 12~18개월 시차. 자료: 국토교통부.`,
 
   current_account: `<strong style="color:var(--c-up);">경상수지 란?</strong><br>
-    국가의 대외 거래 결과 — 상품·서비스 수출입 + 본원·이전소득 합산. 흑자/적자가 환율·외환보유고 결정 요인.<br><br>
+    국가의 대외 거래 결과. 상품·서비스 수출입 + 본원·이전소득 합산. 흑자/적자가 환율·외환보유고 결정 요인.<br><br>
     <strong>해석 기준 (한국 월간, 억 달러):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● -50억 달러 이하</span> — 큰 적자 (외환위기 위험)</li>
-      <li><span style="color:var(--c-down);">● -50~0</span> — 적자</li>
-      <li><span style="color:var(--c-warn);">● 0~50</span> — 소폭 흑자</li>
-      <li><span style="color:var(--c-up);">● 50~100</span> — 양호한 흑자</li>
-      <li><span style="color:var(--ind-pos);">● 100억 달러 이상</span> — 큰 흑자 (한국 평균 50~80억)</li>
+      <li><span style="color:var(--ind-neg);">● -50억 달러 이하</span>: 큰 적자 (외환위기 위험)</li>
+      <li><span style="color:var(--c-down);">● -50~0</span>: 적자</li>
+      <li><span style="color:var(--c-warn);">● 0~50</span>: 소폭 흑자</li>
+      <li><span style="color:var(--c-up);">● 50~100</span>: 양호한 흑자</li>
+      <li><span style="color:var(--ind-pos);">● 100억 달러 이상</span>: 큰 흑자 (한국 평균 50~80억)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 흑자 지속 = 원화 강세 압력, 적자 지속 = 원화 약세 압력. 한국은 12개월 누적 600~700억 달러 흑자가 정상. 자료: 한국은행 ECOS.`,
 
@@ -12007,35 +12000,35 @@ const MACRO_GUIDES = {
     당월 상품 수출 총액. 한국 경제는 GDP의 ~40% 가 수출 → 핵심 경기 지표.<br><br>
     <strong>해석 기준 (한국 월간, 억 달러):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● 450억 달러 이하</span> — 수출 부진 (반도체 다운사이클 등)</li>
-      <li><span style="color:var(--c-down);">● 450~550</span> — 위축</li>
-      <li><span style="color:var(--c-warn);">● 550~600</span> — 정상</li>
-      <li><span style="color:var(--c-up);">● 600~700</span> — 호조</li>
-      <li><span style="color:var(--ind-pos);">● 700억 달러 이상</span> — 사상 최고 수준 (2024~25 반도체 슈퍼사이클)</li>
+      <li><span style="color:var(--ind-neg);">● 450억 달러 이하</span>: 수출 부진 (반도체 다운사이클 등)</li>
+      <li><span style="color:var(--c-down);">● 450~550</span>: 위축</li>
+      <li><span style="color:var(--c-warn);">● 550~600</span>: 정상</li>
+      <li><span style="color:var(--c-up);">● 600~700</span>: 호조</li>
+      <li><span style="color:var(--ind-pos);">● 700억 달러 이상</span>: 사상 최고 수준 (2024~25 반도체 슈퍼사이클)</li>
     </ul>
-    <strong style="color:var(--c-primary);">활용:</strong> 반도체 비중 약 20~25%. 전년동기비 (YoY) 와 함께 보면 추세 판단. 무역수지 (수출-수입) 흑자 = 원화 강세 요인. 자료: 산업통상자원부 / 관세청.`,
+    <strong style="color:var(--c-primary);">활용:</strong> 반도체 비중 약 20~25%. 전년 대비 (전년 대비) 와 함께 보면 추세 판단. 무역수지 (수출-수입) 흑자 = 원화 강세 요인. 자료: 산업통상자원부 / 관세청.`,
 
   ip: `<strong style="color:var(--c-warn);">산업생산지수 (IP) 란?</strong><br>
     광공업(제조업+광업) 생산활동 수준. 2020 = 100 기준. 경기변동의 동행지표.<br><br>
-    <strong>해석 기준 (전년동기비):</strong>
+    <strong>해석 기준 (전년 대비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● -5% 이하</span> — 심각한 침체 (2008/2020 -10%대)</li>
-      <li><span style="color:var(--c-down);">● -5~0%</span> — 침체</li>
-      <li><span style="color:var(--c-warn);">● 0~3%</span> — 저성장</li>
-      <li><span style="color:var(--c-up);">● 3~7%</span> — 정상~호조</li>
-      <li><span style="color:var(--ind-pos);">● 7% 이상</span> — 호황 (반도체 등 IT 강한 증가세)</li>
+      <li><span style="color:var(--ind-neg);">● -5% 이하</span>: 심각한 침체 (2008/2020 -10%대)</li>
+      <li><span style="color:var(--c-down);">● -5~0%</span>: 침체</li>
+      <li><span style="color:var(--c-warn);">● 0~3%</span>: 저성장</li>
+      <li><span style="color:var(--c-up);">● 3~7%</span>: 정상~호조</li>
+      <li><span style="color:var(--ind-pos);">● 7% 이상</span>: 호황 (반도체 등 IT 강한 증가세)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 제조업 PMI, 수출, GDP 와 동조. 한국은 제조업 비중 ~27% (선진국 평균 15% 대비 高). 자료: 통계청 / 한국은행 ECOS.`,
 
   retail: `<strong style="color:var(--c-up);">소매판매액지수 란?</strong><br>
     소매업체의 매출액 변동. 가계 소비 지출 = GDP의 ~50%. 내수 경기 핵심 지표.<br><br>
-    <strong>해석 기준 (전년동기비):</strong>
+    <strong>해석 기준 (전년 대비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● -5% 이하</span> — 소비 절벽 (불황)</li>
-      <li><span style="color:var(--c-down);">● -5~0%</span> — 소비 위축</li>
-      <li><span style="color:var(--c-warn);">● 0~3%</span> — 약한 회복</li>
-      <li><span style="color:var(--c-up);">● 3~6%</span> — 정상</li>
-      <li><span style="color:var(--ind-pos);">● 6% 이상</span> — 강한 소비 (인플레 우려)</li>
+      <li><span style="color:var(--ind-neg);">● -5% 이하</span>: 소비 절벽 (불황)</li>
+      <li><span style="color:var(--c-down);">● -5~0%</span>: 소비 위축</li>
+      <li><span style="color:var(--c-warn);">● 0~3%</span>: 약한 회복</li>
+      <li><span style="color:var(--c-up);">● 3~6%</span>: 정상</li>
+      <li><span style="color:var(--ind-pos);">● 6% 이상</span>: 강한 소비 (인플레 우려)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 고용·임금·심리지표와 연동. 명목 지수와 실질 지수 (인플레 제외)를 함께 봐야 정확. 자료: 통계청 / 한국은행 ECOS.`,
 
@@ -12043,22 +12036,22 @@ const MACRO_GUIDES = {
     중위 주택가격 ÷ 가구 중위소득. 가구 평균소득으로 주택을 사는데 몇 년 걸리는지의 배수.<br><br>
     <strong>해석 기준 (서울 기준):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-up);">● 5배 이하</span> — 매우 저렴 (선진국 평균 5~7배)</li>
-      <li><span style="color:var(--c-up);">● 5~10배</span> — 보통</li>
-      <li><span style="color:var(--c-warn);">● 10~15배</span> — 부담</li>
-      <li><span style="color:var(--c-down);">● 15~20배</span> — 과열 (서울 2024~25 19배대)</li>
-      <li><span style="color:var(--ind-neg);">● 20배 이상</span> — 매우 위험 (홍콩 23배, 시드니 13배)</li>
+      <li><span style="color:var(--c-up);">● 5배 이하</span>: 매우 저렴 (선진국 평균 5~7배)</li>
+      <li><span style="color:var(--c-up);">● 5~10배</span>: 보통</li>
+      <li><span style="color:var(--c-warn);">● 10~15배</span>: 부담</li>
+      <li><span style="color:var(--c-down);">● 15~20배</span>: 과열 (서울 2024~25 19배대)</li>
+      <li><span style="color:var(--ind-neg);">● 20배 이상</span>: 매우 위험 (홍콩 23배, 시드니 13배)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 한국 전국 평균 ~10배, 서울 ~19배 → 서울 양극화 심화. 자료: KB부동산 / 통계청 가계금융복지.`,
 
   household_debt: `<strong style="color:var(--c-down);">가계신용 (가계부채) 란?</strong><br>
-    가계가 진 모든 빚 — 은행·비은행 대출 + 신용카드 미결제 잔액. GDP 대비 비율로 평가.<br><br>
+    가계가 진 모든 빚. 은행·비은행 대출 + 신용카드 미결제 잔액. GDP 대비 비율로 평가.<br><br>
     <strong>해석 기준 (GDP 대비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-up);">● 50% 이하</span> — 매우 안정</li>
-      <li><span style="color:var(--c-warn);">● 50~80%</span> — 정상 (선진국 평균)</li>
-      <li><span style="color:var(--c-down);">● 80~100%</span> — 위험 수준</li>
-      <li><span style="color:var(--ind-neg);">● 100% 이상</span> — 심각 (한국 2024 ~95%, 호주 110%, 스위스 130%)</li>
+      <li><span style="color:var(--c-up);">● 50% 이하</span>: 매우 안정</li>
+      <li><span style="color:var(--c-warn);">● 50~80%</span>: 정상 (선진국 평균)</li>
+      <li><span style="color:var(--c-down);">● 80~100%</span>: 위험 수준</li>
+      <li><span style="color:var(--ind-neg);">● 100% 이상</span>: 심각 (한국 2024 ~95%, 호주 110%, 스위스 130%)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 한국은 부동산 담보대출이 ~60%. 금리 인상 시 가계의 이자부담 ↑ → 소비 위축. 자료: 한국은행 ECOS.`,
 
@@ -12066,22 +12059,22 @@ const MACRO_GUIDES = {
     구매관리자지수. 신규수주·생산·고용·재고·납기 5개 항목 가중평균. 50 기준.<br><br>
     <strong>해석 기준 (S&P Global / ISM):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--ind-neg);">● 45 이하</span> — 강한 위축 (불황 신호)</li>
-      <li><span style="color:var(--c-down);">● 45~50</span> — 위축 (50 미만이면 제조업 경기 축소)</li>
-      <li><span style="color:var(--c-warn);">● 50~52</span> — 보합</li>
-      <li><span style="color:var(--c-up);">● 52~55</span> — 정상 성장</li>
-      <li><span style="color:var(--ind-pos);">● 55 이상</span> — 강한 확장</li>
+      <li><span style="color:var(--ind-neg);">● 45 이하</span>: 강한 위축 (불황 신호)</li>
+      <li><span style="color:var(--c-down);">● 45~50</span>: 위축 (50 미만이면 제조업 경기 축소)</li>
+      <li><span style="color:var(--c-warn);">● 50~52</span>: 보합</li>
+      <li><span style="color:var(--c-up);">● 52~55</span>: 정상 성장</li>
+      <li><span style="color:var(--ind-pos);">● 55 이상</span>: 강한 확장</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 50 기준선 돌파/하향이 추세 전환 시그널. 매월 1일 첫 영업일 발표 (가장 빠른 경기지표). 자료: S&P Global / ISM.`,
 
   m2: `<strong style="color:var(--c-primary);">M2 통화량 이란?</strong><br>
     M1 (현금+요구불예금) + 저축성예금 + MMF + 단기금융상품. 시중 유동성의 폭넓은 측정치.<br><br>
-    <strong>해석 (전년동기비):</strong>
+    <strong>해석 (전년 대비):</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-down);">● -2% 이하</span> — 매우 긴축 (2022~23 미국 -3%, 사상 최초)</li>
-      <li><span style="color:var(--c-warn);">● -2~3%</span> — 긴축</li>
-      <li><span style="color:var(--c-up);">● 3~8%</span> — 정상</li>
-      <li><span style="color:var(--ind-pos);">● 8% 이상</span> — 강한 완화 (2020 코로나 25%+)</li>
+      <li><span style="color:var(--c-down);">● -2% 이하</span>: 매우 긴축 (2022~23 미국 -3%, 사상 최초)</li>
+      <li><span style="color:var(--c-warn);">● -2~3%</span>: 긴축</li>
+      <li><span style="color:var(--c-up);">● 3~8%</span>: 정상</li>
+      <li><span style="color:var(--ind-pos);">● 8% 이상</span>: 강한 완화 (2020 코로나 25%+)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 인플레이션 선행지표. M2 ↑ → 12~18개월 후 인플레 ↑. Fed/한은의 양적완화·긴축 효과를 가시화. 자료: Fed (FRED: M2SL) / 한국은행 ECOS.`,
 
@@ -12089,11 +12082,11 @@ const MACRO_GUIDES = {
     미 달러 vs 6개 주요통화 (유로 57.6%, 엔 13.6%, 파운드 11.9%, CAD/SEK/CHF) 의 가중 환율. 글로벌 달러 강세 측정.<br><br>
     <strong>해석 기준:</strong>
     <ul style="margin:4px 0 4px 16px;padding:0;line-height:1.8;">
-      <li><span style="color:var(--c-down);">● 90 이하</span> — 달러 약세 (신흥국 자금유입)</li>
-      <li><span style="color:var(--c-warn);">● 90~100</span> — 보합</li>
-      <li><span style="color:var(--c-up);">● 100~105</span> — 정상~소폭 강세</li>
-      <li><span style="color:var(--ind-pos);">● 105 이상</span> — 강한 달러 (한국 원화 약세, 신흥국 자본유출)</li>
-      <li><span style="color:var(--ind-neg);">● 110 이상</span> — 매우 강함 (2022 114, 1985 165 사상 최고)</li>
+      <li><span style="color:var(--c-down);">● 90 이하</span>: 달러 약세 (신흥국 자금유입)</li>
+      <li><span style="color:var(--c-warn);">● 90~100</span>: 보합</li>
+      <li><span style="color:var(--c-up);">● 100~105</span>: 정상~소폭 강세</li>
+      <li><span style="color:var(--ind-pos);">● 105 이상</span>: 강한 달러 (한국 원화 약세, 신흥국 자본유출)</li>
+      <li><span style="color:var(--ind-neg);">● 110 이상</span>: 매우 강함 (2022 114, 1985 165 사상 최고)</li>
     </ul>
     <strong style="color:var(--c-primary);">활용:</strong> 원자재 가격과 역의 상관. 달러 ↑ = 금/원유 가격 ↓ (달러 표시). Fed 금리 ↑ = 달러 ↑. 자료: ICE / Fed.`,
 };
@@ -12212,8 +12205,8 @@ function _renderReHistChartSentiment(guide) {
       const isSentimentClientKey = ['vkospi','move','fear_greed'].some(k => (guide.dataPath||'').endsWith(k));
       if(isVkospi && node?.value != null && (!_isValidVkospi(node.value) || !_vkospiXvalid)) {
         const _xMsg = !_isValidVkospi(node.value) ? `합리적 범위 벗어남(${node.value})`
-          : `VIX(${_vkospiVix.toFixed(1)}) 대비 비율 이상(${(node.value/_vkospiVix).toFixed(2)}x — 스크래핑 오염 의심)`;
-        noteEl.innerHTML = `<span style="color:var(--c-down,var(--c-error));">VKOSPI ${_xMsg}</span> — 다음 갱신에서 자동 보정`;
+          : `VIX(${_vkospiVix.toFixed(1)}) 대비 비율 이상(${(node.value/_vkospiVix).toFixed(2)}x. 스크래핑 오염 의심)`;
+        noteEl.innerHTML = `<span style="color:var(--c-down,var(--c-error));">VKOSPI ${_xMsg}</span>: 다음 갱신에서 자동 보정`;
       } else if(valIsValid) {
         noteEl.innerHTML = `<span style="color:var(--c-primary);">⟳ 시계열 데이터 수집 중…</span> &nbsp; <span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">현재값: ${node.value} (${guide.source})</span>`;
         // 즉시 fetch 트리거 (Naver 차트 API)
@@ -12222,13 +12215,13 @@ function _renderReHistChartSentiment(guide) {
         }
       } else if(isSentimentClientKey) {
         // 합성 fallback 제거 이후: 페치 모두 실패 시 명확한 안내
-        noteEl.innerHTML = `<span style="color:var(--c-down,var(--c-error));">데이터 수집 실패</span> — 브라우저 환경에서 외부 API 접근이 차단되었거나 일시적 응답 없음. <a href="javascript:void(0)" onclick="(function(){var b=event.target;b.textContent='⟳ 페치 중…';fetchSentimentClient().then(applySentimentClient).then(function(){b.textContent='✓ 갱신 시도 완료';}).catch(function(){b.textContent='✗ 실패';});})()" style="color:var(--c-primary);text-decoration:underline;">다시 시도</a>`;
+        noteEl.innerHTML = `<span style="color:var(--c-down,var(--c-error));">데이터 갱신 실패. 잠시 뒤 새로고침 해주세요</span> <a href="javascript:void(0)" onclick="(function(){var b=event.target;b.textContent='⟳ 불러오는 중…';fetchSentimentClient().then(applySentimentClient).then(function(){b.textContent='✓ 갱신 시도 완료';}).catch(function(){b.textContent='✗ 실패';});})()" style="color:var(--c-primary);text-decoration:underline;">다시 시도</a>`;
         // 자동으로 1회 재시도
         if(typeof fetchSentimentClient === 'function') {
           fetchSentimentClient().then(applySentimentClient).catch(()=>{});
         }
       } else {
-        noteEl.textContent = '시계열 데이터 없음 — 데이터 갱신 시 자동 표시됩니다.';
+        noteEl.textContent = '시계열 데이터 없음. 데이터 갱신 시 자동 표시됩니다.';
       }
     }
     // 빈 차트 영역에 안내문을 가운데 표시 (큰 흰 여백 대신) — note 내용을 그대로 노출
@@ -12969,10 +12962,10 @@ function applyRealData(d) {
     const diag = (d.diagnostics || {});
     const srvSrc = diag.stockMoversSource;
     const diagLine = srvSrc
-      ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">서버 소스: ${srvSrc==='FAILED'?'<span style=\"color:var(--c-down)\">전체 실패 (pykrx/KRX/Naver)</span>':srvSrc}</div>`
+      ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">출처: ${srvSrc==='FAILED'?'<span style=\"color:var(--c-down)\">데이터 갱신 실패</span>':srvSrc}</div>`
       : '';
     return `<tr><td colspan="${cols}" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
-      <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
+      <div>📡 ${label} 데이터 없음. 클라이언트에서 시도 중…</div>
       ${diagLine}
       <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="manualRetryMovers(this)" style="margin-top:6px;">다시 시도</button>
       <a href="https://finance.naver.com/sise/sise_rise.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
@@ -12998,10 +12991,10 @@ function applyRealData(d) {
     const diag = (d.diagnostics || {});
     const srvSrc = diag.etfMoversSource;
     const diagLine = srvSrc
-      ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">서버 소스: ${srvSrc==='FAILED'?'<span style=\"color:var(--c-down)\">전체 실패 (pykrx/Naver)</span>':srvSrc}</div>`
+      ? `<div style="font-size:var(--font-size-xs);color:var(--c-txt-muted);margin-top:4px;">출처: ${srvSrc==='FAILED'?'<span style=\"color:var(--c-down)\">데이터 갱신 실패</span>':srvSrc}</div>`
       : '';
     return `<tr><td colspan="4" style="padding:14px;text-align:center;color:var(--c-txt-muted);font-size:var(--font-size-sm);">
-      <div>📡 ${label} 데이터 없음 — 클라이언트에서 시도 중…</div>
+      <div>📡 ${label} 데이터 없음. 클라이언트에서 시도 중…</div>
       ${diagLine}
       <button class="seed-action-button seed-action-button--variant_neutralWeak seed-action-button--size_xsmall seed-action-button--size_xsmall-layout_withText" onclick="refreshETFFromClient(this)" style="margin-top:6px;">다시 시도</button>
       <a href="https://finance.naver.com/sise/etf.naver" target="_blank" rel="noopener noreferrer" style="margin-left:6px;color:var(--c-primary);text-decoration:none;font-size:var(--font-size-sm);">네이버 →</a>
@@ -13081,7 +13074,7 @@ function applyRealData(d) {
           // 상태는 배지 부품으로(SEED badge warning) — 글자색을 따로 칠하면 화면 색 종수만 늘린다(R4)
           b.className = 'seed-badge__root seed-badge__root--size_medium seed-badge__root--tone_warning-variant_weak';
           b.style.cssText = 'margin-left:6px;text-transform:none;letter-spacing:normal;';
-          b.title = '이번 수집이 실패해 직전 수집 값이 유지되고 있습니다';
+          b.title = '데이터 갱신에 실패해 직전 값 표시 중';
           b.textContent = '이전 값 유지';
           tEl.appendChild(b);
         }
@@ -13106,7 +13099,7 @@ function applyRealData(d) {
       vEl.style.color = 'var(--c-txt,#e8ebf5)';
     }
     if(cEl && data.chg != null) {
-      cEl.textContent = `전월比 ${data.chg>=0?'+':''}${data.chg.toFixed(2)}%`;
+      cEl.textContent = `전월 대비 ${data.chg>=0?'+':''}${data.chg.toFixed(2)}%`;
       cEl.style.color = data.chg >= 0 ? window.CUP : window.CDN;
     } else if(cEl && data.value != null) {
       cEl.textContent = '최신';
@@ -13165,7 +13158,7 @@ function applyRealData(d) {
     if(cEl) { cEl.textContent = `${data.period||''} · ${data.source||'R-ONE'}${h.lvl}`; cEl.style.color = 'var(--c-txt-dim)'; }
     setKrReCard('krReAptJnsVal', 'krReAptJnsChg', 'krRePeriodAptJns', data);
   } else {
-    const jnsHint = reDiag.fred_ok ? '전세 지수는 BIS 미제공 — R-ONE/ECOS 복구 시 표시' : reMissingHint;
+    const jnsHint = reDiag.fred_ok ? '전세 지수는 BIS 미제공. R-ONE/ECOS 복구 시 표시' : reMissingHint;
     _reMissingMeta('reKpiAptIdxChg', jnsHint);
   }
   // 주담대 금리는 economicIndicators.kr 또는 realestate.kr 양쪽에서 검색
@@ -13334,7 +13327,7 @@ function applyRealData(d) {
   // ── LME 금속 재고 (data.json.lmeInventory) 동기화 ──────
   if(d.lmeInventory && Array.isArray(d.lmeInventory.data)) {
     // 실데이터가 실제로 들어오면 '정적 스냅샷' 경고 문구를 자동 수집 표기로 교체
-    try { const nt = document.getElementById('metalInventoryNote'); if(nt) nt.textContent = '출처: LME 일일 재고 보고서 (자동 수집) —'; } catch(_) {}
+    try { const nt = document.getElementById('metalInventoryNote'); if(nt) nt.textContent = '출처: LME 일일 재고 보고서 (자동 수집):'; } catch(_) {}
     const krNames = {'Copper':'구리 (Copper)', 'Aluminum':'알루미늄', 'Zinc':'아연 (Zinc)',
                      'Nickel':'니켈 (Nickel)', 'Lead':'납 (Lead)', 'Tin':'주석 (Tin)'};
     d.lmeInventory.data.forEach((row, i) => {
@@ -13419,7 +13412,7 @@ function _sessionBasisHtml() {
   const closed = !!(cal && cal.today && cal.today.date === todayK && cal.today.open === false);
   const sess = closed ? ((cal.previousBusinessDay || {}).date || window._kospiLast) : window._kospiLast;
   if (!sess) return '';
-  const tip = closed ? '오늘은 국내 증시 휴장 — 국내 시세는 직전 거래일 값입니다' : '국내 시세의 마지막 거래일';
+  const tip = closed ? '오늘은 국내 증시 휴장. 국내 시세는 직전 거래일 값입니다' : '국내 시세의 마지막 거래일';
   return ` <span class="econ-meta" title="${tip}">· 국내 시세 ${sess.slice(5).replace('-', '/')} 기준${closed ? ' (오늘 휴장)' : ''}</span>`;
 }
 function renderDataFreshness() {
@@ -13437,7 +13430,7 @@ function renderDataFreshness() {
     dt.toLocaleString('ko-KR', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}) +
     ' 수집' + ageTxt + _sessionBasisHtml() + _tossChipHtml() + _healthChipHtml();
   const host = document.getElementById('dataSourceInfo');
-  if(host) host.title = ageH > 26 ? '데이터 수집 파이프라인이 멈춰 있을 수 있습니다 — 설정 > 시스템 진단 확인' : '';
+  if(host) host.title = ageH > 26 ? '데이터 수집 파이프라인이 멈춰 있을 수 있습니다. 설정 > 시스템 진단 확인' : '';
   try { applyWidgetFreshChips(); } catch(_) {}   // Phase 3 — 위젯 타이틀 옆 신선도 칩
 }
 
@@ -13456,9 +13449,9 @@ function _tossChipHtml() {
     : (t.ageMinutes < 90 ? Math.round(t.ageMinutes) + '분 전 수집'
                          : Math.round(t.ageMinutes / 60) + '시간 전 수집');
   const src = (t.supplied && t.supplied.length)
-    ? ' · 토스 제공: ' + t.supplied.join(', ') : ' · 전 항목 폴백';
-  const tip = label + ' — ' + age + (t.reason ? ' · ' + t.reason : '') + src +
-              ' — 클릭하면 시스템 진단';
+    ? ' · 토스 제공: ' + t.supplied.join(', ') : ' · 전 항목 다른 자료 대체';
+  const tip = label + ': ' + age + (t.reason ? ' · ' + t.reason : '') + src +
+              '. 클릭하면 시스템 진단';
   return ' <button type="button" class="health-chip btn-plain btn-inline"' +
     ' onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
     ` title="${tip.replace(/"/g, '&quot;')}"` +
@@ -13486,7 +13479,7 @@ function _healthChipHtml() {
                  s.missing ? '누락 ' + s.missing : '',
                  suspect ? '검증 필요 ' + suspect : ''].filter(Boolean).join(' · ');
   return ' <button type="button" class="health-chip btn-plain btn-inline" onclick="showPage(\'settings\');setTimeout(runDiagnostics,300);"' +
-    ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} · 누락 ${s.missing || 0} · 검증 필요 ${suspect} — 클릭하면 시스템 진단"` +
+    ` title="정상 ${s.ok} · 보존 ${s.preserved} · 지연 ${s.stale} · 실패 ${s.failed} · 누락 ${s.missing || 0} · 검증 필요 ${suspect}. 클릭하면 시스템 진단"` +
     ` style="color:${col};border:1px solid ${col};border-radius:var(--r-xs);padding:0 6px;margin-left:6px;cursor:pointer;font-size:var(--font-size-xs);">` +
     `${label}</button>`;
 }
@@ -13636,7 +13629,7 @@ function renderMarketHalts(data) {
     const tone = cls === 'circuit' ? 'critical' : 'warning';
     return `<div class="seed-page-banner__root seed-page-banner__root--tone_${tone}-variant_solid halt-banner ${cls}" data-id="${esc(h.id)}">`
       + `<div class="seed-page-banner__content"><span class="seed-page-banner__description">`
-      + `${icon} ${esc(h.market)} ${typ}${stage} 발동 — ${esc(h.reason)} · ${when}${approx}</span></div>`
+      + `${icon} ${esc(h.market)} ${typ}${stage} 발동: ${esc(h.reason)} · ${when}${approx}</span></div>`
       + `<button class="seed-page-banner__closeButton seed-page-banner__closeButton--tone_${tone}-variant_solid halt-x"`
       + ` aria-label="닫기" title="닫기" onclick="dismissHalt('${esc(h.id)}')">✕</button></div>`;
   }).join('');
@@ -13742,15 +13735,15 @@ async function _checkWorkerPipelineHealth() {
     if (!h || h.ghTokenValid !== false) return;   // true/null(판정불가)/필드없음 → 배너 없음
     const pipe = document.getElementById('pipelineWarnBanner');
     if (!pipe) return;
-    let msg = '알림 파이프라인 점검 필요: GitHub 토큰 만료 — Worker 시크릿 GH_DISPATCH_TOKEN 재발급';
-    if (h.ghAlertsTokenValid === false) msg += ' (GH_ALERTS_TOKEN 도 만료)';
+    let msg = '알림 점검 필요: 알림 서버 인증 만료. 관리자에게 재발급 요청해주세요';
+    if (h.ghAlertsTokenValid === false) msg += ' (보조 인증도 만료)';
     // 최근 24시간 내 dispatch 실패 신호(Worker isolate 메모리 best-effort)가 있으면 부드럽게 안내.
     let sub = '';
     const lf = h.lastDispatchFail;
     if (lf && lf.t && (Date.now() - lf.t) < 24 * 3600 * 1000) {
       let when = '';
       try { when = new Date(lf.t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }); } catch (_) {}
-      sub = ' · 최근 24시간 내 알림 발송 트리거 실패가 감지되었습니다' + (when ? ' (마지막 ' + when + ')' : '') + ' — 카카오 알림이 누락될 수 있어요.';
+      sub = ' · 최근 24시간 내 알림 발송 실패 감지' + (when ? ' (마지막 ' + when + ')' : '') + '. 카카오 알림이 누락될 수 있어요.';
     }
     pipe.innerHTML = '<div class="seed-page-banner__root seed-page-banner__root--tone_warning-variant_weak halt-banner sidecar">'
       + '<div class="seed-page-banner__content"><span class="seed-page-banner__description">' + msg + sub + '</span></div>'
@@ -13822,7 +13815,7 @@ async function refreshAllData(btn) {
     } else if(okCount > 0) {
       _refreshFeedback(btn, 'warn', `${okCount}/${totalCount} 갱신`);
     } else {
-      _refreshFeedback(btn, 'error', '네트워크 오류');
+      _refreshFeedback(btn, 'error', '갱신 실패');
     }
   } catch(e) {
     console.warn('[refreshAllData] 오류:', e);
@@ -14661,7 +14654,7 @@ function loadXlsxOnce() {
 async function exportSelectedToExcel() {
   if(!notes.length) { alert('저장된 노트가 없습니다.'); return; }
   try { await loadXlsxOnce(); }
-  catch(_) { alert('Excel 라이브러리 로드에 실패했습니다 — 네트워크 확인 후 다시 시도하세요.'); return; }
+  catch(_) { alert('엑셀 파일 생성 실패'); return; }
 
   const selectedCbs = document.querySelectorAll('.note-select-cb:checked');
   const selectedIds = selectedCbs.length > 0
@@ -15152,7 +15145,7 @@ window.addEventListener('load', async ()=>{
     if(navigator.onLine === false) {
       const ts = window._lastRealDataTs ? new Date(window._lastRealDataTs) : null;
       chip.innerHTML = '<span class="dot" style="background:var(--c-down,var(--c-error));"></span>오프라인' +
-        (ts ? ' — 마지막 ' + ts.toLocaleString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false}) : '');
+        (ts ? '. 마지막 ' + ts.toLocaleString('ko-KR',{hour:'2-digit',minute:'2-digit',hour12:false}) : '');
       chip.style.color = 'var(--c-down,#ef5350)';
     } else {
       chip.innerHTML = '<span class="dot"></span>Market Data 15m Delayed';
@@ -15242,7 +15235,7 @@ async function merblogSearch(){
   if(!q){ status.textContent='검색어를 입력하세요.'; return; }
   if(!live){
     // 스냅샷 클라이언트 필터(즉시)
-    status.textContent = '스냅샷에서 검색 중…';
+    status.textContent = '저장값에서 검색 중…';
     const snap = await merblogInit();
     const ql = q.toLowerCase();
     let hits = (snap.posts||[]).filter(p =>
@@ -15251,7 +15244,7 @@ async function merblogSearch(){
       (p.fullText||'').toLowerCase().includes(ql));
     if(sort==='date') hits = hits.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     _merRawResults = hits;
-    _merSnapMeta = `스냅샷 ${hits.length}건 (전체기간은 '라이브' 체크). ${snap.posts?snap.posts.length:0}개 글 색인.`;
+    _merSnapMeta = `저장값 ${hits.length}건 (전체기간은 '라이브' 체크). ${snap.posts?snap.posts.length:0}개 글 색인.`;
     merblogPopulateCats(hits);
     merblogApplyAndRender();
     return;
@@ -15261,7 +15254,7 @@ async function merblogSearch(){
   status.textContent = '네이버 전체기간 검색 중…';
   try{
     const base = _cfProxyBase();
-    if(!base) throw new Error('Worker 프록시 미설정');
+    if(!base) throw new Error('알림 서버 연결 안 됨');
     const url = `${base}/merblog?q=${encodeURIComponent(q)}&size=20&sort=${sort}`;
     const r = await fetch(url);
     if(!r.ok) throw new Error('HTTP '+r.status);
@@ -15271,7 +15264,7 @@ async function merblogSearch(){
     merblogPopulateCats(_merRawResults);
     merblogApplyAndRender();
   }catch(e){
-    status.textContent = '라이브 검색 실패: '+e.message+' (스냅샷으로 다시 시도해 보세요)';
+    status.textContent = '라이브 검색 실패: '+e.message+' (저장값으로 다시 시도해주세요)';
   }
 }
 
@@ -15363,11 +15356,11 @@ async function merblogToggleFull(logNo, btn){
   btn.disabled=true; btn.textContent='불러오는 중…';
   try{
     const base = _cfProxyBase();
-    if(!base) throw new Error('Worker 프록시 미설정');
+    if(!base) throw new Error('알림 서버 연결 안 됨');
     const r = await fetch(`${base}/merblog?ids=${encodeURIComponent(String(logNo))}`);
     const d = await r.json();
     const hit = (d.posts||[]).find(p=>String(p.logNo)===String(logNo));
-    const txt = hit && hit.fullText ? hit.fullText : '(원문을 불러오지 못했습니다. 원글↗ 링크를 이용하세요.)';
+    const txt = hit && hit.fullText ? hit.fullText : '(원문 불러오기 실패. 원글↗ 링크를 이용해주세요)';
     if(post) post.fullText = txt;   // 캐시(다운로드에도 반영)
     box.textContent = txt; box.style.display='block'; btn.textContent='원문 접기';
   }catch(e){
@@ -15380,7 +15373,7 @@ async function merblogEnsureFull(posts, onProgress){
   const missing = posts.filter(p=>p && !p.fullText && p.logNo);
   if(!missing.length) return;
   const base = _cfProxyBase();
-  if(!base) throw new Error('Worker 프록시 미설정 — 원문 자동 로드 불가(원글↗ 링크 이용)');
+  if(!base) throw new Error('알림 서버 연결 안 됨. 원문 자동 로드 불가. 원글↗ 링크를 이용해주세요');
   for(let i=0;i<missing.length;i+=10){
     const batch = missing.slice(i,i+10);
     if(onProgress) onProgress(Math.min(i+batch.length, missing.length), missing.length);
@@ -15453,7 +15446,7 @@ function econLeadSet(pageId, html) {
   }
   if (p.innerHTML !== html) p.innerHTML = html;
 }
-var _LEAD_NODATA = '<b>자료 없음</b> — 시세 자료가 오면 이 줄이 오늘의 상태를 한 문장으로 말한다';
+var _LEAD_NODATA = '<b>자료 없음</b>. 시세 자료가 오면 이 줄이 오늘의 상태를 한 문장으로 말한다';
 function _leadEsc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(String(s == null ? '' : s)) : String(s == null ? '' : s); }
 function _leadPct(v, d) { if (v == null || isNaN(+v)) return ''; var n = +v; return (n > 0 ? '▲' : n < 0 ? '▼' : '') + Math.abs(n).toFixed(d == null ? 2 : d) + '%'; }
 function _leadNum(v, d) { if (v == null || isNaN(+v)) return '—'; return (+v).toLocaleString('ko-KR', { minimumFractionDigits: d == null ? 2 : d, maximumFractionDigits: d == null ? 2 : d }); }
@@ -15475,7 +15468,7 @@ function _leadDashboard() {
   var RL = { g: '안정', y: '주의', r: '위험' };
   var head = r ? '시장 리스크 <b>' + (RL[r.light] || '') + ' ' + Math.round(r.score) + '</b>' : '시장 리스크 <b>자료 없음</b>';
   var chg = function (s) { return s && s !== '—' ? ' ' + _leadEsc(s.replace(/\s+/g, '')) : ''; };
-  return head + ' — KOSPI <b>' + _leadEsc(kospi) + '</b>' + chg(kchg) + ', 원/달러 <b>' + _leadEsc(fx) + '</b>' + chg(fchg) + (rate && rate !== '—' ? ', 기준금리 ' + _leadEsc(rate) : '');
+  return head + '. KOSPI <b>' + _leadEsc(kospi) + '</b>' + chg(kchg) + ', 원/달러 <b>' + _leadEsc(fx) + '</b>' + chg(fchg) + (rate && rate !== '—' ? ', 기준금리 ' + _leadEsc(rate) : '');
 }
 
 // 주식시장 — 지수 6개의 방향 집계 + 대표 둘
@@ -15487,7 +15480,7 @@ function _leadEquity() {
   var up = live.filter(function (x) { return x.chg != null && x.chg > 0; }).length;
   var one = function (x) { return '<b>' + _leadEsc(x.name) + ' ' + _leadEsc(fmtIndicator(x.val, 'index')) + '</b>' + (x.chg != null ? ' ' + _leadPct(x.chg) : ''); };
   var mood = down > up ? '하락 우세' : up > down ? '상승 우세' : '혼조';
-  return one(live[0]) + (live[1] ? ' · ' + one(live[1]) : '') + ' — 주요 지수 ' + live.length + '개 중 ' + down + '개 하락, ' + mood;
+  return one(live[0]) + (live[1] ? ' · ' + one(live[1]) : '') + '. 주요 지수 ' + live.length + '개 중 ' + down + '개 하락, ' + mood;
 }
 
 // 거시경제 — 나라 보기: 물가·성장·실업 최신값과 물가 목표 대비. 주제 보기: 그 주제의 나라별 최신값.
@@ -15496,7 +15489,7 @@ function _leadMacro() {
   var topicMode = (typeof macroViewMode !== 'undefined' && macroViewMode === 'topic');
   if (topicMode) {
     var topic = (typeof macroTopicTab !== 'undefined' && macroTopicTab) ? macroTopicTab : 'gdp';
-    var KEY = { gdp: ['gdp', 'gdpLabels', 'GDP 성장률(전년동기비)', '%'], cpi: ['cpi', 'cpiLabels', '물가(CPI, 전년비)', '%'], unemp: ['unemp', 'gdpLabels', '실업률', '%'], trade: ['exports', 'gdpLabels', '수출', '억 달러'] };
+    var KEY = { gdp: ['gdp', 'gdpLabels', 'GDP 성장률(전년 대비)', '%'], cpi: ['cpi', 'cpiLabels', '물가(CPI, 전년 대비)', '%'], unemp: ['unemp', 'gdpLabels', '실업률', '%'], trade: ['exports', 'gdpLabels', '수출', '억 달러'] };
     var k = KEY[topic] || KEY.gdp;
     var parts = MACRO_CCS.map(function (cc) {
       var t = macroData[cc]; if (!t) return null;
@@ -15504,7 +15497,7 @@ function _leadMacro() {
       return last ? (LEAD_CC_NAME[cc] || cc) + ' <b>' + _leadNum(last.v, k[3] === '%' ? 1 : 0) + (k[3] === '%' ? '%' : '') + '</b>' : null;
     }).filter(Boolean).slice(0, 5);
     if (!parts.length) return null;
-    return k[2] + ' — ' + parts.join(' · ') + (k[3] !== '%' ? ' (' + k[3] + ')' : '');
+    return k[2] + ': ' + parts.join(' · ') + (k[3] !== '%' ? ' (' + k[3] + ')' : '');
   }
   var cc = (typeof macroTab !== 'undefined' && macroTab) ? macroTab : 'kr';
   var t = macroData[cc];
@@ -15516,7 +15509,7 @@ function _leadMacro() {
   if (cpi) seg.push('물가 <b>' + _leadNum(cpi.v, 1) + '%</b>' + (cpi.l ? '(' + _leadEsc(cpi.l) + ')' : '') + (cpi.v > 2.5 ? ', 목표 2% 위' : cpi.v < 1.5 ? ', 목표 2% 아래' : ', 목표 2% 근처'));
   if (gdp) seg.push('성장률 <b>' + _leadNum(gdp.v, 1) + '%</b>' + (gdp.l ? '(' + _leadEsc(gdp.l) + ')' : ''));
   if (un) seg.push('실업률 ' + _leadNum(un.v, 1) + '%');
-  return name + ' — ' + seg.join(' · ');
+  return name + ': ' + seg.join(' · ');
 }
 
 // 시장 지표 — 탭마다 다른 문장(외환·금리·채권·원자재)
@@ -15533,7 +15526,7 @@ function _leadMarket() {
     var pos = '';
     if (range && range.hi > range.lo) {
       var pct = Math.round((parseFloat(String(p.cur).replace(/,/g, '')) - range.lo) / (range.hi - range.lo) * 100);
-      pos = ' — 52주 범위(' + _leadNum(range.lo * (p.displayMult || 1), cur < 10 ? 4 : 2) + '~' + _leadNum(range.hi * (p.displayMult || 1), cur < 10 ? 4 : 2) + ')의 ' + (pct >= 67 ? '위쪽' : pct <= 33 ? '아래쪽' : '가운데') + ', ' + pct + '% 자리';
+      pos = '. 52주 범위(' + _leadNum(range.lo * (p.displayMult || 1), cur < 10 ? 4 : 2) + '~' + _leadNum(range.hi * (p.displayMult || 1), cur < 10 ? 4 : 2) + ')의 ' + (pct >= 67 ? '위쪽' : pct <= 33 ? '아래쪽' : '가운데') + ', ' + pct + '% 자리';
     }
     return (NAME[p.pair] || p.pair) + ' <b>' + curTxt + '</b>, 전일 대비 ' + (p.pct === 0 ? '변동 없음' : _leadPct(p.pct)) + pos;
   }
@@ -15544,7 +15537,7 @@ function _leadMarket() {
     var dirWord = function (r) { var d = String(r.dir || ''); return d.indexOf('인하') >= 0 ? '인하' : d.indexOf('인상') >= 0 ? '인상' : d.indexOf('동결') >= 0 ? '동결' : ''; };
     var diff = parseFloat(us.rate) - parseFloat(kr.rate);
     return '한국 기준금리 <b>' + _leadEsc(kr.rate) + '</b>' + (dirWord(kr) ? ' ' + dirWord(kr) : '') + ' · 미국 <b>' + _leadEsc(us.rate) + '</b>' + (dirWord(us) ? ' ' + dirWord(us) : '') +
-      (isFinite(diff) ? ' — 한미 금리차 ' + diff.toFixed(2) + '%p, ' + (diff > 0 ? '미국이 높음' : diff < 0 ? '한국이 높음' : '같음') : '');
+      (isFinite(diff) ? '. 한미 금리차 ' + diff.toFixed(2) + '%p, ' + (diff > 0 ? '미국이 높음' : diff < 0 ? '한국이 높음' : '같음') : '');
   }
   if (tab === 'bond') {
     if (typeof globalBonds === 'undefined') return null;
@@ -15552,7 +15545,7 @@ function _leadMarket() {
     if (!gk || !gu || !/\d/.test(gk.y10 || '') || !/\d/.test(gu.y10 || '')) return null;
     var sp = parseFloat(gu.y10) - parseFloat(gk.y10);
     var curveK = parseFloat(gk.spread);
-    return '국고채 10년 <b>' + _leadEsc(gk.y10) + '</b> · 미 국채 10년 <b>' + _leadEsc(gu.y10) + '</b> — 한미 10년 차 ' + (isFinite(sp) ? sp.toFixed(2) + '%p' : '—') +
+    return '국고채 10년 <b>' + _leadEsc(gk.y10) + '</b> · 미 국채 10년 <b>' + _leadEsc(gu.y10) + '</b>: 한미 10년 차 ' + (isFinite(sp) ? sp.toFixed(2) + '%p' : '—') +
       (isFinite(curveK) ? ', 한국 장단기(10년−2년) ' + (curveK < 0 ? '역전 ' : '') + gk.spread + '%p' : '');
   }
   if (tab === 'commodity') {
@@ -15562,7 +15555,7 @@ function _leadMarket() {
     var one = function (c, nm) { return nm + ' <b>' + _leadEsc(c.price) + '</b>' + (/\d/.test(c.chg || '') ? ' ' + _leadEsc(String(c.chg).replace(/^\+/, '▲').replace(/^-/, '▼')) : ''); };
     var live = (typeof ensoData === 'function') ? ensoData() : null;
     var enso = (live && live.oni && typeof live.oni.value === 'number')
-      ? ' — ' + ((ensoStrengthLabel(live.strength) + ' ' + ensoPhaseLabel(live.phase)).trim()) + ' 진행 중, 원자재 방향은 아래 엘니뇨·라니냐 카드' : '';
+      ? ': ' + ((ensoStrengthLabel(live.strength) + ' ' + ensoPhaseLabel(live.phase)).trim()) + ' 진행 중, 원자재 방향은 아래 엘니뇨·라니냐 카드' : '';
     return one(wti, 'WTI') + (gold && /\d/.test(gold.price || '') ? ' · ' + one(gold, '금') : '') + enso;
   }
   return null;
@@ -15574,7 +15567,7 @@ function _leadInvestor() {
   var last = npsHistory[npsHistory.length - 1];
   if (!last || last.ret == null) return null;
   var avg = npsHistory.slice(-5).reduce(function (a, h) { return a + (h.ret || 0); }, 0) / Math.min(5, npsHistory.length);
-  return '국민연금 ' + last.year + '년 수익률 <b>' + (last.ret >= 0 ? '+' : '') + last.ret.toFixed(2) + '%</b>, 운용자산 <b>' + _leadNum(last.aum, 1) + '조원</b> — 최근 5년 평균 ' + (avg >= 0 ? '+' : '') + avg.toFixed(1) + '%' + (last.note ? ', ' + _leadEsc(last.note) : '');
+  return '국민연금 ' + last.year + '년 수익률 <b>' + (last.ret >= 0 ? '+' : '') + last.ret.toFixed(2) + '%</b>, 운용자산 <b>' + _leadNum(last.aum, 1) + '조원</b>: 최근 5년 평균 ' + (avg >= 0 ? '+' : '') + avg.toFixed(1) + '%' + (last.note ? ', ' + _leadEsc(last.note) : '');
 }
 
 // 부동산 — 한국: 전국 아파트 매매·전세 지수 최신 월. 미국: 케이스실러 전국 지수.
@@ -15608,7 +15601,7 @@ function _leadCalendar() {
   var upcoming = calEvents.map(function (e) { return { e: e, t: toDate(e) }; }).filter(function (x) { return x.t && x.t >= d0; }).sort(function (a, b) { return a.t - b.t; });
   var big = week.filter(function (x) { return (x.e.stars || 0) >= 3; }).length;
   var next = upcoming[0];
-  var nextTxt = next ? ' — 다음 ' + _leadEsc((next.e.flag ? next.e.flag + ' ' : '') + next.e.name) + ' ' + (next.t.getMonth() + 1) + '/' + next.t.getDate() : '';
+  var nextTxt = next ? '. 다음 ' + _leadEsc((next.e.flag ? next.e.flag + ' ' : '') + next.e.name) + ' ' + (next.t.getMonth() + 1) + '/' + next.t.getDate() : '';
   return '이번 주 발표 <b>' + week.length + '건</b>, 그중 중요(★★★) <b>' + big + '건</b>' + nextTxt;
 }
 

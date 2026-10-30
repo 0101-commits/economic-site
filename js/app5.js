@@ -20,9 +20,9 @@ window.runDiagnostics = async function () {
 
   /* 1) 차트 라이브러리 로드 */
   rows.push(_row(typeof Chart !== 'undefined' ? 'ok' : 'err', '차트 라이브러리',
-    'Chart.js ' + (typeof Chart !== 'undefined' ? _esc(Chart.version || '로드됨') : '미로드 — CDN 차단 여부 확인')));
+    'Chart.js ' + (typeof Chart !== 'undefined' ? _esc(Chart.version || '로드됨') : '미로드. CDN 차단 여부 확인')));
   rows.push(_row(typeof LightweightCharts !== 'undefined' ? 'ok' : 'warn', '차트 라이브러리',
-    'Lightweight Charts ' + (typeof LightweightCharts !== 'undefined' ? '로드됨' : '미로드 — 종목 상세 차트만 영향')));
+    'Lightweight Charts ' + (typeof LightweightCharts !== 'undefined' ? '로드됨' : '미로드. 종목 상세 차트만 영향')));
 
   /* 2) 메뉴 라우팅 무결성 — 사이드바의 모든 showPage 대상 페이지 존재 확인 */
   try {
@@ -59,17 +59,17 @@ window.runDiagnostics = async function () {
     meta = await (await fetch('./data_meta.json?t=' + Date.now(), { cache: 'no-store' })).json();
     var ageH = (Date.now() - new Date(meta.lastUpdated).getTime()) / 36e5;
     var lvl = ageH < 2 ? 'ok' : ageH < 26 ? 'warn' : 'err';
-    rows.push(_row(lvl, '데이터 신선도', '서버 data.json 생성 ' + ageH.toFixed(1) + '시간 전 (' + _esc(new Date(meta.lastUpdated).toLocaleString('ko-KR')) + ')' + (lvl !== 'ok' ? ' — 수집 워크플로(fetch-data) 실행 상태 확인 권장' : '')));
+    rows.push(_row(lvl, '데이터 신선도', '서버 데이터 생성 ' + ageH.toFixed(1) + '시간 전 (' + _esc(new Date(meta.lastUpdated).toLocaleString('ko-KR')) + ')' + (lvl !== 'ok' ? '. 데이터 수집 상태 확인 권장' : '')));
   } catch (_) {
-    rows.push(_row('err', '데이터 신선도', 'data_meta.json 조회 실패 — Mock 모드이거나 네트워크/배포 문제'));
+    rows.push(_row('err', '데이터 신선도', '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요'));
   }
   if (meta) {
     if (window._lastRealDataTs && window._lastRealDataTs === meta.lastUpdated)
       rows.push(_row('ok', '화면 데이터', '화면에 로드된 데이터 = 서버 최신본 일치'));
     else if (window._lastRealDataTs)
-      rows.push(_row('warn', '화면 데이터', '화면 데이터가 서버 최신본과 다릅니다 — 새로고침 권장'));
+      rows.push(_row('warn', '화면 데이터', '화면 데이터가 서버 최신본과 다릅니다. 새로고침 권장'));
     else
-      rows.push(_row('warn', '화면 데이터', '실데이터 미로드 — 예시(Mock) 데이터 표시 중'));
+      rows.push(_row('warn', '화면 데이터', '실데이터 미로드. 예시(Mock) 데이터 표시 중'));
   }
 
   /* 5) 수집 파이프라인 상태 — fetch_data.py 가 data.json 에 기록한 diagnostics 키 노출 */
@@ -78,13 +78,13 @@ window.runDiagnostics = async function () {
     var dg = d && d.diagnostics;
     if (dg) {
       var notes = [];
-      if (dg.pykrxAvailable === false) notes.push('pykrx 사용 불가 — 국내 시세가 폴백 소스로 수집됨');
-      if (dg.krxLoginAvailable === false) notes.push('KRX 로그인 미설정 — 투자자별 매매동향이 제한될 수 있음');
-      if (dg.realestate_kr && dg.realestate_kr.rone_ok === false) notes.push('R-ONE(부동산 통계) 수집 실패');
+      if (dg.pykrxAvailable === false) notes.push('거래소 자료 사용 불가. 국내 시세를 다른 자료로 대체');
+      if (dg.krxLoginAvailable === false) notes.push('KRX 로그인 미설정. 투자자별 매매동향이 제한될 수 있음');
+      if (dg.realestate_kr && dg.realestate_kr.rone_ok === false) notes.push('부동산 통계: 데이터 갱신 실패. 잠시 뒤 새로고침 해주세요');
       rows.push(_row(notes.length ? 'warn' : 'ok', '수집 파이프라인',
-        notes.length ? _esc(notes.join(' · ')) : '주요 수집 소스 정상 (KRX·부동산·청약 OK)'));
+        notes.length ? _esc(notes.join(' · ')) : '주요 수집 출처 정상 (KRX·부동산·청약 OK)'));
     } else {
-      rows.push(_row('info', '수집 파이프라인', '진단 정보 없음 — 실데이터 로드 후 다시 실행'));
+      rows.push(_row('info', '수집 파이프라인', '진단 정보 없음. 실데이터 로드 후 다시 실행'));
     }
   } catch (_) {}
 
@@ -92,7 +92,7 @@ window.runDiagnostics = async function () {
   try {
     var d2 = (typeof _latestDataForIndicators !== 'undefined' && _latestDataForIndicators) ? _latestDataForIndicators : null;
     if (!d2) {
-      rows.push(_row('warn', '시계열 정합성', '실데이터 미로드 — 검사 생략'));
+      rows.push(_row('warn', '시계열 정합성', '실데이터 미로드. 검사 생략'));
     } else {
       var issues = [];
       var checkSeries = function (label, seq, maxStaleDays, jumpPct) {
@@ -103,7 +103,7 @@ window.runDiagnostics = async function () {
         var closes = seq.slice(-10).map(function (p) { return p && p.close; }).filter(function (v) { return typeof v === 'number' && isFinite(v); });
         for (var i = 1; i < closes.length; i++) {
           var chg = Math.abs(closes[i] / closes[i - 1] - 1) * 100;
-          if (chg > jumpPct) { issues.push(label + ': 일간 ' + chg.toFixed(1) + '% 급변 — 수집 오류 의심'); break; }
+          if (chg > jumpPct) { issues.push(label + ': 일간 ' + chg.toFixed(1) + '% 급변. 수집 오류 의심'); break; }
         }
         var nulls = seq.slice(-30).filter(function (p) { return !(p && typeof p.close === 'number' && isFinite(p.close)); }).length;
         if (nulls) issues.push(label + ': 최근 30포인트 중 결측 ' + nulls + '건');
@@ -113,7 +113,7 @@ window.runDiagnostics = async function () {
       checkSeries('S&P500', (hist.indices || {}).SP500, 5, 12);
       checkSeries('USD/KRW', (hist.fx || {}).USDKRW, 5, 6);
       var rate = ((d2.fx || {}).USDKRW || {}).rate;
-      if (typeof rate === 'number' && !(rate >= 800 && rate <= 2500)) issues.push('USD/KRW 현재가 ' + rate + ' — 정상 범위(800~2,500) 이탈(단위 오류 의심)');
+      if (typeof rate === 'number' && !(rate >= 800 && rate <= 2500)) issues.push('USD/KRW 현재가 ' + rate + '. 정상 범위(800~2,500) 이탈(단위 오류 의심)');
       /* 신선도 계약 위반 목록 — 서버(scripts/data_sla.py)가 판정한 결과를 그대로 읽는다.
          브라우저에서 재판정하지 않는 이유: 기준이 두 벌이 되면 반드시 어긋난다. */
       var _h = d2.dataHealth;
@@ -128,7 +128,7 @@ window.runDiagnostics = async function () {
       }
       rows.push(issues.length
         ? _row('warn', '시계열 정합성', _esc(issues.join(' · ')))
-        : _row('ok', '시계열 정합성', 'KOSPI·S&P500·USD/KRW — 신선도/결측/급변/범위 이상 없음'));
+        : _row('ok', '시계열 정합성', 'KOSPI·S&P500·USD/KRW. 신선도/결측/급변/범위 이상 없음'));
     }
   } catch (e) { rows.push(_row('err', '시계열 정합성', '검사 실패: ' + _esc(e.message))); }
 
@@ -137,13 +137,13 @@ window.runDiagnostics = async function () {
         콘솔 오류로 찍혀 진짜 오류와 섞였다(2026-09-24 프로덕션 순찰). 5xx 만 오류로 본다. */
   try {
     var base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-    if (!base) rows.push(_row('warn', '알림 서버', 'Worker 프록시 미설정'));
+    if (!base) rows.push(_row('warn', '알림 서버', '알림 서버 연결 안 됨'));
     else {
       var wr = await fetch(base + '/discord/health', { signal: AbortSignal.timeout(8000) });
       rows.push(_row(wr.status < 500 ? 'ok' : 'warn', '알림 서버',
-        _esc(base.replace(/^https?:\/\//, '')) + ' 응답 HTTP ' + wr.status + (wr.status < 500 ? ' — 도달 정상' : ' — 서버 오류')));
+        _esc(base.replace(/^https?:\/\//, '')) + ' 응답 HTTP ' + wr.status + (wr.status < 500 ? ': 도달 정상' : ': 서버 오류')));
     }
-  } catch (_) { rows.push(_row('err', '알림 서버', 'Worker 도달 실패 — 네트워크/배포 상태 확인')); }
+  } catch (_) { rows.push(_row('err', '알림 서버', '알림 서버 연결 실패. 잠시 뒤 새로고침 해주세요')); }
 
   /* 8) 외부 링크 상태 — CI 주간 점검 결과(link_status.json) 표시. 없으면 인벤토리만.
         (브라우저 직접 검사는 CORS 의 opaque 응답으로 상태코드 판정이 불가능 — §0.3 #3) */
@@ -157,12 +157,12 @@ window.runDiagnostics = async function () {
       var bad = st.results.filter(function (r) { return r.status === 'broken'; });
       var man = st.results.filter(function (r) { return r.status === 'manual'; });
       rows.push(_row(bad.length ? 'err' : 'ok', '외부 링크',
-        '검사 ' + st.results.length + '개 — 정상 ' + (st.results.length - bad.length - man.length) + ' · 수동확인 ' + man.length + ' · 끊김 ' + bad.length +
+        '검사 ' + st.results.length + '개. 정상 ' + (st.results.length - bad.length - man.length) + ' · 수동확인 ' + man.length + ' · 끊김 ' + bad.length +
         ' <span style="color:var(--c-txt-muted);">(점검일 ' + _esc(String(st.checkedAt || '').slice(0, 10)) + ', 주 1회 자동)</span>'));
       bad.slice(0, 6).forEach(function (b) { rows.push(_row('err', '· 끊긴 링크', _esc(b.url) + ' → ' + _esc(b.code) + ' (링크 교체 필요)')); });
-      man.slice(0, 4).forEach(function (b) { rows.push(_row('warn', '· 수동 확인', _esc(b.url) + ' → ' + _esc(b.code) + ' (봇 차단/일시 장애 가능 — 브라우저로 직접 확인)')); });
+      man.slice(0, 4).forEach(function (b) { rows.push(_row('warn', '· 수동 확인', _esc(b.url) + ' → ' + _esc(b.code) + ' (봇 차단/일시 장애 가능. 브라우저로 직접 확인)')); });
     } else {
-      rows.push(_row('info', '외부 링크', '본문 링크 ' + uniq.length + '개 발견 — 상태 파일(link_status.json) 없음. 링크 점검 워크플로(Actions → Link Check)를 1회 수동 실행하면 이후 자동 표시됩니다.'));
+      rows.push(_row('info', '외부 링크', '본문 링크 ' + uniq.length + '개 발견. 상태 파일(link_status.json) 없음. 링크 점검 워크플로(Actions → Link Check)를 1회 수동 실행하면 이후 자동 표시됩니다.'));
     }
   } catch (e) { rows.push(_row('err', '외부 링크', '검사 실패: ' + _esc(e.message))); }
 

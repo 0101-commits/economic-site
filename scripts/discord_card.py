@@ -2011,7 +2011,7 @@ def surprise(ev, why, now=None, hist=None, shape="wide"):
             ax_box = [ax_box[0], strip_box[1], ax_box[2], ax_box[1] + ax_box[3] - strip_box[1]]
         # 직전·예상·실제 3점 비교 — 값이 있는 것만. 한 축에 얹어 거리를 눈으로 본다.
         pts = [(lab, v) for lab, v in ((_L("직전", "prev"), prev),
-                                       (_L("예상", "fore"), fore),
+                                       (_L("컨센서스", "fore"), fore),
                                        (_L("실제", "act"), act)) if v is not None]
         if len(pts) >= 2:
             ax = fig.add_axes(ax_box)

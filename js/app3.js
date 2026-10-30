@@ -63,15 +63,15 @@ function composeClientBriefingLines() {
   const chg = v => (typeof fmtChgText === 'function') ? fmtChgText(v)
     : ((v == null || isNaN(+v)) ? '—' : `${+v >= 0 ? '▲' : '▼'} ${Math.abs(+v).toFixed(2)}%`);
   const k = idx.KOSPI || {}, s = idx.SP500 || {}, n = idx.NASDAQ || {};
-  const line1 = `증시 — KOSPI ${num(k.price,'index')} (${chg(k.change)}), S&P500 ${num(s.price,'index')} (${chg(s.change)}), 나스닥 ${num(n.price,'index')} (${chg(n.change)})`;
+  const line1 = `증시. KOSPI ${num(k.price,'index')} (${chg(k.change)}), S&P500 ${num(s.price,'index')} (${chg(s.change)}), 나스닥 ${num(n.price,'index')} (${chg(n.change)})`;
   const u = fx.USDKRW || {};
-  let line2 = `환율·금리 — 원/달러 ${num(u.rate,'fx')}원 (${chg(u.change)})`;
+  let line2 = `환율·금리. 원/달러 ${num(u.rate,'fx')}원 (${chg(u.change)})`;
   const ff = eiUs.ff_rate && eiUs.ff_rate.value;
   const vix = eiUs.vix && eiUs.vix.value;
   if(ff != null) line2 += `, 미국 기준금리 ${num(ff,'rate')}%`;
   if(vix != null) line2 += `, VIX ${num(vix,'ratio')}`;
   const w = com.WTI || {}, g = com.Gold || {};
-  let line3 = `원자재·심리 — WTI $${num(w.price,'oil')} (${chg(w.change)}), 금 $${num(g.price,'gold')} (${chg(g.change)})`;
+  let line3 = `원자재·심리. WTI $${num(w.price,'oil')} (${chg(w.change)}), 금 $${num(g.price,'gold')} (${chg(g.change)})`;
   const fg = (d.sentiment || {}).fear_greed || {};
   if(fg.value != null) line3 += `, 공포탐욕 ${num(fg.value, 'count')}(${fg.rating || '—'})`;
   return [line1, line2, line3];
@@ -159,7 +159,7 @@ function computeRiskScore(d) {
 
 const _RISK_LABELS = { g: '안정', y: '주의', r: '경계' };
 const _RISK_DESC = {
-  g: '시장 안정 — 위험선호 국면', y: '중립·주의 — 일부 위험 신호 감지', r: '경계 — 복수 지표가 위험 신호',
+  g: '시장 안정. 위험선호 국면', y: '중립·주의. 일부 위험 신호 감지', r: '경계. 복수 지표가 위험 신호',
 };
 
 function renderRiskLight(d) {
@@ -183,7 +183,7 @@ function renderRiskLight(d) {
     });
   }
   if(chip) {
-    chip.title = `${_RISK_DESC[r.light]} · 종합 ${r.score}점 (0 안정 ~ 100 위험) — 클릭: 산출 근거`;
+    chip.title = `${_RISK_DESC[r.light]} · 종합 ${r.score}점 (0 안정 ~ 100 위험). 클릭: 산출 근거`;
     chip.setAttribute('aria-label', `시장 리스크 신호등: 현재 ${_RISK_LABELS[r.light]}, 종합 ${Math.round(r.score)}점. 클릭하면 산출 근거를 표시합니다`);
   }
   // 메르 리스크 렌즈 칩(P4-2, app7.js) — 시장 실측 신호등과 병렬 표기, 합산하지 않는다.
@@ -222,7 +222,7 @@ function showRiskDetail() {
      <div style="font-size:10.5px;color:var(--c-txt-dim);line-height:1.6;">
        각 지표를 자기 이력 백분위(또는 고정구간)로 0~100 위험점수화한 뒤 가중 평균합니다.
        결측 지표는 가중치를 재정규화해 제외합니다. 판정: 35 미만 🟢 안정 · 35~65 🟡 주의 · 65 초과 🔴 경계.<br>
-       ※ VKOSPI 는 수집 이력이 짧아(30일) 산식에서 제외 — 시장 분위기 카드에서 참고용으로 확인하세요. 본 점수는 투자 조언이 아닙니다.
+       ※ VKOSPI 는 수집 이력이 짧아(30일) 산식에서 제외. 시장 분위기 카드에서 참고용으로 확인하세요. 본 점수는 투자 조언이 아닙니다.
      </div>`);
 }
 
@@ -314,12 +314,12 @@ function renderBriefStrip(d) {
     const zc = _bsZScoreEvent(d);
     if(zc) chip(zc.onclick, zc.label,
       `<span class="brief-val">${zc.valTxt}</span><span class="brief-val ${zc.dir > 0 ? 'up-txt' : 'down-txt'}">${zc.dir > 0 ? '▲' : '▼'}급변</span>`,
-      `${zc.title} — 최근 1년 분포에서 ${zc.z.toFixed(1)}σ`, `${zc.label} 급변, ${zc.z.toFixed(1)} 시그마`);
+      `${zc.title}. 최근 1년 분포에서 ${zc.z.toFixed(1)}σ`, `${zc.label} 급변, ${zc.z.toFixed(1)} 시그마`);
   } catch(_) {}
   const fg = sent.fear_greed;
   if(fg && fg.value != null) chip("showSentimentDetail('fear_greed')", '공포탐욕',
     `<span class="brief-val">${_bsNum(fg.value,'count')}</span><span style="font-size:var(--font-size-xs);color:var(--c-txt-dim);">${escapeHtml(String(fg.rating || ''))}</span>`,
-    'CNN Fear & Greed — 클릭: 상세', `공포탐욕지수 ${_bsNum(fg.value,'count')} ${String(fg.rating || '')}`);
+    'CNN Fear & Greed. 클릭: 상세', `공포탐욕지수 ${_bsNum(fg.value,'count')} ${String(fg.rating || '')}`);
   try {
     const daily = (d.investorTrading || {}).daily || [];
     const last = daily[daily.length - 1];
@@ -328,7 +328,7 @@ function renderBriefStrip(d) {
       const fmt = Math.abs(f) >= 10000 ? (f / 10000).toFixed(1) + '조' : _bsNum(f,'count') + '억';
       chip("showPage('investor', menuItemFor('investor'))", '외국인',
         `<span class="brief-val ${f >= 0 ? 'up-txt' : 'down-txt'}">${f >= 0 ? '+' : ''}${fmt}</span>`,
-        `외국인 KOSPI 순매매 ${last.date || ''} (원) — 클릭: 주요 투자자`, `외국인 순매매 ${f >= 0 ? '순매수' : '순매도'} ${fmt}원`);
+        `외국인 KOSPI 순매매 ${last.date || ''} (원). 클릭: 주요 투자자`, `외국인 순매매 ${f >= 0 ? '순매수' : '순매도'} ${fmt}원`);
     }
   } catch(_) {}
   const nx = _bsNextEvent();
@@ -337,7 +337,7 @@ function renderBriefStrip(d) {
     const dTxt = dLeft === 0 ? '오늘' : dLeft === 1 ? '내일' : `D-${dLeft}`;
     chip("showPage('calendar', menuItemFor('calendar'))", '다음 일정',
       `<span class="brief-val" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(`${nx.e.flag || ''} ${dTxt} · ${nx.e.name}`)}</span>`,
-      `${calDtText(nx.e)} ${nx.e.name} ${'★'.repeat(nx.e.stars || 0)} — 클릭: 경제 캘린더`, `다음 경제 일정: ${dTxt} ${nx.e.name}`);
+      `${calDtText(nx.e)} ${nx.e.name} ${'★'.repeat(nx.e.stars || 0)}. 클릭: 경제 캘린더`, `다음 경제 일정: ${dTxt} ${nx.e.name}`);
   }
   if(chips.length) host.innerHTML = chips.join('');
 }
@@ -393,7 +393,7 @@ function renderKpiPctBadges(d) {
       if(!badge) { badge = document.createElement('span'); badge.className = 'kpi-pct-badge'; title.appendChild(badge); }
       badge.textContent = `5Y ${pct}%`;
       const yrs = Math.round(arr.length / 252 * 10) / 10;
-      badge.title = `최근 ${yrs}년 일별 분포에서 현재 값의 백분위 ${pct}% — 100%에 가까울수록 5년 내 고점권`;
+      badge.title = `최근 ${yrs}년 일별 분포에서 현재 값의 백분위 ${pct}%. 100%에 가까울수록 5년 내 고점권`;
     } catch(_) {}
   });
 }
@@ -456,7 +456,7 @@ function buildQaSnapshot() {
     const evs = ((d.economicCalendar || {}).events || []);
     const today = new Date(); const lo = new Date(today.getTime() - 7 * 86400000), hi = new Date(today.getTime() + 3 * 86400000);
     const sel = evs.filter(e => e && e.iso && (e.stars || 0) >= 2 && new Date(e.iso) >= lo && new Date(e.iso) <= hi)
-      .slice(0, 10).map(e => ({ name: clean(e.name), iso: e.iso, stars: e.stars, 예상: clean(e.fore), 실제: clean(e.act), 이전: clean(e.prev) }));
+      .slice(0, 10).map(e => ({ name: clean(e.name), iso: e.iso, stars: e.stars, 컨센서스: clean(e.fore), 발표값: clean(e.act), 직전: clean(e.prev) }));
     if(sel.length) snap.calendar = sel;
   } catch(_) {}
   if(_riskLast && _riskLast.score != null) snap['리스크점수_0안정_100위험'] = _riskLast.score;
@@ -471,13 +471,13 @@ async function aiQaAsk() {
   if(!q) { input.focus(); return; }
   const now = Date.now();
   if(now - _aiQaLastTs < 6000) {   // /ai 는 /portfolio 저장과 분당 10회 IP 레이트리밋을 공유 — 과소비 방지
-    if(meta) meta.textContent = '⏳ 전송 간격 6초 — 잠시 후 질문해 주세요 · ※ 투자 조언이 아닙니다';
+    if(meta) meta.textContent = '⏳ 전송 간격 6초. 잠시 후 질문해 주세요 · ※ 투자 조언이 아닙니다';
     return;
   }
   const keyHash = await pfGetSyncKeyHash();
   if(!keyHash) {
     out.style.display = 'block';
-    out.textContent = '동기화 키가 필요합니다 — ⚙ 설정 페이지의 [동기화 키] 버튼으로 등록하세요.';
+    out.textContent = '동기화 키가 필요합니다. ⚙ 설정 페이지의 [동기화 키] 버튼으로 등록하세요.';
     return;
   }
   _aiQaBusy = true; _aiQaLastTs = now;
@@ -500,16 +500,16 @@ async function aiQaAsk() {
     } else {
       const code = j && j.error;
       const msgMap = {
-        rate_limited: '요청이 많습니다 — 1분 후 질문해 주세요.',
-        unauthorized: '동기화 키가 서버와 일치하지 않습니다 — 키를 확인하세요.',
-        sync_key_not_configured: 'Worker 에 ALERTS_SYNC_KEY 시크릿이 설정되지 않아 사용할 수 없습니다.',
-        no_ai_available: 'Worker 에 AI 엔진(GEMINI_API_KEY 등)이 설정되지 않았습니다.',
+        rate_limited: '요청이 많습니다. 1분 후 질문해 주세요.',
+        unauthorized: '동기화 키가 서버와 일치하지 않습니다. 키를 확인하세요.',
+        sync_key_not_configured: '알림 서버 설정이 필요해 사용할 수 없습니다. 관리자에게 문의해주세요',
+        no_ai_available: 'AI 엔진 설정이 필요해 사용할 수 없습니다. 관리자에게 문의해주세요',
         forbidden_origin: '이 도메인에서는 사용할 수 없습니다 (GitHub Pages 원본에서 이용).',
       };
-      out.textContent = '' + (msgMap[code] || '일시적으로 사용할 수 없습니다 — 잠시 후 질문해 주세요.');
+      out.textContent = '' + (msgMap[code] || '일시적으로 사용할 수 없습니다. 잠시 후 질문해 주세요.');
     }
   } catch(_) {
-    out.textContent = '네트워크 오류 — 잠시 후 질문해 주세요.';
+    out.textContent = '네트워크 오류. 잠시 후 질문해 주세요.';
   } finally {
     _aiQaBusy = false;
     btn.disabled = false; input.disabled = false; btn.textContent = prevTxt;
@@ -616,8 +616,8 @@ function stySave(store, quiet) {
     if(!quiet) _stySaveState('저장됨 · ' + new Date().toLocaleTimeString('ko-KR'));
     return true;
   } catch(e) {
-    _stySaveState('저장 실패 — 브라우저 저장 공간이 부족할 수 있습니다');
-    if(typeof showToast === 'function') showToast('스터디 기록 저장 실패 — 저장 공간을 확인하세요.');
+    _stySaveState('저장 실패. 브라우저 저장 공간이 부족할 수 있습니다');
+    if(typeof showToast === 'function') showToast('스터디 기록 저장 실패. 저장 공간을 확인하세요.');
     return false;
   }
 }
@@ -984,7 +984,7 @@ function styAddFiles(fileList) {
       metas.push({ fid: rec.fid, name: rec.name, type: rec.type, size: rec.size, kind: _styKind(rec.type, rec.name), addedAt: Date.now() });
     }).catch(function(e) {
       console.warn('study file save', e);
-      if(typeof showToast === 'function') showToast('“' + f.name + '” 저장 실패 — 저장 공간이 부족할 수 있습니다.');
+      if(typeof showToast === 'function') showToast('“' + f.name + '” 저장 실패. 저장 공간이 부족할 수 있습니다.');
     });
   })).then(function() {
     if(!metas.length) return;
@@ -1263,7 +1263,7 @@ async function styAiSummarize() {
   const btn = document.getElementById('styAiBtn'), ta = document.getElementById('styNotes');
   if(!ta || _styAiBusy) return;
   const now = Date.now();
-  if(now - _styAiLastTs < 6000) { if(typeof showToast === 'function') showToast('요청 간격 6초 — 잠시 후 다시 시도하세요.'); return; }
+  if(now - _styAiLastTs < 6000) { if(typeof showToast === 'function') showToast('요청 간격 6초. 잠시 후 다시 시도하세요.'); return; }
 
   const src = String(ta.value || '').trim();
   if(!src) { if(typeof showToast === 'function') showToast('먼저 메모를 조금이라도 작성하면 더 좋은 요약이 나옵니다.'); }
@@ -1317,7 +1317,7 @@ async function styAiSummarize() {
     }
   } catch(_) {
     apply(_styLocalSummary(s), 'AI 호출 실패 · 규칙 기반 자동 정리');
-    if(typeof showToast === 'function') showToast('네트워크 오류 — 규칙 기반으로 정리했습니다.', 4000);
+    if(typeof showToast === 'function') showToast('네트워크 오류. 규칙 기반으로 정리했습니다.', 4000);
   } finally {
     _styAiBusy = false;
     if(btn) { btn.disabled = false; btn.textContent = '✨ AI 요약 초안'; }
@@ -1411,7 +1411,7 @@ function styImport(input) {
     styRenderAll();
     if(typeof showToast === 'function') {
       // 파일 복원 실패를 조용히 넘기면 사용자는 기기 이관 후 첨부가 사라진 것을 뒤늦게 발견한다.
-      showToast('가져오기 완료 — 기록 ' + p.sessions.length + '건' +
+      showToast('가져오기 완료. 기록 ' + p.sessions.length + '건' +
                 (fileOk ? ' · 파일 ' + fileOk + '개' : '') +
                 (fileFail ? ' · 파일 ' + fileFail + '개 복원 실패(백업에 파일이 없거나 손상)' : '') + '.',
                 fileFail ? 6000 : 3000);
@@ -1500,7 +1500,7 @@ function _calNotify(title, body) {
   if(typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     try { new Notification(title, { body, tag: title }); return; } catch(_) {}
   }
-  showToast(`${title} — ${body}`, 10000);
+  showToast(`${title}. ${body}`, 10000);
 }
 
 // data.json 적용 시마다 호출 — 구독 이벤트의 실제값(act)이 새로 채워지거나 바뀌면 알림
@@ -1517,9 +1517,11 @@ function checkCalendarAlerts(d) {
     if(sub.addedAt && now - sub.addedAt > 90 * 24 * 3600 * 1000) { delete subs[key]; changed = true; return; }
     const ev = events.find(e => _calAlertKey(e) === key);
     if(!ev || !ev.act) return;
-    if(ev.act !== sub.lastAct) {
-      const beat = ev.beat === 1 ? ' (예측 상회 ▲)' : ev.beat === -1 ? ' (예측 하회 ▼)' : '';
-      _calNotify(`📢 ${ev.name} 발표`, `실제 ${ev.act} · 예측 ${ev.fore || '—'} · 이전 ${ev.prev || '—'}${beat}`);
+    // 한 번 알린 발표는 다시 울리지 않는다 — 발표값이 FRED 계산값에서 공식 발표값(나스닥)으로 고쳐질 때 두 번 울렸다
+    if(!sub.lastAct) {
+      const v = (typeof _calVsCons === 'function') ? _calVsCons(ev) : null;
+      const nm = (typeof calNameText === 'function') ? calNameText(ev) : ev.name;
+      _calNotify(`${nm} 발표`, `발표값 ${ev.act} · 컨센서스 ${ev.fore || '—'} · 직전 ${ev.prev || '—'}${v && v.dir !== 'eq' ? ' (' + v.text + ')' : ''}`);
       sub.lastAct = ev.act;
       changed = true;
     }
@@ -1780,7 +1782,7 @@ function cmpRender() {
       const lastIdx = arr => { for(let i = arr.length - 1; i >= 0; i--) if(arr[i] != null) return arr[i]; return null; };
       const na = lastIdx(dataA), nb = lastIdx(dataB);
       const chg = v => v == null ? '-' : `${(v - 100) >= 0 ? '+' : ''}${(v - 100).toFixed(2)}%`;
-      info.innerHTML = `⚖ 지수화 모드 (구간 시작=100) — <span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${chg(na)} &nbsp;·&nbsp; <span style="color:${CB};">● ${escapeHtml(labB)}</span> ${chg(nb)}`;
+      info.innerHTML = `⚖ 지수화 모드 (구간 시작=100). <span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${chg(na)} &nbsp;·&nbsp; <span style="color:${CB};">● ${escapeHtml(labB)}</span> ${chg(nb)}`;
     } else {
       info.innerHTML = `<span style="color:${CMP_COLOR_A};">● ${escapeHtml(labA)}</span> ${fmt(la.v)} (${la.d}) &nbsp;·&nbsp; <span style="color:${CB};">● ${escapeHtml(labB)}</span> ${fmt(lb.v)} (${lb.d})`;
     }
@@ -1842,8 +1844,8 @@ function renderHiddenSecBar() {
     bar.style.cssText = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:var(--font-size-xs);color:var(--c-txt-dim,#a4a8bc);margin-bottom:10px;';
     page.insertBefore(bar, page.firstChild);
   }
-  bar.innerHTML = '<span>숨긴 위젯:</span>' + hidden.map(k =>
-    `<button onclick="restoreHomeSec('${k}')" title="위젯 다시 표시" style="font-size:var(--font-size-sm);padding:2px 10px;border:1px dashed var(--c-border);border-radius:var(--r-full);background:transparent;color:var(--c-primary);cursor:pointer;">👁 ${SEC_NAMES[k] || k}</button>`).join('');
+  bar.innerHTML = '<span>숨긴 필드:</span>' + hidden.map(k =>
+    `<button onclick="restoreHomeSec('${k}')" title="필드 다시 표시" style="font-size:var(--font-size-sm);padding:2px 10px;border:1px dashed var(--c-border);border-radius:var(--r-full);background:transparent;color:var(--c-primary);cursor:pointer;">👁 ${SEC_NAMES[k] || k}</button>`).join('');
 }
 
 function applyHomeLayout() {
@@ -1899,7 +1901,7 @@ function initHomeDnd() {
     // 위젯 숨김 토글 (2.1) — 안 보는 섹션은 숨겨 정보 밀도를 낮춘다 (상단 복원 바로 되돌리기)
     const hide = document.createElement('button');
     hide.className = 'sec-hide-btn';
-    hide.title = `'${SEC_NAMES[sec.dataset.sec] || '이 위젯'}' 숨기기 (상단 복원 바에서 다시 표시)`;
+    hide.title = `'${SEC_NAMES[sec.dataset.sec] || '이 필드'}' 숨기기 (상단 복원 바에서 다시 표시)`;
     hide.textContent = '✕';
     hide.addEventListener('click', ev => { ev.stopPropagation(); hideHomeSec(sec.dataset.sec); });
     sec.appendChild(hide);
@@ -1968,10 +1970,10 @@ function econMarketStatus(now) {
     var t = cal && cal.marketCalendarKr && cal.marketCalendarKr.today;
     if (t && t.date === ymd) holiday = (t.open === false);
   } catch (_) {}
-  if (dow === 0 || dow === 6 || holiday) return { label: '휴장', open: false, hint: '주말·공휴일 — 직전 거래일 종가' };
+  if (dow === 0 || dow === 6 || holiday) return { label: '휴장', open: false, hint: '주말·공휴일. 직전 거래일 종가' };
   if (hm >= 540 && hm <= 930)  return { label: 'KRX 정규장', open: true,  hint: '09:00~15:30 · 시세 최대 15분 지연' };
   if (hm > 930 && hm <= 1200)  return { label: '애프터마켓', open: true,  hint: '15:40~20:00 시간외 단일가' };
-  if (hm > 1200 || hm < 540)   return { label: '장마감', open: false, hint: '정규장 종료 — 종가 기준' };
+  if (hm > 1200 || hm < 540)   return { label: '장마감', open: false, hint: '정규장 종료. 종가 기준' };
   return { label: '장마감', open: false, hint: '' };
 }
 function renderMarketStatus() {
@@ -1981,7 +1983,7 @@ function renderMarketStatus() {
   el.textContent = s.label;
   el.hidden = false;
   el.dataset.open = s.open ? '1' : '0';
-  el.title = s.label + (s.hint ? ' — ' + s.hint : '');
+  el.title = s.label + (s.hint ? ': ' + s.hint : '');
 }
 
 function initGlobalDelayChip() {
@@ -1990,7 +1992,7 @@ function initGlobalDelayChip() {
   if(!sb) return;
   const chip = document.createElement('div');
   chip.id = 'globalDelayChip';
-  chip.title = '본 정보는 최대 15분 지연된 데이터 기준입니다.\n무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.\n(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가 — 보통 1~2분 내 도착)';
+  chip.title = '본 정보는 최대 15분 지연된 데이터 기준입니다.\n무료 시세 API 특성상 페이지의 현재가는 최대 15분가량 지연될 수 있습니다.\n(카카오톡 종목 알림은 장중 매분 실시간급 시세로 별도 평가. 보통 1~2분 내 도착)';
   chip.innerHTML = '<span class="dot"></span>Market Data 15m Delayed';
   sb.appendChild(chip);
 }
@@ -2284,9 +2286,9 @@ function _healthChipSpec(it){
   var warn = 'var(--c-warn,#f0c75e)', bad = 'var(--ind-neg)';
   if(it.state === 'suspect') return { text: '검증 필요', color: warn, tip: (it.reason || '범위 밖 값') };
   if(it.state === 'stale')   return { text: '지연 ' + it.ageDays + '일', color: warn, tip: '' };
-  if(it.state === 'failed')  return { text: '수집 실패', color: bad, tip: '' };
+  if(it.state === 'failed')  return { text: '갱신 실패', color: bad, tip: '' };
   if(it.state === 'missing') return { text: '데이터 없음', color: bad, tip: '' };
-  if(it.state === 'preserved' || it.preserved === true) return { text: '이전 값', color: warn, tip: '이번 수집이 실패해 직전 값을 보여줍니다' };
+  if(it.state === 'preserved' || it.preserved === true) return { text: '이전 값', color: warn, tip: '데이터 갱신에 실패해 직전 값 표시 중' };
   return null;
 }
 function _healthChipEl(it, cls){
@@ -2297,7 +2299,7 @@ function _healthChipEl(it, cls){
   chip.className = cls + ' btn-plain btn-inline';
   chip.style.color = sp.color;
   chip.textContent = sp.text;
-  chip.title = (sp.tip ? sp.tip + ' — ' : '') + it.path + ' — 기준일 ' + (it.asOf || '미상') + ' · 클릭하면 시스템 진단';
+  chip.title = (sp.tip ? sp.tip + ': ' : '') + it.path + '. 기준일 ' + (it.asOf || '미상') + ' · 클릭하면 시스템 진단';
   chip.addEventListener('click', function(ev){
     ev.stopPropagation();
     try { showPage('settings'); setTimeout(runDiagnostics, 300); } catch(_) {}

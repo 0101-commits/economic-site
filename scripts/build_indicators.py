@@ -117,7 +117,7 @@ LABEL = {
     "Gasoline": "휘발유", "HeatingOil": "난방유", "Dubai": "두바이유",
     # 수집원 desc 가 단위를 이름에 붙이거나(천원·2026.06=100) 나라를 뺀 것을 화면 이름으로 고친 결정.
     # 2026-09-30 까지는 js/app0.js 에 손으로 적혀 있었다(재생성하면 사라져 --check 가 빨갰다).
-    "cpi_jp": "일본 소비자물가(전년비)",
+    "cpi_jp": "일본 소비자물가(전년 대비)",
     "avg_jeonse_price_kr": "아파트 평균 전세가격 (전국)",
     "semi_jeonse_idx_kr": "준전세가격지수 (전국)",
     # 주택 공급 4표(R-ONE T 표, 2026-10-01). 수집원 desc 는 단위(호)를 이름에 붙인다.
@@ -509,11 +509,38 @@ def build(data, mer):
     return rows, datasets, mer_only
 
 
+# 화면 표기 — 용어 정제(2026-10-30)의 「한 뜻 한 말」. 수집원 desc · unit 이 주는 전년비 · YoY 같은 말을 이름표를
+# 만들 때 바꾼다(data.json 은 그대로). 바뀐 옛 이름은 aliases 에 남겨 ECON_IND.find('옛 이름') 이 계속 맞게 한다.
+_PLAIN = [(re.compile(r"전년동월비|전년동기비|전년비(?!교)|(?<![A-Za-z])YoY(?![A-Za-z])"), "전년 대비"),
+          (re.compile(r"전월비|(?<![A-Za-z])MoM(?![A-Za-z])"), "전월 대비"),
+          (re.compile(r"전기비"), "전기 대비")]
+
+
+def plain_term(s):
+    if not isinstance(s, str):
+        return s
+    for rx, to in _PLAIN:
+        s = rx.sub(to, s)
+    return s
+
+
+def _plain_row(r):
+    old = r.get("label")
+    for k in ("label", "unit"):
+        if k in r:
+            r[k] = plain_term(r[k])
+    if isinstance(r.get("format"), dict) and "unit" in r["format"]:
+        r["format"]["unit"] = plain_term(r["format"]["unit"])
+    if old and r.get("label") != old:
+        r["aliases"] = list(dict.fromkeys((r.get("aliases") or []) + [old]))
+    return r
+
+
 def render(rows, datasets, data):
     def js(obj):
         return json.dumps(obj, ensure_ascii=False, sort_keys=False)
 
-    rows = sorted(rows, key=lambda r: (ASSET_ORDER.index(r["asset"]), r["tier"], r["id"]))
+    rows = sorted((_plain_row(dict(r)) for r in rows), key=lambda r: (ASSET_ORDER.index(r["asset"]), r["tier"], r["id"]))
     lines = [js(r) for r in rows]
     ds_lines = [js(d) for d in datasets]
     return """/* 지표 레지스트리 — scripts/build_indicators.py 가 생성한다. 직접 고치지 말 것.

@@ -153,7 +153,7 @@ async function pfRefreshQuotes(manual) {
     const ts = new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit', hour12:false});
     // 전 종목 시세 실패 → 화면의 현재가는 이전 캐시값이므로 '최신'으로 오인하지 않게 오류를 명시한다.
     // (대개 전용 Worker 프록시 장애·네트워크 차단. 일부만 실패하면 실패 종목 수만 덧붙인다.)
-    if(ok === 0) { el.textContent = '시세 응답 오류 · ' + ts + ' 기준(이전 값 표시)'; el.style.color = window.CDN; }
+    if(ok === 0) { el.textContent = '데이터 갱신 실패 · ' + ts + ' 기준(이전 값 표시)'; el.style.color = window.CDN; }
     else { el.textContent = '시세 ' + ts + ' 기준' + (fail ? ' · ' + fail + '종목 응답 없음' : ''); el.style.color = fail ? '#f0c75e' : '#7a8099'; }
   }
   pfRenderAll();
@@ -198,7 +198,7 @@ async function pfPickKr(code, name) {
     if(await pfFetchQuoteYahoo(code + suf)) { yahoo = code + suf; break; }
   }
   pfPendingAdd = { symbol: code, market: 'KR', yahoo, name: q.name || name || code, secType: q.secType || 'stock', ccy: 'KRW' };
-  out.innerHTML = `✓ <b style="color:var(--c-txt);">${pfEsc(pfPendingAdd.name)}</b> (${code}, ${pfPendingAdd.secType === 'etf' ? 'ETF' : '주식'}) — 현재가 ${q.price.toLocaleString()}원`;
+  out.innerHTML = `✓ <b style="color:var(--c-txt);">${pfEsc(pfPendingAdd.name)}</b> (${code}, ${pfPendingAdd.secType === 'etf' ? 'ETF' : '주식'}). 현재가 ${q.price.toLocaleString()}원`;
   document.getElementById('pfAddFields').style.display = 'flex';
   pfFillGroupSelect(document.getElementById('pfAddGroup'));
 }
@@ -209,7 +209,7 @@ async function pfLookupSymbol() {
   const rawIn = (inp.value || '').trim();
   const raw = rawIn.toUpperCase();
   pfPendingAdd = null; fields.style.display = 'none';
-  if(!raw) { out.textContent = '종목 코드/티커 또는 한글 종목명을 입력하세요.'; return; }
+  if(!raw) { out.textContent = '종목 코드 또는 한글 종목명을 입력해주세요.'; return; }
   out.textContent = '조회 중…';
   try {
     if(/^\d[0-9A-Z]{5}$/.test(raw)) {               // 한국 주식/ETF (6자리 코드 — 신형 영문 포함)
@@ -231,13 +231,13 @@ async function pfLookupSymbol() {
       const q = await pfFetchQuoteYahoo(raw);
       if(!q) { out.textContent = '종목을 찾을 수 없습니다: ' + raw; return; }
       pfPendingAdd = { symbol: raw, market: 'US', yahoo: raw, name: name || q.name || raw, secType, ccy: 'USD' };
-      out.innerHTML = `✓ <b style="color:var(--c-txt);">${pfEsc(pfPendingAdd.name)}</b> (${raw}, ${secType === 'etf' ? 'ETF' : '주식'}) — 현재가 $${q.price.toLocaleString()}`;
+      out.innerHTML = `✓ <b style="color:var(--c-txt);">${pfEsc(pfPendingAdd.name)}</b> (${raw}, ${secType === 'etf' ? 'ETF' : '주식'}). 현재가 $${q.price.toLocaleString()}`;
       fields.style.display = 'flex';
       pfFillGroupSelect(document.getElementById('pfAddGroup'));
     } else {
-      out.textContent = '형식 오류 — 한국 6자리 코드(005930) / 미국 티커(AAPL) / 한글 종목명으로 입력하세요.';
+      out.textContent = '형식 오류. 한국 6자리 코드(005930) / 미국 영문 코드(AAPL) / 한글 종목명으로 입력해주세요.';
     }
-  } catch(e) { out.textContent = '조회 실패 — 잠시 후 다시 시도하세요.'; }
+  } catch(e) { out.textContent = '조회 실패. 잠시 후 다시 시도하세요.'; }
 }
 
 // ── 초기 보유 종목 시드 — 사용자 보유 ETF 9종을 첫 방문 시 자동 등록 ──
@@ -265,8 +265,8 @@ async function pfSeedDefaults() {
   }
   pfSave();
   if(out) out.textContent = pfState.items.length ?
-    `보유 ETF ${pfState.items.length}종목 자동 등록 완료 — 평단가·수량을 입력하세요.` :
-    '자동 등록 실패 — 종목명으로 직접 검색해 추가하세요.';
+    `보유 ETF ${pfState.items.length}종목 자동 등록 완료. 평단가·수량을 입력하세요.` :
+    '자동 등록 실패. 종목명으로 직접 검색해 추가하세요.';
   pfRenderAll();
   pfRefreshQuotes();
 }
@@ -277,7 +277,7 @@ function pfAddItem() {
     // 보유 암호본으로만 들어온 행(fromEnc — 공개 목록 제외)을 사용자가 여기서 직접 추가하면 그때부터 공개 목록에 싣는다
     if(dup.fromEnc) {
       delete dup.fromEnc; pfSave(); pfMarkDirty();
-      document.getElementById('pfLookupResult').textContent = '관심목록에 올렸습니다 — 다음 「목록 저장」부터 서버 목록에 포함됩니다.';
+      document.getElementById('pfLookupResult').textContent = '관심목록에 올렸습니다. 다음 「목록 저장」부터 서버 목록에 포함됩니다.';
     } else {
       document.getElementById('pfLookupResult').textContent = '이미 추가된 종목입니다.';
     }
@@ -459,7 +459,7 @@ function pfRenderTable() {
   const items = pfVisibleItems();
   if(!items.length) {
     body.innerHTML = '<tr><td colspan="9" style="padding:18px;text-align:center;color:var(--c-txt-muted);">' +
-      (pfState.items.length ? '이 그룹에 종목이 없습니다.' : '종목 코드를 조회해 추가하세요. (한국 6자리 코드 / 미국 티커)') + '</td></tr>';
+      (pfState.items.length ? '이 그룹에 종목이 없습니다.' : '종목 코드를 조회해 추가하세요. (한국 6자리 / 미국 영문 코드)') + '</td></tr>';
     if (typeof pfRenderCards === 'function') pfRenderCards();  // 모바일 카드 뷰도 빈 상태로 동기화
     return;
   }
@@ -669,7 +669,7 @@ function pfRenderBench() {
   if(snaps.length < 2) {
     wrap.style.display = 'none'; empty.style.display = 'block';
     if(note) note.style.display = 'none';
-    if(snaps.length === 1) empty.innerHTML = `첫 스냅샷(${snaps[0].d})이 기록되었습니다.<br>내일 다시 방문하면 KOSPI·S&amp;P 500 과의 비교 차트가 표시됩니다.`;
+    if(snaps.length === 1) empty.innerHTML = `첫 저장값(${snaps[0].d})이 기록되었습니다.<br>내일 다시 방문하면 KOSPI·S&amp;P 500 과의 비교 차트가 표시됩니다.`;
     return;
   }
   wrap.style.display = 'block'; empty.style.display = 'none';
@@ -700,9 +700,9 @@ function pfRenderBench() {
   // 해외 지수가 추적 구간 내 변동이 없으면(미국 증시가 한국 대비 ~1거래일 지연 → 같은 종가) 그 이유를 안내
   if(note) {
     const isFlat = a => a && a.filter(v => v != null).length > 0 && a.every(v => v == null || Math.abs(v) < 0.005);
-    const baseNote = '내 포트폴리오 = (평가금액/매입금액 − 1), 벤치마크 = 첫 스냅샷일 종가 대비 등락률. 입금/매수로 매입금액이 변하면 단순 비교에 왜곡이 있을 수 있습니다.';
+    const baseNote = '내 포트폴리오 = (평가금액/매입금액 − 1), 벤치마크 = 첫 저장일 종가 대비 등락률. 입금/매수로 매입금액이 변하면 단순 비교에 왜곡이 있을 수 있습니다.';
     note.innerHTML = baseNote + (isFlat(sp)
-      ? '<br><span style="color:var(--c-warn);">※ S&amp;P 500 등 해외 지수는 한국보다 약 1거래일 늦게 갱신됩니다 — 추적 기간이 짧으면 미국 증시 종가 변동이 없어 0%(평탄)로 보일 수 있고, 미국 거래일이 쌓이면 자동으로 채워집니다.</span>'
+      ? '<br><span style="color:var(--c-warn);">※ S&amp;P 500 등 해외 지수는 한국보다 약 1거래일 늦게 갱신됩니다. 추적 기간이 짧으면 미국 증시 종가 변동이 없어 0%(평탄)로 보일 수 있고, 미국 거래일이 쌓이면 자동으로 채워집니다.</span>'
       : '');
   }
   if(charts['pfBenchChart']) { try { charts['pfBenchChart'].destroy(); } catch(_) {} }
@@ -852,12 +852,12 @@ async function pfLoadChart() {
     const nv = await pfFetchNaverDaily(it.symbol, Math.max(days, 90));
     if(nv) {
       candles = nv;
-      if(!daily) msg.textContent = '분봉 미지원 종목 — 일봉으로 표시합니다.';
+      if(!daily) msg.textContent = '분봉 미지원 종목. 일봉으로 표시합니다.';
     }
   }
   if(candles.length < 2) {
     // [3차-T17] 실패 시 재시도 버튼 — 일시적 네트워크 오류를 모달 재오픈 없이 복구
-    msg.innerHTML = '차트 데이터를 불러오지 못했습니다. (심볼: ' + pfEsc(sym) + ') ' +
+    msg.innerHTML = '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요 (종목 코드: ' + pfEsc(sym) + ') ' +
       '<button onclick="pfLoadChart()" style="font-size:var(--font-size-sm);padding:2px 10px;margin-left:6px;border:1px solid var(--c-accent);border-radius:var(--r-xs);background:transparent;color:var(--c-primary);cursor:pointer;">재시도</button>';
     pfChart.candles = null;
     return;
@@ -901,7 +901,7 @@ function pfRenderChart() {
   const maLegend = document.getElementById('pfMaLegend');
   if(!candles) { rsiWrap.style.display = 'none'; macdWrap.style.display = 'none'; return; }
   if(typeof LightweightCharts === 'undefined') {
-    document.getElementById('pfChartMsg').textContent = '차트 라이브러리(Lightweight Charts) 로드 실패 — 네트워크 차단 여부를 확인하세요.';
+    document.getElementById('pfChartMsg').textContent = '차트 불러오기 실패. 잠시 뒤 새로고침 해주세요';
     return;
   }
   pfApplyIndButtons();
@@ -1036,13 +1036,13 @@ const PF_ALERT_LABEL = {
   z_move:      v => `평소의 ${v || 2}배 움직임`,
   high52:      () => '52주 신고가',
   low52:       () => '52주 신저가',
-  vol_surge:   v => `거래량 전일比 ${v || 300}%↑`,
+  vol_surge:   v => `거래량 전일 대비 ${v || 300}%↑`,
   golden_cross:(v, a) => `골든크로스 MA${a.maShort}/${a.maLong}`,
   dead_cross:  (v, a) => `데드크로스 MA${a.maShort}/${a.maLong}`,
 };
 function pfAlertLabel(a) {
   const fn = PF_ALERT_LABEL[a.type];
-  const period = a.limit === 'cool60' ? '1시간 쿨다운' : '하루 1회';
+  const period = a.limit === 'cool60' ? '1시간에 한 번' : '하루 1회';
   // 가격 지정 알림은 백엔드가 '교차 시 1회 + 재무장'으로 동작한다(도배방지 주기는 이벤트형 전용).
   // refire 를 켠 알림만 충족 지속 중 주기 재알림 — 라벨이 실제 동작을 정확히 말하게 한다(2026-07 감사).
   const isPrice = (a.type === 'price_above' || a.type === 'price_below');
@@ -1077,8 +1077,8 @@ function pfAlertTypeChanged() {
   const refireWrap = document.getElementById('pfAlertRefireWrap');
   if (refireWrap) refireWrap.style.display = (t === 'price_above' || t === 'price_below') ? 'inline-flex' : 'none';
   const hints = {
-    price_above: '현재가가 입력한 가격 이상이 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송) — 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
-    price_below: '현재가가 입력한 가격 이하가 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송) — 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
+    price_above: '현재가가 입력한 가격 이상이 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송). 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
+    price_below: '현재가가 입력한 가격 이하가 되면 발송됩니다. 기본은 돌파 시 1회(회복 후 재돌파 시 재발송). 「지속 재알림」을 켜면 충족 지속 중에도 선택한 주기로 반복 알림.',
     pct_change: '전일 종가 대비 등락률이 입력값에 도달하면 발송. 양수=상승(예: 5), 음수=하락(예: -3).',
     z_move: '그 종목의 평소 하루 움직임(최근 250거래일 표준편차) 대비 몇 배인지로 판정합니다. 입력 2 = 평소의 2배(양방향). 고정 %와 달리 변동성이 큰 종목과 잔잔한 종목이 비슷한 빈도로 울립니다.',
     high52: '현재가가 최근 52주 최고가를 넘으면 발송됩니다.',
@@ -1156,13 +1156,13 @@ function pfRenderAlertSummary() {
     (bySym[k] = bySym[k] || []).push(pfAlertLabel(a) + (a.enabled ? '' : ' (OFF)'));
   });
   const html = Object.keys(bySym).map(k =>
-    `<div style="margin-bottom:4px;"><b style="color:var(--c-txt);">${pfEsc(k)}</b> — ${pfEsc(bySym[k].join(' · '))}</div>`).join('');
+    `<div style="margin-bottom:4px;"><b style="color:var(--c-txt);">${pfEsc(k)}</b>: ${pfEsc(bySym[k].join(' · '))}</div>`).join('');
   els.forEach(el => { el.innerHTML = html; });
 }
 function pfMarkDirty() {
   _pfDirty = true;   // 페이지 이탈/새로고침 경고 플래그 — 죽은 첫 정의에만 있어 유실됐던 동작 복원
   const el = _pfSyncStatusEl();
-  if(el) { el.textContent = '변경됨 — 서버 저장 필요'; el.style.color = '#f0c75e'; }
+  if(el) { el.textContent = '변경됨. 서버 저장 필요'; el.style.color = '#f0c75e'; }
   pfRenderAlertSummary();
 }
 
@@ -1196,7 +1196,7 @@ function pfUpdateSyncKeyBtn() {
   const has = (typeof pfHasSyncKey === 'function') ? pfHasSyncKey() : false;
   b.textContent = has ? '🔑 동기화 키 ✓' : '🔑 동기화 키';
   b.style.color = has ? window.CUP : 'var(--c-txt-dim)';
-  b.title = has ? '이 탭에 동기화 키 저장됨 (해시로만 보관, 탭을 닫으면 지워짐) — 다시 넣으려면 클릭'
+  b.title = has ? '이 탭에 동기화 키 저장됨 (해시로만 보관, 탭을 닫으면 지워짐). 다시 넣으려면 클릭'
                 : '동기화 키(처음 받은 키 또는 내가 바꾼 암호) 넣기';
 }
 // 페이지 내 입력 모달 — window.prompt 대체. 카카오톡·네이버 인앱 웹뷰는 prompt/confirm 을
@@ -1286,7 +1286,7 @@ function pfBuildTrackingPayload() {
 async function pfSyncAlerts(stOverride) {
   const st = stOverride || _pfSyncStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-  if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = window.CDN; } return; }
+  if(!base) { if(st) { st.textContent = '알림 서버 연결 안 됨'; st.style.color = window.CDN; } return; }
   if(st) { st.textContent = '저장 중…'; st.style.color = 'var(--c-txt-dim)'; }
   try {
     const r = await fetch(base + '/portfolio', {
@@ -1328,12 +1328,12 @@ async function pfSyncAlerts(stOverride) {
       try { if(typeof showToast === 'function') showToast('☁ 서버에 저장됨', 'ok'); } catch(_){}
     } else {
       const why = j.error === 'unauthorized' ? '동기화 키 불일치 (🔑 버튼으로 설정)' :
-                  j.error === 'no_github_token' ? 'Worker 에 GH_DISPATCH_TOKEN 시크릿 필요' : (j.error || ('HTTP ' + r.status));
+                  j.error === 'no_github_token' ? '알림 서버 설정 필요(관리자 문의)' : (j.error || ('HTTP ' + r.status));
       if(st) { st.textContent = '저장 실패: ' + why; st.style.color = window.CDN; }
       try { if(typeof showToast === 'function') showToast('저장 실패: ' + why, 'err', 3200); } catch(_){}
     }
   } catch(e) {
-    if(st) { st.textContent = '저장 실패 — 네트워크 오류'; st.style.color = window.CDN; }
+    if(st) { st.textContent = '저장 실패. 네트워크 오류'; st.style.color = window.CDN; }
   }
 }
 // 🔔 알림 테스트 발송 — Worker POST /portfolio/test 가 repository_dispatch(alerts-test)로
@@ -1342,7 +1342,7 @@ async function pfSyncAlerts(stOverride) {
 async function pfTestAlerts() {
   const st = _pfSyncStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-  if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = window.CDN; } return; }
+  if(!base) { if(st) { st.textContent = '알림 서버 연결 안 됨'; st.style.color = window.CDN; } return; }
   if(st) { st.textContent = '테스트 발송 요청 중…'; st.style.color = 'var(--c-txt-dim)'; }
   try {
     const r = await fetch(base + '/portfolio/test', {
@@ -1353,30 +1353,30 @@ async function pfTestAlerts() {
     });
     const j = await r.json().catch(() => ({}));
     if(r.ok && j.ok) {
-      if(st) { st.textContent = '테스트 실행 요청됨 — 1~2분 내 카카오톡으로 결과가 도착합니다.'; st.style.color = window.CUP; }
+      if(st) { st.textContent = '테스트 실행 요청됨. 1~2분 내 카카오톡으로 결과가 도착합니다.'; st.style.color = window.CUP; }
     } else {
       const why = j.error === 'unauthorized' ? '동기화 키 불일치 (🔑 버튼으로 설정)' :
-                  j.error === 'sync_key_not_configured' ? 'Worker 에 ALERTS_SYNC_KEY 시크릿 필요' :
-                  j.error === 'no_github_token' ? 'Worker 에 GH_DISPATCH_TOKEN 시크릿 필요' : (j.error || ('HTTP ' + r.status));
+                  j.error === 'sync_key_not_configured' ? '알림 서버 설정 필요(관리자 문의)' :
+                  j.error === 'no_github_token' ? '알림 서버 설정 필요(관리자 문의)' : (j.error || ('HTTP ' + r.status));
       if(st) { st.textContent = '테스트 실패: ' + why; st.style.color = window.CDN; }
     }
   } catch(_) {
-    if(st) { st.textContent = '테스트 실패 — 네트워크 오류'; st.style.color = window.CDN; }
+    if(st) { st.textContent = '테스트 실패. 네트워크 오류'; st.style.color = window.CDN; }
   }
 }
 async function pfPullAlerts() {
   const st = _pfSyncStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-  if(!base) { if(st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = window.CDN; } return; }
+  if(!base) { if(st) { st.textContent = '알림 서버 연결 안 됨'; st.style.color = window.CDN; } return; }
   if(st) { st.textContent = '불러오는 중…'; st.style.color = 'var(--c-txt-dim)'; }
   try {
     // [이슈1] GET /portfolio 가 ALERTS_SYNC_KEY 인증을 요구 → keyHash 쿼리 동봉(키 없으면 빈 값→401 graceful).
     const _kh = (typeof pfGetSyncKeyHash === 'function') ? await pfGetSyncKeyHash() : '';
-    if(!_kh) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
+    if(!_kh) { if(st) { st.textContent = '이 기기에 동기화 키가 없습니다. ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
     // 키 해시는 커스텀 헤더로만 전송 — URL 쿼리는 접근 로그·히스토리에 남아 재사용 가능한
     // 베어러가 유출된다. (X-Sync-Key-Hash 수용 Worker ver e01d9f0f 배포 확인 후 쿼리 제거 완료.)
     const r = await fetch(base + '/portfolio', { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
-    if(r.status === 401 || r.status === 403) { if(st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = window.CDN; } return; }
+    if(r.status === 401 || r.status === 403) { if(st) { st.textContent = '동기화 키 불일치. ⚙ 설정에서 키를 확인하세요'; st.style.color = window.CDN; } return; }
     if(r.status === 503) { if(st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = window.CDN; } return; }
     const j = await r.json().catch(() => null);
     if(!r.ok || !j || !Array.isArray(j.alerts)) { if(st) { st.textContent = '서버에 저장된 설정이 없습니다.'; st.style.color = 'var(--c-txt-dim)'; } return; }
@@ -1393,7 +1393,7 @@ async function pfPullAlerts() {
     }
     if(st) { st.textContent = `서버 설정 ${j.alerts.length}개 불러옴`; st.style.color = window.CUP; }
   } catch(_) {
-    if(st) { st.textContent = '불러오기 실패 — 네트워크 오류'; st.style.color = window.CDN; }
+    if(st) { st.textContent = '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요'; st.style.color = window.CDN; }
   }
 }
 
@@ -1417,7 +1417,7 @@ async function pfSyncTracking() {
 async function pfPullTracking(auto) {
   const st = _pfTrackStatusEl();
   const base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-  if(!base) { if(!auto && st) { st.textContent = 'Worker 프록시 미설정'; st.style.color = window.CDN; } return; }
+  if(!base) { if(!auto && st) { st.textContent = '알림 서버 연결 안 됨'; st.style.color = window.CDN; } return; }
   if(!auto && st) { st.textContent = '불러오는 중…'; st.style.color = 'var(--c-txt-dim)'; }
   let j = null;
   try {
@@ -1427,24 +1427,24 @@ async function pfPullTracking(auto) {
     // 새 기기에서 불러오려면 ⚙ 설정에서 동일한 동기화 키를 먼저 입력해야 한다).
     // 키가 없으면 자동 복원도 부르지 않는다 — 서버는 무조건 401 을 주고, 그 실패가 키 없는 모든 방문자의
     // 콘솔에 찍혔다(2026-09-24 프로덕션 순찰). 종전 가드는 수동(!auto) 호출만 막고 있었다.
-    if(!_kh) { if(!auto && st) { st.textContent = '이 기기에 동기화 키가 없습니다 — ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
+    if(!_kh) { if(!auto && st) { st.textContent = '이 기기에 동기화 키가 없습니다. ⚙ 설정에서 키 입력 후 다시 시도'; st.style.color = '#f0c75e'; } return; }
     // 키 해시는 헤더로만 전송 (위 pfPullAlerts 와 동일 — URL 로그 유출 방지, Worker 배포 확인됨)
     const r = await fetch(base + '/portfolio', { headers: { 'X-Sync-Key-Hash': _kh }, signal: AbortSignal.timeout(15000) });
-    if(r.status === 401 || r.status === 403) { if(!auto && st) { st.textContent = '동기화 키 불일치 — ⚙ 설정에서 키를 확인하세요'; st.style.color = window.CDN; } return; }
+    if(r.status === 401 || r.status === 403) { if(!auto && st) { st.textContent = '동기화 키 불일치. ⚙ 설정에서 키를 확인하세요'; st.style.color = window.CDN; } return; }
     if(r.status === 503) { if(!auto && st) { st.textContent = '서버에 동기화 키가 설정되지 않았습니다(관리자 설정 필요)'; st.style.color = window.CDN; } return; }
     j = await r.json().catch(() => null);
     if(!r.ok || !j) {
       // 5xx 의 실제 원인을 노출 — Worker 가 본문에 담아주는 error/detail(예: github_read_failed)을
       // 'HTTP 5xx' 뒤에 숨기지 않고 보여줘 즉시 진단 가능하게 한다.
-      const _why = (j && j.error === 'github_read_failed') ? 'GitHub 읽기 실패 — Worker 재배포 + GH_DISPATCH_TOKEN 갱신 필요'
-                 : (j && j.error === 'no_github_token') ? 'Worker GH_DISPATCH_TOKEN 시크릿 미설정'
+      const _why = (j && j.error === 'github_read_failed') ? '알림 서버 읽기 실패. 관리자 문의 필요'
+                 : (j && j.error === 'no_github_token') ? '알림 서버 설정 필요(관리자 문의)'
                  : (j && (j.error || j.detail)) ? (j.error || j.detail)
                  : ('HTTP ' + r.status);
       if(!auto && st) { st.textContent = '서버 응답 오류: ' + _why + ' (HTTP ' + r.status + ')'; st.style.color = window.CDN; }
       return;
     }
   } catch(_) {
-    if(!auto && st) { st.textContent = '불러오기 실패 — 네트워크/프록시 오류(잠시 후 재시도)'; st.style.color = window.CDN; }
+    if(!auto && st) { st.textContent = '데이터 갱신 실패. 잠시 뒤 새로고침 해주세요'; st.style.color = window.CDN; }
     return;
   }
   const tr = j.tracking;
@@ -1456,7 +1456,7 @@ async function pfPullTracking(auto) {
     const adds = tr.items.filter(s => !pfState.items.some(it => it.symbol === s.symbol && it.market === s.market)).length;
     // window.confirm 대신 페이지 내 모달 — 인앱 웹뷰(카카오톡·네이버)가 confirm 을 무시하면
     // 항상 false 가 돼 「⬇ 불러오기」가 아무 반응 없이 끝나던 문제가 있었다.
-    if(!await pfAskText(`서버 관심목록 ${tr.items.length}개를 불러옵니다.\n· 새 종목 ${adds}개 추가\n· 그룹 소속·이름은 서버 기준으로 맞춥니다\n· 평단가·수량: 암호화 동기화를 켜둔 경우 서버 암호본을 복호화해 채우고, 아니면 이 기기 값 유지\n진행할까요?`, { confirm: true })) {
+    if(!await pfAskText(`서버 관심목록 ${tr.items.length}개를 불러옵니다.\n· 새 종목 ${adds}개 추가\n· 그룹 소속·이름은 서버 기준으로 맞춥니다\n· 평단가·수량: 암호화 기기 연결을 켜둔 경우 서버 암호본을 복호화해 채우고, 아니면 이 기기 값 유지\n진행할까요?`, { confirm: true })) {
       if(st) { st.textContent = ''; }
       return;
     }
@@ -1498,8 +1498,8 @@ async function pfPullTracking(auto) {
   pfRefreshQuotes();
   // 🔐 서버의 평단가·수량(encHoldings)은 받지 않는다 — 새 화면이 동기화 키로 다시 잠근 덩어리라 옛 보유 암호로는 안 풀린다.
   if(st) {
-    const _enc = (j.encHoldings && !auto) ? ' · 보유 동기화는 새 화면 설정 › 기기 연결에서 합니다' : '';
-    st.textContent = (auto ? `서버 목록 동기화됨 (신규 ${added}개` : `불러옴 — 신규 ${added}개 추가 (총 ${pfState.items.length}개`) + ')' + _enc;
+    const _enc = (j.encHoldings && !auto) ? ' · 보유 값은 새 화면 설정 › 기기 연결에서 합니다' : '';
+    st.textContent = (auto ? `서버 목록 반영됨 (신규 ${added}개` : `불러옴. 신규 ${added}개 추가 (총 ${pfState.items.length}개`) + ')' + _enc;
     st.style.color = window.CUP;
   }
 }
@@ -1509,7 +1509,7 @@ async function pfPullTracking(auto) {
 // 옛 보유 암호로 올리면 그 덩어리를 덮어 새 화면이 못 풀고, 받아도 옛 암호로는 안 풀린다 — 그래서 단추는 안내만 한다.
 // pfApplyEncHoldings 는 새 화면 덩어리 형식 회귀 검사(scripts/tests/test_pf_apply_enc.mjs)가 쓰므로 남긴다.
 const PF_KDF_ITER = 600000;  // OWASP 권장 PBKDF2-HMAC-SHA256 반복수
-const PF_HOLD_SYNC_MOVED = '보유 동기화는 새 화면 설정 › 기기 연결에서 합니다';
+const PF_HOLD_SYNC_MOVED = '보유 값은 새 화면 설정 › 기기 연결에서 합니다';
 function _pfUnB64(s) { const bin = atob(String(s)); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
 async function _pfDeriveKey(pass, salt) {
   const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
@@ -1539,7 +1539,7 @@ async function pfApplyEncHoldings(blob, opts) {
     const pt = await crypto.subtle.decrypt({ name:'AES-GCM', iv: _pfUnB64(blob.iv) }, key, _pfUnB64(blob.ciphertext));
     map = JSON.parse(new TextDecoder().decode(pt));
   } catch(_) {
-    if (!opts.silent && typeof showToast==='function') showToast('평단가 복호화 실패 — 암호가 일치하지 않습니다.', 4000);
+    if (!opts.silent && typeof showToast==='function') showToast('평단가 복호화 실패. 암호가 일치하지 않습니다.', 4000);
     return -1;
   }
   if (!Array.isArray(map)) return 0;

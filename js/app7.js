@@ -130,7 +130,7 @@ function _merRenderFresh(d) {
 // 반원 게이지 2개는 폐지(결정 D1) — 시장 지수는 홈 신호등이, MRI 는 여기 첫 칸이 말한다.
 // 「그래서」 문장은 새 수집 없이 사전 문장을 조합한다(결정 D3): thresholds[].meaning + chains[].label·note + 글 날짜.
 var MER_FOLDS = [
-  { id: 'monitor', label: '트리거 모니터 전체',      panel: 'merlensMonitor' },
+  { id: 'monitor', label: '경보 단계 모니터 전체',      panel: 'merlensMonitor' },
   { id: 'graph',   label: '전이 경로 맵',            panel: 'merlensGraph' },
   { id: 'panels',  label: '민감도 패널',             panel: 'merlensPanels' },
   { id: 'matrix',  label: '민감도 매트릭스',         panel: 'merlensMatrix' },
@@ -223,18 +223,18 @@ function _merRangeHTML(ind) {
 function _merLeadHTML(d) {
   var lens = d.lens || {}, hist = lens.history30d || [];
   var score = lens.score, first = hist.length ? hist[0].score : null;
-  if (score == null) return '<p class="econ-lead"><b>자료 없음</b> — 집계 ' + _merEsc(d.asOf ? d.asOf.slice(0, 10) : '—') + '</p>';
+  if (score == null) return '<p class="econ-lead"><b>자료 없음</b>. 집계 ' + _merEsc(d.asOf ? d.asOf.slice(0, 10) : '—') + '</p>';
   var delta = first != null ? Math.round(score - first) : null;
   var moveTxt = delta == null ? '' : ', 한 달 전 ' + Math.round(first) + '에서 ' + (delta > 0 ? '올라옴' : delta < 0 ? '내려옴' : '그대로');
   var crossed = _merWatchList(d).filter(function (i) { return i.state === 'crossed'; }).slice(0, 2);
   var tail;
-  if (!crossed.length) tail = ' — 임계를 넘은 지표 없음';
+  if (!crossed.length) tail = '. 임계를 넘은 지표 없음';
   else {
     var seg = crossed.map(function (i, k) {
       var lv = _merNum(i.nearest.level, _merIsPct(i));
       return '<b>' + _merEsc(i.label) + ' ' + _merEsc(_merValTxt(i)) + '</b>' + (k === 0 ? '가 임계 ' + lv + (crossed.length > 1 ? '을 넘었고' : '을 넘음') : '도 임계 ' + lv + ' 위');
     });
-    tail = ' — ' + seg.join(' ');
+    tail = ': ' + seg.join(' ');
   }
   var kw = _merRegimeTop(d, 3);
   var sub = kw.length ? '<span class="econ-lead__sub">최근 한 달 글의 국면 키워드 ' + kw.map(_merEsc).join(' · ') + '</span>' : '';
@@ -254,7 +254,7 @@ function _merKpisHTML(d) {
     : '<span class="econ-num econ-num--l">' + Math.round(lens.score) + '</span>' +
       (delta != null ? '<small>' + (delta > 0 ? '▲' : delta < 0 ? '▼' : '') + Math.abs(delta) + ' · 30일</small>' : '') +
       (spark ? '<span class="econ-kpi__spark">' + spark + '</span>' : '');
-  var c1 = '임계 ' + _merR(comps.thresholdsCrossed) + ' · 부정 뷰 ' + _merR(comps.negativeStance30d) + ' · 위험 요인 ' + _merR(comps.riskFlags30d) + ' — 100점 만점';
+  var c1 = '임계 ' + _merR(comps.thresholdsCrossed) + ' · 부정 뷰 ' + _merR(comps.negativeStance30d) + ' · 위험 요인 ' + _merR(comps.riskFlags30d) + '. 100점 만점';
   var hot = (d.chains || []).filter(function (c) { return c.hotStep; }).sort(function (a, b) { return (b.n || 0) - (a.n || 0); });
   var v3 = hot.length ? _merEsc(hot[0].label) + (hot.length > 1 ? '<small>외 ' + (hot.length - 1) + '</small>' : '') : '없음';
   var c3 = hot.length ? '글 ' + (hot[0].n || 0) + '편 · ' + _merEsc(hot[0].note || '') : '사슬 ' + (d.chains || []).length + '개 중 발동 단계 없음';
@@ -304,7 +304,7 @@ function _merChainHTML(d) {
   // 같은 지표 이름이 첫 화면에 네 번 나오던 것을 세 번(결론 줄·카드·사슬)으로 (R6).
   var seenHot = {};
   var hot = hotAll.filter(function (c) { if (seenHot[c.hotStep]) return false; seenHot[c.hotStep] = true; return true; }).slice(0, 3);
-  if (!hot.length) return '<h4 class="econ-sec__h">발동 중인 전이 경로<span>사슬 ' + all.length + '개 모두 발동 단계 없음 — 전체는 전이 경로 맵</span></h4>';
+  if (!hot.length) return '<h4 class="econ-sec__h">발동 중인 전이 경로<span>사슬 ' + all.length + '개 모두 발동 단계 없음. 전체는 전이 경로 맵</span></h4>';
   var html = '<h4 class="econ-sec__h">발동 중인 전이 경로 ' + hotAll.length + '개<span>색 칸 = 지금 임계를 넘은 단계' + (hotAll.length > hot.length ? ' · 같은 칸에서 갈라지는 사슬은 하나만' : '') + '</span></h4>';
   html += hot.map(function (c) {
     var seen = {};
@@ -430,7 +430,7 @@ function _merLadderSvg(ind) {
     ? '<circle cx="' + x(cur) + '" cy="11" r="4" fill="var(--c-accent)"><title>현재값 ' + cur + '</title></circle>'
     : '';
   return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H +
-    '" role="img" aria-label="트리거 래더">' + line + ticks + dot + '</svg>';
+    '" role="img" aria-label="경보 단계">' + line + ticks + dot + '</svg>';
 }
 function _merStateBadge(state) {
   var tone = MER_STATE_TONE[state] || 'neutral';
@@ -635,7 +635,7 @@ function _merOpenSource(indId, triggerEl) {
   var full = document.getElementById('merlensSourceFull');
   if (full) { full.style.display = 'none'; full.textContent = ''; }
   if (!t) {
-    if (q) q.textContent = ind.label + ' — 아직 연결된 인용이 없습니다.';
+    if (q) q.textContent = ind.label + '. 아직 연결된 인용이 없습니다.';
     if (meta) meta.innerHTML = '';
     return;
   }
@@ -667,13 +667,13 @@ async function _merLoadFullText(logNo, btn) {
   if (btn) { btn.disabled = true; btn.textContent = '불러오는 중…'; }
   try {
     var base = (typeof _cfProxyBase === 'function') ? _cfProxyBase() : '';
-    if (!base) throw new Error('Worker 프록시 미설정');
+    if (!base) throw new Error('알림 서버 연결 안 됨');
     var r = await fetch(base + '/merblog?ids=' + encodeURIComponent(String(logNo)));
     var d = await r.json();
     var hit = (d.posts || []).find(function (p) { return String(p.logNo) === String(logNo); });
-    full.textContent = (hit && hit.fullText) ? hit.fullText : '(원문을 불러오지 못했습니다. 원글↗ 링크를 이용하세요.)';
+    full.textContent = (hit && hit.fullText) ? hit.fullText : '(원문 불러오기 실패. 원글↗ 링크를 이용해주세요)';
   } catch (e) {
-    full.textContent = '원문을 불러오지 못했습니다. 원글↗ 링크를 이용하세요. (' + e.message + ')';
+    full.textContent = '원문 불러오기 실패. 원글↗ 링크를 이용해주세요. (' + e.message + ')';
   }
   full.style.display = 'block';
   if (btn) { btn.disabled = false; btn.textContent = '원문 접기'; }
@@ -700,7 +700,7 @@ function _merOpenQuotes(label, quotes, triggerEl) {
   if (full) { full.style.display = 'none'; full.textContent = ''; }
   var list = (quotes || []).slice().sort(function (a, b) { return (a.date || '').localeCompare(b.date || ''); });
   if (!list.length) {
-    if (q) q.textContent = label + ' — 아직 연결된 인용이 없습니다.';
+    if (q) q.textContent = label + '. 아직 연결된 인용이 없습니다.';
     if (meta) meta.innerHTML = '';
   } else {
     if (q) q.textContent = label;
@@ -898,7 +898,7 @@ function _merRenderGraph(d) {
   svgWrap.innerHTML = _merGraphSvgMarkup(layout, edges, _merGraphNodesById);
   mobileWrap.innerHTML = _merGraphMobileHtml(d.chains || []);
   if (presetSel && !presetSel.dataset.built) {
-    presetSel.innerHTML = '<option value="">경로 프리셋 — 전체</option>' + (d.chains || []).map(function (c) {
+    presetSel.innerHTML = '<option value="">경로 프리셋. 전체</option>' + (d.chains || []).map(function (c) {
       return '<option value="' + c.id + '">' + _merEsc(c.id + ' ' + c.label) + ' (n=' + c.n + ')</option>';
     }).join('');
     presetSel.dataset.built = '1';
@@ -1096,7 +1096,7 @@ function _merStanceOpenMonth(assetId, ym, triggerEl) {
   var items = (a.series || []).filter(function (s) { return (s.date || '').indexOf(ym) === 0; });
   var quotes = items.map(function (s) {
     var label = MER_LABELS.view[String(s.view)] != null ? MER_LABELS.view[String(s.view)] : s.view;
-    return { logNo: s.logNo, date: s.date, q: label + ' — ' + (s.why || '') };
+    return { logNo: s.logNo, date: s.date, q: label + ': ' + (s.why || '') };
   });
   _merOpenQuotes((a.label || assetId) + ' · ' + ym, quotes, triggerEl);
 }
@@ -1141,7 +1141,7 @@ function _merRenderFactorCardBody(assetId) {
     // 그래서 이름은 caption 과 행 머리로 적는다 — 읽기 도구는 '요인 · 상태' 로 짝지어 읽고,
     // 눈으로는 바로 위 '강세 요인 / 약세 요인' 제목이 이미 그 말을 하고 있다.
     return '<div class="mer-panel-title" style="margin-top:10px;">' + title + '</div>' +
-      '<table class="econ-table"><caption class="econ-sr">' + title + ' — 왼쪽 칸이 요인, 오른쪽 칸이 현재 상태.</caption>' +
+      '<table class="econ-table"><caption class="econ-sr">' + title + '. 왼쪽 칸이 요인, 오른쪽 칸이 현재 상태.</caption>' +
       '<tbody>' +
       (arr.map(function (pair) { return _merFactorRowHtml(assetId, pair[0], pair[1]); }).join('') ||
         '<tr><td colspan="2" style="color:var(--c-txt-dim);">없음</td></tr>') + '</tbody></table>';

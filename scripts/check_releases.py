@@ -126,7 +126,7 @@ def judge(ev, hist):
     if fore is not None:
         gap = act - fore
         if abs(gap) >= SURPRISE_MIN:
-            return True, f"예상 {ev['fore']} → 실제 {ev['act']} ({gap:+.1f}%p 차이)"
+            return True, f"컨센서스 {ev['fore']} → 발표값 {ev['act']} ({gap:+.1f}%p 차이)"
         return False, ""
     pct = percentile_of(act, hist)
     if pct is None:

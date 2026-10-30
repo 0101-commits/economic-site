@@ -422,11 +422,11 @@ def release_result(ctx: Context, ev: dict) -> list[Hit]:
     for e, stars in _released_today(ctx, ev):
         act, fore = _num(e.get("act")), _num(e.get("fore"))
         verdict = ("" if act is None or fore is None else
-                   "상회" if act > fore + 1e-9 else "하회" if act < fore - 1e-9 else "부합")
-        # 「예상 …」 조각은 진짜 예측이 있을 때만 — 일정표 fore 는 대개 비어 있다(원천에 컨센서스가 없다). 틀에 「예상」을
-        # 글자로 두면 fore 가 빌 때 「… · 예상」만 남는다.
+                   "높음" if act > fore + 1e-9 else "낮음" if act < fore - 1e-9 else "같음")
+        # 「컨센서스 …」 조각은 컨센서스가 있을 때만 — 나스닥에 없는 일정(한국 고용 · 산업활동)은 fore 가 빈다. 틀에
+        # 「컨센서스」를 글자로 두면 fore 가 빌 때 「… · 컨센서스」만 남는다. 판정어는 사실(높음 · 낮음 · 같음)만 — 호재 · 악재로 읽지 않는다.
         fields = {"event_name": e.get("name"), "act": e.get("act"), "fore": e.get("fore") or "",
-                  "vs_fore": f"예상 {e.get('fore')} {verdict}" if fore is not None else "",
+                  "vs_fore": f"컨센서스 {e.get('fore')} {verdict}" if fore is not None else "",
                   "prev": e.get("prev") or "", "verdict_ko": verdict, "stars": stars, "next_event": nxt}
         if lvl := _escalate(ev, stars):
             fields["level"] = lvl

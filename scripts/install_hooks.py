@@ -16,16 +16,31 @@ fi
 """
 
 
+TERMS = "scripts/check_terms.py"
+TERMS_BLOCK = f"""# 화면 금지어 검사 (scripts/install_hooks.py 가 추가 · 용어 정제 2026-10-30)
+if [ -f {TERMS} ]; then
+  if command -v python >/dev/null 2>&1; then
+    python {TERMS} || exit 1
+  else
+    py -3 {TERMS} || exit 1
+  fi
+fi
+"""
+
+
 def main():
     hooks = subprocess.run(["git", "rev-parse", "--git-path", "hooks"], capture_output=True,
                            text=True, check=True).stdout.strip()
     os.makedirs(hooks, exist_ok=True)
     path = os.path.abspath(os.path.join(hooks, "pre-commit"))
     old = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
-    if MARK in old:
+    new = old
+    for mark, block in ((MARK, BLOCK), (TERMS, TERMS_BLOCK)):
+        if mark not in new:
+            new = (new.rstrip("\n") + "\n\n" + block) if new else "#!/bin/sh\n" + block
+    if new == old:
         print("이미 설치됨:", path)
         return
-    new = (old.rstrip("\n") + "\n\n" + BLOCK) if old else "#!/bin/sh\n" + BLOCK
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(new)
     os.chmod(path, 0o755)

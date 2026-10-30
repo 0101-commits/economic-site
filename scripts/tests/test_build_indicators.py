@@ -43,7 +43,7 @@ def test_housing_supply_labels_and_tier():
 
 def test_macro_label_from_decision_table():
     rows = _rows({"economicIndicators": {"jp": {"cpi_jp": _ind("일본 CPI")}}})
-    assert rows["cpi_jp"]["label"] == "일본 소비자물가(전년비)"
+    assert rows["cpi_jp"]["label"] == "일본 소비자물가(전년 대비)"   # 용어 정제 2026-10-30
 
 
 def test_drilldown_dict_is_not_an_indicator():
