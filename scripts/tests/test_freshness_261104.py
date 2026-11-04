@@ -256,3 +256,32 @@ def test_kosis_supply_pins_three_levels(monkeypatch):
     fd._kosis_supply_node("housing_start_kr", _rone({"202601": 1.0}), fetch=lambda t, i, objs, *a: seen.append(objs))
     assert seen == [("13102766971A.0001", "13102766971B.0001", "13102766971C.0001")]
     assert all(len(v[2]) == 3 for v in fd._KOSIS_SUPPLY.values())
+
+
+# ── 4차(2026-11-04 저녁): 수급 대조 기준 · FRED 간격 · 죽은 원천 ──
+
+def test_fred_pacing(monkeypatch):
+    t = [100.0]
+    slept = []
+    monkeypatch.setattr(fd._time, "monotonic", lambda: t[0])
+    monkeypatch.setattr(fd._time, "sleep", lambda s: slept.append(round(s, 2)))
+    fd._FRED_LAST[0] = 99.8                       # 직전 요청 0.2초 전
+    fd._fred_pace()
+    assert slept == [0.35]                        # 0.55 간격을 채운다
+    fd._FRED_LAST[0] = 90.0
+    slept.clear()
+    fd._fred_pace()
+    assert slept == []                            # 이미 충분히 떨어져 있으면 안 기다린다
+
+
+def test_source_status_drops_retired_hosts():
+    prev = {"cdn.cboe.com": {"calls": 1, "fails": 1, "consecutiveFailRuns": 1060},
+            "fred": {"calls": 1, "fails": 0, "consecutiveFailRuns": 0}}
+    out = fd._source_status({}, prev)
+    assert "cdn.cboe.com" not in out and "fred" in out
+
+
+def test_freight_naver_candidates_only_live():
+    import inspect
+    src = inspect.getsource(fd._freight_from_naver)
+    assert "marketindex/transport" in src and "shipping/prices" not in src

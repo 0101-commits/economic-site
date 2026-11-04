@@ -45,6 +45,9 @@ UNREAD = [
     "berkshire",
     # 판정표 행 — 묶음은 정상이 아닌 행만 옮긴다. 전부 정상인 날(2026-11-04 163/163)엔 실릴 행이 없어 게이트가 흔들렸다.
     "dataHealth.items",
+    # KRX 확정 수급(2026-11-04 KRX 로그인 뒤 처음 생김) — 수급 대조(crossCheck)와 알림(investor_flows.portal_daily)이 읽는다.
+    # 화면 묶음은 포털(네이버) 값 daily 를 싣는다.
+    "investorTrading.krxDaily",
 ]
 excused = lambda u: any(u == e or u.startswith(e + ".") for e in UNREAD)
 

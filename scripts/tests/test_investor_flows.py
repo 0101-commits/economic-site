@@ -335,3 +335,17 @@ def test_portal_daily_falls_back_to_krx_when_naver_gone(monkeypatch):
                                                  "inst": 4074.0, "retail": -700.0}])
     rows, src = f.portal_daily("KOSPI")
     assert src == "krx" and rows[0]["inst"] == 4074.0
+
+
+def test_cross_check_prefers_krx_over_toss(monkeypatch):
+    """대조 상대는 KRX 확정치가 먼저(2026-11-04) — 네이버와 같은 KRX 단독 집계라 같아야 정상이다.
+    토스(KRX + 넥스트레이드)와 대조하던 동안 10일 중 6일이 「총체적 불일치」로 떴다."""
+    toss = [_r("2026-10-28", 9000, 6000, -15000), _r("2026-10-29", 3000, -2000, -1000)]
+    recent = [_r("2026-10-28", 7677, 9131, -17037), _r("2026-10-29", 1221, -4132, -429)]
+    krx = [_r("2026-10-28", 7691.1, 9146.4, -17050.5), _r("2026-10-29", 6659.9, -132.2, -9868)]
+    out = _align(monkeypatch, toss, None, recent, {}, krx=krx, days=2, backfill=0)
+    cc = {c["date"]: c for c in out["crossCheck"]}
+    assert cc["2026-10-28"]["ref"] == "krx" and cc["2026-10-28"]["gross"] is None     # 같은 KRX 기준이면 맞는다
+    assert cc["2026-10-29"]["ref"] == "krx" and cc["2026-10-29"]["gross"]              # 진짜 어긋난 날만 잡힌다
+    out2 = _align(monkeypatch, toss, None, recent, {}, krx=[], days=2, backfill=0)
+    assert all(c.get("ref") == "toss" for c in out2["crossCheck"] if "ref" in c)      # KRX 가 없을 때만 토스

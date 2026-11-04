@@ -152,7 +152,7 @@ ECOS_BASE    = "https://ecos.bok.or.kr/api"
 # R-ONE 공식 OpenAPI 엔드포인트 (2023~ 신 버전)
 RONE_BASE    = "https://www.reb.or.kr/r-one/openapi"
 # 구 R-ONE 엔드포인트 (legacy, 일부 시리즈만 응답)
-RONE_BASE_LEGACY = "http://openapi.reb.or.kr/OpenAPI_ToolInstallPackage/service/rest"
+# RONE_BASE_LEGACY(openapi.reb.or.kr) 는 2026-11-04 지웠다 — 연결 실패만 남았다
 # R-ONE 표준 지역분류 코드: 전국=500001 (500002 수도권, 500003 지방권, 500008 서울 …).
 # SttsApiTblData 는 날짜범위를 무시하고 모든 지역을 오래된 순으로 반환하므로, 전국 최신값을
 # 얻으려면 반드시 CLS_ID=500001 로 지역을 한정해야 한다 (GHA 프로브로 확인).
@@ -862,13 +862,9 @@ def _freight_from_naver():
         "Referer": "https://m.stock.naver.com/",
         "Origin": "https://m.stock.naver.com",
     }
+    # 2026-11-04 정리: 후보 6개 중 살아 있는 건 transport 하나(나머지 5개는 늘 404 — sourceStatus 의 api/m.stock.naver.com 실패가 이것).
     candidates = [
-        "https://api.stock.naver.com/marketindex/shipping/prices",
-        "https://api.stock.naver.com/marketindex/shippings",
-        "https://api.stock.naver.com/marketindex/category/shipping",
-        "https://api.stock.naver.com/marketindex/shipping",
         "https://api.stock.naver.com/marketindex/transport",
-        "https://m.stock.naver.com/api/marketindex/shippings",
     ]
     code_kw = [(c, n) for (c, n, _x) in FREIGHT_INDEX_META]
     out = {}
@@ -1718,9 +1714,8 @@ def _get_via_proxies(target_url, headers=None, timeout=15, expect_json=True):
     candidates = [
         target_url,
         f"https://ecom-dashboard-proxy.e-hcg.workers.dev/?url={quote_plus(target_url)}",
-        f"https://corsproxy.io/?{quote_plus(target_url)}",
+        # corsproxy.io(늘 403) · api.codetabs.com(늘 시간 초과)는 2026-11-04 뺐다 — 한 번도 성공한 적이 없다(1,000런+)
         f"https://api.allorigins.win/raw?url={quote_plus(target_url)}",
-        f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(target_url)}",
     ]
     for url in candidates:
         try:
@@ -2116,6 +2111,7 @@ def fetch_fred_series(series_id, limit=1, units=None):
             }
             if units:
                 params["units"] = units
+            _fred_pace()
             r = requests.get(
                 f"{FRED_BASE}/series/observations",
                 params=params,
@@ -2134,9 +2130,22 @@ def fetch_fred_series(series_id, limit=1, units=None):
         except Exception as e:
             last_err = e
             if attempt < 2:
-                _time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s 백오프
+                # 429(요청 한도 120회/분)는 짧게 기다리면 또 걸린다 — 길게 쉰다(2026-11-04: 94콜 중 8콜 429)
+                _time.sleep((6 if "429" in str(e) else 1.5) * (attempt + 1))
     log(f"[FRED] {series_id} 오류(재시도 3회 소진): {last_err}")
     return None
+
+
+_FRED_LAST = [0.0]
+FRED_MIN_GAP_S = 0.55   # FRED 한도 = 키당 분당 120회 → 0.5초 간격이 상한. 근원 물가 · 일간 국제 계열을 더한 뒤 429 가 났다
+
+
+def _fred_pace():
+    """직전 FRED 요청과 FRED_MIN_GAP_S 이상 띄운다(응답이 빨라 연달아 쏠 때만 실제로 기다린다)."""
+    wait = _FRED_LAST[0] + FRED_MIN_GAP_S - _time.monotonic()
+    if wait > 0:
+        _time.sleep(wait)
+    _FRED_LAST[0] = _time.monotonic()
 
 
 def fetch_fred_latest(series_id):
@@ -2902,12 +2911,16 @@ def _investor_align_portal(inv, prev_daily=None, days=10, backfill=40):
     if not nav and krx:
         nav, label, src = krx, "KRX 정보데이터시스템(pykrx, 확정치)", "krx"
     cross = []
+    # 대조 상대는 KRX 확정치가 먼저다 — 네이버와 같은 KRX 단독 집계라 같아야 정상이다. 토스는 KRX + 넥스트레이드
+    # 합산이라 같은 날 수천억 다른 게 정상이어서, 토스로 대조하던 동안 10일 중 6일이 「총체적 불일치」로 떴다
+    # (2026-11-04: KRX 로그인이 되자 네이버 ↔ KRX 는 9일이 1~3% 안, 10/29 하루만 진짜로 어긋남). 토스는 KRX 가 없을 때만.
+    krx_by = {} if src == "krx" else {r["date"]: r for r in krx}
     for n in nav:
-        old = base.get(n["date"])
-        if old is not None and not old.get("src"):          # 복원된 포털 행끼리는 비교하지 않는다
+        ref, old = ("krx", krx_by.get(n["date"])) if n["date"] in krx_by else ("toss", base.get(n["date"]))
+        if old is not None and (ref == "krx" or not old.get("src")):   # 복원된 포털 행끼리는 비교하지 않는다
             bad = investor_flows.gross_mismatch(n, old)
             ok, worst = investor_flows.agree(n, old)
-            cross.append({"date": n["date"], "agree": ok,
+            cross.append({"date": n["date"], "ref": ref, "agree": ok,
                           "maxDiffPct": round(worst * 100, 1), "gross": bad})
         elif old is None:
             # 둘째 원천(토스·KRX)에 이 날 행이 없다 — 불일치가 아니라 '검증 불가'로 따로 센다.
@@ -4563,40 +4576,7 @@ def fetch_realestate_kr():
     if jns:
         result["jns_price_idx_kr"] = jns
 
-    # ─── Legacy API 폴백 ─────────────
-    if not result:
-        try:
-            start_ym = (now - timedelta(days=60)).strftime("%Y%m")
-            end_ym   = now.strftime("%Y%m")
-            r = requests.get(
-                f"{RONE_BASE_LEGACY}/AptPriceIndex/getAptPrcIdxByRegion",
-                params={
-                    "serviceKey": REALESTATE_API_KEY,
-                    "pageNo":     1,
-                    "numOfRows":  5,
-                    "startMonth": start_ym,
-                    "endMonth":   end_ym,
-                    "regionCode": "00",
-                },
-                timeout=20,
-            )
-            r.raise_for_status()
-            import xml.etree.ElementTree as ET
-            root = ET.fromstring(r.text)
-            items = root.findall(".//item")
-            if items:
-                latest = items[-1]
-                result["apt_price_idx_kr"] = {
-                    "value":  _parse_num(latest.findtext("aptPrcIdx")),
-                    "period": latest.findtext("yearMonth"),
-                    "chg":    _parse_num(latest.findtext("aptPrcIdxMoM")),
-                    "region": "전국",
-                    "desc":   "전국 아파트 매매가격지수",
-                    "source": "R-ONE (legacy)",
-                }
-                log(f"[R-ONE-legacy] 매매지수: {result['apt_price_idx_kr']}")
-        except Exception as e:
-            log(f"[R-ONE-legacy] 오류: {e}")
+    # (삭제 2026-11-04) R-ONE 옛 API(openapi.reb.or.kr) 폴백 — 연결 시간 초과만 12런 이상, 성공 기록 없음.
 
     # ─── R-ONE 추가 시리즈: 미분양 / 인허가 / 착공 / 준공 (전국 집계) ──
     # 모두 전국(CLS_ID=500001) 으로 한정해 최신값을 추출 (가격지수와 동일 메커니즘).
@@ -5969,8 +5949,7 @@ def fetch_vkospi():
             "Accept": "text/html,application/xhtml+xml",
             "Accept-Language": "ko,en;q=0.8",
         }
-        for url in ("https://kr.investing.com/indices/kospi-volatility",
-                    "https://www.investing.com/indices/kospi-volatility"):
+        for url in ("https://kr.investing.com/indices/kospi-volatility",):   # 영문판은 늘 403 — 뺐다(2026-11-04)
             try:
                 r = requests.get(url, headers=headers, timeout=15)
                 if r.status_code != 200 or not r.text:
@@ -7317,17 +7296,23 @@ def _reconcile_history_with_spot(data, now):
 SOURCE_ALERT_RUNS = 100   # 풀 런 약 3일치 — 이만큼 연달아 전부 실패하면 제외 후보로 한 번 알린다
 
 
+# 수집에서 뺀 호스트(2026-11-04) — 풋콜비율 CBOE · 늘 실패하던 공개 프록시 둘 · investing 영문판 · R-ONE 옛 API
+_RETIRED_HOSTS = {"cdn.cboe.com", "corsproxy.io", "api.codetabs.com", "www.investing.com", "openapi.reb.or.kr"}
+
+
 def _source_status(snapshot, prev_ss):
     """호스트별 이번 런 기록 + 연속 전면 실패 런 수(consecutiveFailRuns).
 
     이번 런에 한 번도 안 부른 호스트(일일 런 전용 등)는 증거가 없으니 직전 기록을 그대로 둔다 —
     0 으로 되돌리면 일일 전용 원천은 영영 누적되지 않는다. alertedAt 은 실패가 이어지는 동안만
     이어받아, 회복 뒤 다시 죽으면 한 번 더 알린다.
-    ponytail: 영구히 안 부르게 된 호스트도 직전 기록이 남는다 — 쌓이면 lastCallAt 을 두고 N일 뒤 지운다.
+    수집 코드에서 뺀 호스트(_RETIRED_HOSTS)는 기록째 지운다 — 안 부르니 직전 기록이 영원히 「1,060런 연속 실패」로 남았다.
     """
     prev_ss = prev_ss if isinstance(prev_ss, dict) else {}
     out = {}
     for host in sorted(set(snapshot) | set(prev_ss)):
+        if host in _RETIRED_HOSTS:
+            continue
         st, p = snapshot.get(host), prev_ss.get(host) or {}
         if not st or not st.get("calls"):
             out[host] = p
@@ -9161,9 +9146,7 @@ def fetch_news_articles(query, count=5, timeout=10):
     xml_text = None
     candidates = [
         rss_url,
-        f"https://corsproxy.io/?{quote_plus(rss_url)}",
-        f"https://api.allorigins.win/raw?url={quote_plus(rss_url)}",
-        f"https://api.codetabs.com/v1/proxy/?quest={quote_plus(rss_url)}",
+        f"https://api.allorigins.win/raw?url={quote_plus(rss_url)}",   # corsproxy · codetabs 는 늘 실패 — 뺐다(2026-11-04)
     ]
     for url in candidates:
         try:
@@ -9275,8 +9258,7 @@ def fetch_bing_news_articles(query, count=5, timeout=10):
     }
     candidates = [
         rss_url,
-        f"https://corsproxy.io/?{quote_plus(rss_url)}",
-        f"https://api.allorigins.win/raw?url={quote_plus(rss_url)}",
+        f"https://api.allorigins.win/raw?url={quote_plus(rss_url)}",   # corsproxy 는 늘 403 — 뺐다(2026-11-04)
     ]
     xml_text = None
     for url in candidates:
@@ -10374,6 +10356,11 @@ def build_light_data():
         log(f"[light-toss] 오류(무시): {e!r}")
     if quotes:                                       # 시각은 시세가 움직였을 때만 — 묶음 · 화면이 이 시각으로 지수 · 환율 · 원자재를 「실시간」으로 잰다
         data["lastUpdated"] = datetime.now(KST).isoformat()
+    # KRX 로그인은 import 때 경량 런도 한다 — 직전 빌드 값을 그대로 이으면 계정을 고친 뒤에도 몇 런 동안 「실패」로 보였다(2026-11-04)
+    if _KRX_LOGIN_AVAILABLE:
+        dg = data.setdefault("diagnostics", {})
+        dg["krxLoggedIn"] = _KRX_LOGGED_IN
+        dg["krxLoginTrace"] = [list(t) for t in KRX_LOGIN_TRACE][-3:]
     return data, updated[0]
 
 
