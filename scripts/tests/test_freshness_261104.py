@@ -167,3 +167,83 @@ def test_merge_freight_per_item_date():
     assert {e["date"]: e["items"] for e in out} == {"2026-10-30": {"SCFI": 3687.35}, "2026-11-02": {"BDI": 2648}}
     out = ms.merge_freight(out, [{"code": "BDI", "price": 2590, "date": "2026-11-03"}])
     assert [e["date"] for e in out] == ["2026-10-30", "2026-11-02", "2026-11-03"]   # 일간 이력이 쌓인다
+
+
+# ── 2차(2026-11-04 오후): 주택 공급 KOSIS · 짧은 창 쌓기 · 국민연금 연말 · 일정 헤드라인 ──
+
+def _rone(hist):
+    return {"value": 1, "period": max(hist), "history": hist, "region": "전국", "desc": "d", "unit": "호",
+            "source": "R-ONE:T1"}
+
+
+def test_kosis_supply_monthly_match(monkeypatch):
+    monkeypatch.setattr(fd, "log", lambda *a, **k: None)
+    ref = {f"2026{m:02d}": 1000.0 + m for m in range(1, 9)}               # R-ONE 1~8월
+    kos = {**{k: v * 1.01 for k, v in ref.items()}, "202609": 2000.0}     # 1% 차 + 9월
+    n = fd._kosis_supply_node("housing_start_kr", _rone(ref), fetch=lambda *a: kos)
+    assert n["period"] == "202609" and n["value"] == 2000.0 and n["source"].startswith("KOSIS:116/DT_MLTM_5386")
+    assert n["desc"] == "d" and n["unit"] == "호"
+
+
+def test_kosis_supply_cumulative_and_guards(monkeypatch):
+    monkeypatch.setattr(fd, "log", lambda *a, **k: None)
+    ref = {f"2026{m:02d}": 100.0 for m in range(1, 9)}                    # 월분 100 씩
+    cum = {f"2026{m:02d}": 100.0 * m for m in range(1, 10)}               # KOSIS 가 연간 누계라면
+    n = fd._kosis_supply_node("housing_permit_kr", _rone(ref), fetch=lambda *a: cum)
+    assert n and n["period"] == "202609" and n["history"]["202609"] == 100.0   # 누계 차분 해석이 맞아 채택
+    off = {k: v * 1.5 for k, v in ref.items()} | {"202609": 1.0}
+    assert fd._kosis_supply_node("housing_start_kr", _rone(ref), fetch=lambda *a: off) is None   # 어느 해석도 안 맞음
+    same = dict(ref)
+    assert fd._kosis_supply_node("housing_start_kr", _rone(ref), fetch=lambda *a: same) is None  # 더 새 달 없음
+    assert fd._kosis_supply_node("housing_start_kr", None, fetch=lambda *a: cum) is None         # 대조 상대 없음
+
+
+def test_accumulate_short_window():
+    fresh = {"existing_home_sales": {"history": {"2026-08-01": 4.0, "2026-09-01": 4.1}}, "x": {"history": {"a": 1}}}
+    prev = {"existing_home_sales": {"history": {"2025-01-01": 3.9, "2026-08-01": 3.0}}}
+    fd._accumulate_history(fresh, prev, fd.FRED_SHORT_WINDOW)
+    assert fresh["existing_home_sales"]["history"] == {"2025-01-01": 3.9, "2026-08-01": 4.0, "2026-09-01": 4.1}
+    assert fresh["x"]["history"] == {"a": 1}
+
+
+def test_nps_yearend():
+    rows = [{"artclCn1": "2025", "artclCn3": "263737", "artclCn4": "304763", "artclCn5": "550485",
+             "artclCn6": "101303", "artclCn7": "232576", "artclCn8": "4442"},
+            {"artclCn1": "2026", "artclCn3": "1", "artclCn4": "1", "artclCn5": "1", "artclCn6": "1", "artclCn7": "1"},
+            {"artclCn1": "합계"}]
+    out = ms.parse_nps_yearend(rows, 2026)
+    assert [e["date"] for e in out] == ["2025-12-01"] and out[0]["basis"] == "연말"
+    assert out[0]["alloc"]["국내주식"] == round(263737 / 1457306 * 100, 1) and None not in out[0]["alloc"]
+
+    from datetime import date
+    called = []
+    have = [{"date": "2024-12-01", "alloc": {}}]
+    assert ms.backfill_nps_yearend(have, today=date(2026, 11, 4), post=lambda *a, **k: called.append(1)) is have
+    assert called == []                                              # 2년 전 연말이 있으면 안 부른다
+    resp = types.SimpleNamespace(raise_for_status=lambda: None, json=lambda: {"resultDtlList": rows})
+    got = ms.backfill_nps_yearend([{"date": "2026-08-01", "alloc": {"국내주식": 25.8}}], today=date(2026, 11, 4),
+                                  post=lambda *a, **k: resp)
+    assert [e["date"] for e in got] == ["2025-12-01", "2026-08-01"]
+
+
+def test_calendar_kr_headlines(monkeypatch):
+    import datetime as dt
+    assert fd._fmt_indicator(193.0, "ykd") == "+19.3만명" and fd._fmt_indicator(-5.0, "ykd") == "-0.5만명"
+    monkeypatch.setitem(fd.CALENDAR_INDICATOR_MAP, "한국 고용동향", ("economicIndicators.kr.employed_kr", "ykd", False))
+    monkeypatch.setitem(fd.CALENDAR_INDICATOR_MAP, "한국 산업활동동향", ("economicIndicators.kr.ip_all_kr", "mom1", False))
+    monkeypatch.setattr(fd, "log", lambda *a, **k: None)
+    day = (dt.datetime.now(fd.KST) - dt.timedelta(days=3)).date()
+    ref = (day.replace(day=1) - dt.timedelta(days=1))                 # 발표 달의 전달
+    k = lambda d: d.strftime("%Y%m")
+    last = ref.replace(year=ref.year - 1)
+    prevm = ref.replace(day=1) - dt.timedelta(days=1)
+    emp = {k(last): 29000.0, k(prevm.replace(year=prevm.year - 1)): 28900.0, k(prevm): 29100.0, k(ref): 29193.0}
+    data = {"economicIndicators": {"kr": {"employed_kr": {"value": 29193.0, "history": emp},
+                                          "ip_all_kr": {"value": 1, "history": {}}}}}
+    ev = {"iso": day.isoformat(), "dt": day.strftime("%m.%d") + " 08:00", "name": "한국 고용동향",
+          "refPeriod": ref.strftime("%Y-%m"), "prev": "", "fore": "", "act": ""}
+    ip = {"iso": day.isoformat(), "dt": day.strftime("%m.%d") + " 08:00", "name": "한국 산업활동동향",
+          "refPeriod": ref.strftime("%Y-%m"), "prev": "", "fore": "", "act": ""}
+    fd.backfill_calendar_actuals([ev, ip], data)
+    assert ev["act"] == "+19.3만명" and ev["prev"] == "+20.0만명"
+    assert ip["act"] == ""                                            # 이력 없는 변화율은 수준 값으로 찍지 않는다

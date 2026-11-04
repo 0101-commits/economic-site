@@ -2168,6 +2168,9 @@ def fetch_fred_economic_indicators():
         "claims_us":   ("ICSA",            "미국 신규 실업수당 청구 (주간, 명)"),
         "t10y2y_us":   ("T10Y2Y",          "미국 장단기 금리차 10Y-2Y (일간, %p)"),
         "sentiment_us":("UMCSENT",         "미국 소비자심리지수 (미시간대)"),
+        # 근원 물가(2026-11-04) — 연준·시장이 보는 건 근원인데 헤드라인만 있었다(메르 렌즈 core_cpi_us 가 헤드라인을 쓰던 이유).
+        "core_cpi_us": ("CPILFESL",        "미국 근원 CPI (식품·에너지 제외, 계절조정)"),
+        "core_pce_us": ("PCEPILFE",        "미국 근원 PCE 물가지수 (식품·에너지 제외)"),
         # ── 2026-09 신규: 유동성 3형제(메르 렌즈 사슬 C3) ────────────────
         # 단위가 서로 다르다 — RRP 는 십억USD, TGA·지준은 백만USD. 여기서는 FRED 원값을
         # 그대로 싣고, 나란히 놓고 읽는 메르 렌즈 쪽 사전이 scale 로 십억USD 로 맞춘다.
@@ -3192,6 +3195,20 @@ def fetch_fred_realestate_us():
     return result
 
 
+# FRED 가 최근 몇 달만 주는 계열 — 받을 때마다 이력을 통째로 바꾸면 영영 그 길이에 머문다(기존주택판매 = NAR 사용 제한으로
+# 13개월, 2026-11-04 실측: 10-05 판도 13점). 직전 이력과 합쳐 쌓는다(같은 달은 새 값 — 개정 반영).
+FRED_SHORT_WINDOW = ("existing_home_sales",)
+
+
+def _accumulate_history(fresh, prev_group, keys, cap=240):
+    """fresh[키].history 에 prev_group[키].history 의 더 오래된 달을 더한다(제자리). 새로 못 받은 키는 건드리지 않는다."""
+    for k in keys:
+        n, p = (fresh or {}).get(k), (prev_group or {}).get(k) or {}
+        if isinstance(n, dict) and isinstance(n.get("history"), dict) and isinstance(p.get("history"), dict):
+            merged = {**p["history"], **n["history"]}
+            n["history"] = {d: merged[d] for d in sorted(merged)[-cap:]}
+
+
 def fetch_fred_realestate_kr():
     """한국 주거용 부동산 가격지수 — FRED(BIS) 폴백.
 
@@ -3909,6 +3926,17 @@ def fetch_ecos_economic_indicators():
         result["ip_kr"] = r
         log(f"[ECOS] 산업생산: {r['value']} ({r['period']}) stat={used_stat} item={used_item}")
 
+    # 경제 일정 헤드라인 짝(2026-11-04) — 산업활동동향 = 전산업생산(계절조정) 전월비, 고용동향 = 취업자(원계열) 전년동월 증감.
+    # 두 축 표라 "항목/원계열·계절조정" 을 붙여 보낸다(한 시점에 두 줄이 섞이지 않게). 화면 카드는 없고 일정 칸만 쓴다.
+    for _key, _item, _desc, _src in (("ip_all_kr", "A00/2", "한국 전산업생산지수 (계절조정, 2020=100)", "901Y033/A00/2"),
+                                     ("employed_kr", "I61BA/I28A", "한국 취업자 (원계열, 천명)", "901Y027/I61BA/I28A")):
+        r = _ecos_latest(_src.split("/")[0], _item, "M", _desc, _src)
+        if r:
+            result[_key] = r
+            log(f"[ECOS] {_key}: {r['value']} ({r['period']}) +{len(r.get('history') or {})}점")
+        else:
+            log(f"[ECOS] {_key} 미수집 — 직전 값 유지")
+
     # 소매판매 - 정식 표 = 901Y100 '소매판매액지수' 총지수(G0) × 계절조정지수(T3), 2020=100.
     # 둘째 축(T1 경상·T2 불변·T3 계절조정)을 안 주면 한 달에 세 줄이 섞이므로 "G0/T3" 로 둘 다 준다.
     r, used_stat, used_item = _ecos_try_multi(
@@ -4557,6 +4585,15 @@ def fetch_realestate_kr():
         except Exception as e:
             log(f"[R-ONE] {key} ({statbl_id}) 오류: {e}")
 
+    # ─── 착공·준공·인허가: KOSIS 국토부 표가 R-ONE 보다 1개월 빠르다 — R-ONE 과 대조해 맞을 때만 바꾼다 ──
+    for key in _KOSIS_SUPPLY:
+        try:
+            node = _kosis_supply_node(key, result.get(key))
+            if node:
+                result[key] = node
+        except Exception as e:
+            log(f"[KOSIS] {key} 오류(R-ONE 유지): {_scrub_err(e)}")
+
     # ─── 미분양: KOSIS 국토부 규모별 미분양(DT_MLTM_2080) 전국 총합 — R-ONE 표엔 전국 행이 없다(2026-10-01 탐침) ──
     # rone 묶음(realestate.kr) 안에서 같이 받으므로 일일 런 3회·보존 표식 때만 재조회하는 주기가 그대로 적용된다.
     try:
@@ -4992,6 +5029,79 @@ def probe_kosis_housing_meta():
 # 전국 행이 없다(같은 날 탐침: 202607 90행·전국 0) → 미분양만 KOSIS 가 본선이다(착공·준공·인허가는 R-ONE).
 _KOSIS_UNSOLD = {"org": "116", "tbl": "DT_MLTM_2080", "itm": "13103792722T1",
                  "obj": ("13102792722A.0001", "13102792722B.0001", "13102792722C.0001")}   # 시도=전국 · 부문=총합 · 규모=총합
+
+
+# 착공·준공·인허가 — KOSIS 국토부 표. R-ONE T 표는 통계누리보다 1개월 늦다(2026-11-04: R-ONE 8월분, 국토부 9월분 공표).
+# 코드는 2026-11-03 일일 런 [KOSIS-probe] getMeta 실측(구분 = 총계 · 항목 하나). 월분인지 연간 누계인지는 메타에 없어,
+# 겹치는 달을 R-ONE 과 대조해 맞는 해석일 때만 쓴다(_kosis_supply_node).
+_KOSIS_SUPPLY = {
+    "housing_permit_kr":   ("DT_MLTM_1946", "13103871089T1", "13102871089A.0001"),   # 인허가실적 · 총계
+    "housing_start_kr":    ("DT_MLTM_5386", "13103766971T1", "13102766971A.0001"),   # 착공실적 · 총계
+    "housing_complete_kr": ("DT_MLTM_5372", "13103766972T1", "13102766972A.0001"),   # 사용검사(준공)실적 · 총계
+}
+KOSIS_SUPPLY_MAX_DEV = 0.03   # 겹치는 달(최근 12) 중앙 상대 차 허용치
+
+
+def _kosis_history(tbl, itm, objs, months=240, label="", org="116"):
+    """KOSIS 표 한 계열 → {YYYYMM: 값} 또는 None. objL1~ 을 한 코드씩 못 박아 시점당 1행이어야 한다 — 같은 시점에
+    2행 이상이면 분류가 섞인 것이라 싣지 않는다. 연결 실패·오류 응답 = None(직전 값 보존은 호출부 몫)."""
+    if not KOSIS_API_KEY:
+        return None
+    now = datetime.now(KST)
+    objs = list(objs) + [None, None, None]
+    try:
+        data = fetch_kosis_series(org, tbl, itm, "M", (now - timedelta(days=31 * months)).strftime("%Y%m"),
+                                  now.strftime("%Y%m"), obj_l1=objs[0], obj_l2=objs[1], obj_l3=objs[2])
+    except _KosisConnectionError:
+        return None
+    if not isinstance(data, list):
+        return None
+    history, dup = {}, set()
+    for r in data:
+        p, v = r.get("PRD_DE"), _parse_num(r.get("DT"))
+        if not p or v is None:
+            continue
+        if p in history:
+            dup.add(p)
+        history[p] = v
+    if dup:
+        log(f"[KOSIS] {label or tbl} 같은 시점 다중행 {sorted(dup)[:5]} — 분류 섞임, 건너뜀")
+        return None
+    return history or None
+
+
+def _kosis_supply_node(key, rone, fetch=None):
+    """KOSIS 국토부 착공·준공·인허가 → R-ONE 노드를 대신할 노드 또는 None(R-ONE 유지).
+
+    R-ONE 과 겹치는 최근 12달(6달 이상)의 중앙 상대 차가 3% 안인 해석(월분 그대로 / 연간 누계 차분)만 쓰고,
+    KOSIS 최신 달이 R-ONE 보다 뒤일 때만 바꾼다. R-ONE 이 이번 런에 없으면 대조할 수 없어 바꾸지 않는다.
+    과거는 R-ONE 이력 위에 KOSIS 값을 얹는다(두 원천이 3% 안에서 같다는 것을 확인한 뒤에만)."""
+    tbl, itm, obj = _KOSIS_SUPPLY[key]
+    if not rone or not rone.get("history"):
+        return None
+    hist = (fetch or _kosis_history)(tbl, itm, (obj,), 240, key)
+    if not hist:
+        return None
+    ref = rone["history"]
+    cum = (_rone_monthly_from_cumulative({"history": hist}) or {}).get("history") or {}
+    for mode, h in (("월분", hist), ("연간 누계 차분", cum)):
+        common = sorted(p for p in set(h) & set(ref) if ref[p])[-12:]
+        if len(common) < 6:
+            continue
+        devs = sorted(abs(h[p] / ref[p] - 1) for p in common)
+        med = devs[len(devs) // 2]
+        if med > KOSIS_SUPPLY_MAX_DEV:
+            log(f"[KOSIS] {key} {tbl} {mode} 해석: R-ONE 과 중앙 차 {med:.1%} — 이 해석은 안 쓴다")
+            continue
+        if max(h) <= max(ref):
+            log(f"[KOSIS] {key} {tbl} ({mode}) 최신 {max(h)} ≤ R-ONE {max(ref)} — R-ONE 유지")
+            return None
+        node = _rone_latest({**ref, **h})
+        node.update({k: rone[k] for k in ("region", "desc", "unit") if k in rone})
+        node["source"] = f"KOSIS:116/{tbl} (+{rone.get('source') or 'R-ONE'} 과거)"
+        log(f"[KOSIS] {key} {tbl} ({mode}, R-ONE 과 중앙 차 {med:.1%}): {node['value']} ({node['period']})")
+        return node
+    return None
 
 
 def fetch_kosis_unsold(months=240):
@@ -7849,6 +7959,7 @@ def build_data():
         # 미국 부동산 지표
         log("[FRED] 미국 부동산 지표 수집 시작")
         re_us_data = fetch_fred_realestate_us() if "fredre" in _macro else {}
+        _accumulate_history(re_us_data, (((prev or {}).get("realestate") or {}).get("us") or {}), FRED_SHORT_WINDOW)
         data["realestate"]["us"] = re_us_data
         data["sources"]["realestate_us"] = "FRED API (stlouisfed.org)"
         # 미국 국채 수익률 곡선 (10년물 외 1M~30Y)
@@ -9357,7 +9468,9 @@ CALENDAR_INDICATOR_MAP = {
     "한국 산업생산지수":      ("economicIndicators.kr.ip_kr", "mom1", False),
     "한국 제조업 PMI":        ("economicIndicators.kr.pmi_kr", "raw1", False),
     # 일정표(A19 공식 페이지)가 실제로 내는 이름 — 2026-10-05. 산업활동동향(전산업생산)·고용동향(취업자 증감)은 짝이 되는
-    # 잎이 없어 비워 둔다(ip_kr 은 광공업생산, unemployment_kr 은 실업률 원계열이라 헤드라인이 다르다 — 라벨↔값 정합성).
+    # 잎이 없어 비워 뒀다(ip_kr 은 광공업생산, unemployment_kr 은 실업률이라 헤드라인이 다르다 — 라벨↔값 정합성).
+    # 2026-11-04 헤드라인과 같은 잎(ip_all_kr · employed_kr)을 따로 받기 시작했다 — 잎이 data.json 에 생긴 뒤 여기 잇는다
+    # (test_check_releases 가 「표의 잎은 data.json 에 있어야」를 보므로 한 커밋에 넣으면 CI 시험 관문이 수집을 막는다).
     "한국 소비자물가동향":    ("economicIndicators.kr.cpi_kr", "yoy1", True),     # 전년동월비 = 헤드라인 그대로, refPeriod 월 관측만
     "한국은행 금통위 (통화정책방향)": ("economicIndicators.kr.base_rate_kr", "pct2", False),
     # 미국 — CPI/PPI/소매/산업생산은 전월비 % 발표가 표준
@@ -9437,6 +9550,9 @@ def _fmt_indicator(val, fmt):
         if fmt == "kd":  # 전월 대비 증감(천명), signed — 예: "+158K" (NFP 헤드라인)
             sign = "+" if val >= 0 else ""
             return f"{sign}{int(round(val))}K"
+        if fmt == "ykd":  # 전년동월 대비 증감, 값은 천명 → 만명 표기 — 예: "+19.3만명" (한국 고용동향 헤드라인)
+            sign = "+" if val >= 0 else ""
+            return f"{sign}{val / 10:.1f}만명"
         return f"{val}"
     except (ValueError, TypeError):
         return ""
@@ -9574,7 +9690,8 @@ def backfill_calendar_actuals(events, data, prev_events=None):
             history = node.get("history") or {}
             if not history:
                 v = node.get("value")
-                if v is not None:
+                # 변화율·증감 형식은 이력 없이 못 만든다 — 수준 값을 그 형식으로 찍으면 「+29,266만명」 같은 거짓이 된다
+                if v is not None and fmt_id not in ("mom1", "yoy1", "kd", "ykd"):
                     ev["act"] = _fmt_indicator(v, fmt_id)
                     filled += 1
                 continue
@@ -9626,6 +9743,23 @@ def backfill_calendar_actuals(events, data, prev_events=None):
                 b = _cal_beat(name, act_chg, _cal_num(ev.get("fore")))
                 if b is not None:
                     ev["beat"] = b
+                filled += 1
+                continue
+
+            # ykd: '수준' 의 전년동월 대비 증감 — 한국 고용동향 헤드라인(취업자 증감, 원계열)
+            if fmt_id == "ykd":
+                def _yd(k):
+                    if not k or history.get(k) is None:
+                        return None
+                    kk = k.replace("-", "")
+                    base = next((history[c] for c in keys_sorted if c.replace("-", "")[:6] == f"{int(kk[:4]) - 1}{kk[4:6]}"), None)
+                    return None if base is None else history[k] - base
+                a_d, p_d = _yd(act_key), _yd(prev_key)
+                if a_d is None:
+                    continue
+                ev["act"] = _fmt_indicator(a_d, "ykd")
+                if not ev.get("prev") and p_d is not None:
+                    ev["prev"] = _fmt_indicator(p_d, "ykd")
                 filled += 1
                 continue
 

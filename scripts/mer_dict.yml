@@ -221,7 +221,20 @@ entities:
 
 # ───────────────────────── market · 물가·유동성·변동성
 - id: core_cpi_us
-  # 원천은 FRED:CPIAUCSL(헤드라인 지수) — 근원 계열은 data.json 에 없다. 라벨을 실제 원천에 맞춘다.
+  # 원천은 FRED:CPILFESL(식품·에너지 제외 근원 지수, 2026-11-04 수집 시작). 그 전엔 근원 계열이 없어 헤드라인을
+  # 이 이름으로 붙여 두었다 — 헤드라인은 아래 cpi_us 로 나눴다. 근원 별칭이 먼저 와야 first-match 가 맞게 간다.
+  label: 미 근원 CPI(전년비)
+  layer: market
+  unit: '%'
+  dataKind: map
+  transform: yoy
+  dataPath: economicIndicators.us.core_cpi_us
+  plausible: [0, 10]
+  aliases:
+    - '근원\s*CPI'
+    - 'Core\s*(CPI|PPI)'
+- id: cpi_us
+  # 원천은 FRED:CPIAUCSL(헤드라인 지수).
   label: 미 CPI(전년비)
   layer: market
   unit: '%'
@@ -230,11 +243,21 @@ entities:
   dataPath: economicIndicators.us.cpi_us
   plausible: [0, 10]
   aliases:
-    - '근원\s*CPI'
-    - 'Core\s*(CPI|PPI)'
     - '미국?\s*CPI'
     - '소비자물가'
     - 'CPI'
+- id: core_pce_us
+  # 원천은 FRED:PCEPILFE(근원 PCE, 2026-11-04 수집 시작) — 연준이 보는 물가. pce_us 보다 먼저 와야 '근원 PCE' 가 여기로 간다.
+  label: 미 근원 PCE(전년비)
+  layer: market
+  unit: '%'
+  dataKind: map
+  transform: yoy
+  dataPath: economicIndicators.us.core_pce_us
+  plausible: [0, 10]
+  aliases:
+    - '근원\s*PCE'
+    - 'Core\s*PCE'
 - id: pce_us
   # 원천은 FRED:PCEPI(헤드라인 지수).
   label: 미 PCE(전년비)
