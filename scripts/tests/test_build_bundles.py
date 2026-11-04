@@ -491,7 +491,8 @@ def test_home_brief_and_mood():
 
 def test_toss_amount_view_and_stock_flow_cells():
     v = bundles()["market-domestic"]["views"]["tossAmount"]
-    assert set(v) == {"asOf", "state", "items"}
+    # liveUntil 은 한국 장중 · 오늘 목록일 때만 붙는다(list_asof) — CI 런 시각에 따라 갈렸다(2026-11-04)
+    assert {"asOf", "state", "items"} <= set(v) <= {"asOf", "state", "items", "liveUntil"}
     assert [r["code"] for r in v["items"]] == [r.get("code") for r in DATA["rankingsKr"].get("tossAmount") or []]
     f = bb.flow_last({"short": [{"date": "d1", "volume": 5.0}, {"date": "d2", "volume": 7.0}],
                       "program": [{"date": "d2", "arb": -3, "nonArb": 10}], "lending": []})
