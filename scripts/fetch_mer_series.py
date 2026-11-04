@@ -174,6 +174,51 @@ def backfill_lme(arr, today=None, get=requests.get):
     return merged[-SERIES_CAP:]
 
 
+NPS_YEAREND_URL = 'https://fund.nps.or.kr/oprtprcn/ivsmprcn/chartOHED0016P0.do'
+# 응답 열 차례(2026-11-04 실측: 2026 행이 공시 화면 비중 25.8·16.8·36.8·5.8·14.3 과 맞는다). 금액 단위는 억원(추정) —
+# 비중만 쓰므로 단위는 상관없다. 기타(단기자금 등)는 분모에만 넣는다(화면 비중 합이 99.5 인 것과 같은 방식).
+_NPS_COLS = (('artclCn3', '국내주식'), ('artclCn4', '국내채권'), ('artclCn5', '해외주식'),
+             ('artclCn6', '해외채권'), ('artclCn7', '대체투자'), ('artclCn8', None))
+
+
+def parse_nps_yearend(rows, this_year):
+    """연도별 자산 금액 행 → [{date:'YYYY-12-01', as_of, alloc:{자산: %}, basis:'연말'}]. 올해 행은 연말이 아니라(최근 월) 뺀다."""
+    out = []
+    for r in rows or []:
+        y = str(r.get('artclCn1') or '').strip()
+        if not (y.isdigit() and len(y) == 4) or int(y) >= this_year:
+            continue
+        vals = {}
+        for col, name in _NPS_COLS:
+            try:
+                vals[name] = float(str(r.get(col) or '0').replace(',', ''))
+            except ValueError:
+                vals[name] = 0.0
+        total = sum(vals.values())
+        if total <= 0:
+            continue
+        d = f'{y}-12-01'
+        out.append({'date': d, 'as_of': d, 'basis': '연말',
+                    'alloc': {k: round(v / total * 100, 1) for k, v in vals.items() if k}})
+    return out
+
+
+def backfill_nps_yearend(arr, today=None, post=requests.post):
+    """국민연금 비중 과거 — 월별 과거는 공시가 없어 연말 값(1988~)으로 앞을 채운다. 2년 전 연말이 이미 있으면 안 부른다.
+    있는 날짜는 덮지 않는다(월별 수집 값이 원본)."""
+    today = today or datetime.now(KST).date()
+    if any(e.get('date') == f'{today.year - 2}-12-01' for e in arr or []):
+        return arr
+    r = post(NPS_YEAREND_URL, json={'searchGbu': '', 'cartMngSn': '1'},
+             headers={'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json'}, timeout=20)
+    r.raise_for_status()
+    have = {e.get('date') for e in arr or []}
+    add = [e for e in parse_nps_yearend((r.json() or {}).get('resultDtlList'), today.year) if e['date'] not in have]
+    if add:
+        print(f'[fetch_mer_series] 국민연금 연말 비중 {len(add)}해 채움({add[0]["date"][:4]}~{add[-1]["date"][:4]})', file=sys.stderr)
+    return sorted((arr or []) + add, key=lambda e: e.get('date') or '')[-SERIES_CAP:]
+
+
 def merge_freight(arr, items, today=None):
     """운임 항목을 **각자의 기준일** 행에 싣는다. 종전엔 첫 항목(SCFI, 주간) 날짜 한 행에 전 항목을 넣고 행째 덮어
     BDI 같은 일간 지수가 주간 날짜에 붙은 채 매 런 덮이고 일간 이력이 안 쌓였다(2026-11-04 검토). 같은 날 같은 지수는 새 값이 이긴다."""
@@ -266,6 +311,10 @@ def main():
         out['lmeInventory'] = backfill_lme(out['lmeInventory'])
     except Exception as e:
         print(f'[fetch_mer_series] LME 백필 실패: {e} — 기존 값 보존', file=sys.stderr)
+    try:
+        out['npsAllocation'] = backfill_nps_yearend(out['npsAllocation'])
+    except Exception as e:
+        print(f'[fetch_mer_series] 국민연금 연말 비중 실패: {e} — 기존 값 보존', file=sys.stderr)
 
     out['asOf'] = datetime.now(KST).strftime('%Y-%m-%dT%H:%M:%S+09:00')
     with open(OUT, 'w', encoding='utf-8') as f:
