@@ -239,6 +239,10 @@ def main():
     log(f"[FUNDA] 대상: KR {len(kr_items)}종목, US {len(us_items)}종목 (ETF 제외 — 관심목록 + 배당·실적 일정 대상)")
     # 직전 값은 이번 대상만 잇는다 — 거래대금 상위가 날마다 바뀌어 공개 파일이 끝없이 불지 않게(corpEvents 와 같은 규칙)
     want_kr = {k["code"] for k in kr_items}
+    if not want_kr and prev.get("kr"):
+        # 대상이 0 인 런(배당·실적 일정 대상이 빈 런)이 직전 값을 통째로 지우던 길 — 직전 종목을 그대로 잇는다
+        want_kr = set(prev["kr"])
+        log(f"[FUNDA] KR 대상 0 — 직전 {len(want_kr)}종목 보존")
     cmap = {**(prev.get("corpMap") or {}), **(((data.get("corpEvents") or {}).get("corpMap")) or {})}
     out = {
         "asOf": datetime.now(KST).isoformat(timespec="seconds"),

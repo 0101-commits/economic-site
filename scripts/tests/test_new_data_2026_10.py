@@ -420,6 +420,21 @@ def test_corp_targets_skip_etf_and_dedupe():
                                                                                ("000660", "SK하이닉스")]
     many = [{"code": f"{i:06d}", "type": "STOCK"} for i in range(50)]
     assert len(fd._corp_targets({}, {"rankingsKr": {"tradingAmount": many}}, cfg)) == fd.CORP_EVENTS_MAX
+    # 09시 일일 런 — 오늘 · 직전 빌드 모두 거래대금 순위가 없으면 어제 대상(기업코드 있는 것만)을 잇는다
+    prev = {"corpEvents": {"corpMap": {"000660": "00164779", "005935": ""},
+                           "items": [{"code": "000660", "name": "SK하이닉스"}]}}
+    assert fd._corp_targets({}, prev, cfg) == [("005930", "삼성전자"), ("000660", "SK하이닉스")]
+
+
+def test_corp_events_zero_targets_keep_previous():
+    """대상 0 이면 빈 일정을 오늘 것처럼 쓰지 않고 직전 블록을 preserved 로 잇는다."""
+    old = {"asOf": "2026-11-03", "items": [{"code": "000660", "kind": "earnings", "date": "2026-10-23"}],
+           "corpMap": {"000660": "00164779"}, "targets": 9}
+    data = {"sources": {}}
+    with patch(fd, OPENDART_API_KEY="k" * 40, log=LOGS.append, _corp_targets=lambda d, p: []):
+        fd._corp_events_step(data, {"corpEvents": old}, daily=True)
+    ce = data["corpEvents"]
+    assert ce["asOf"] == "2026-11-03" and ce["preserved"] is True and ce["items"][0]["code"] == "000660"
 
 
 def _dart_env(fail=(), key="k" * 40):

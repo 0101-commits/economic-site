@@ -899,37 +899,53 @@ def _freight_from_stockq():
     return out
 
 
+_SSE_COMPOSITE = {"SCFI": "Comprehensive Index", "CCFI": "COMPOSITE INDEX"}
+
+
+def _sse_composite(doc, code):
+    """SSE /currentIndex JSON → 종합지수 항목(이번 주 · 직전 주 · 날짜) 또는 None."""
+    d = (doc or {}).get("data") or {}
+    want = _SSE_COMPOSITE[code].lower()
+    for ln in d.get("lineDataList") or []:
+        name = str(((ln.get("properties") or {}).get("lineName_EN")) or "").strip().lower()
+        cur = ln.get("currentContent")
+        if name == want and isinstance(cur, (int, float)):
+            last = ln.get("lastContent")
+            pct = ln.get("percentage")
+            return {"code": code, "price": round(float(cur), 2),
+                    "change": round(float(cur) - float(last), 2) if isinstance(last, (int, float)) else None,
+                    "chgPct": round(float(pct), 2) if isinstance(pct, (int, float)) else None,
+                    "date": str(d.get("currentDate") or "")[:10],
+                    "prev": ({"date": str(d.get("lastDate") or "")[:10], "price": round(float(last), 2)}
+                             if isinstance(last, (int, float)) and d.get("lastDate") else None)}
+    return None
+
+
 def _freight_from_sse():
-    """상하이항운거래소(SSE) 영문 페이지에서 SCFI/CCFI 종합지수 스크래핑."""
-    try:
-        from bs4 import BeautifulSoup
-    except Exception:
-        return {}
-    import re as _re
+    """상하이항운거래소(SSE) SCFI/CCFI 종합지수 — 페이지가 부르는 JSON(/currentIndex)을 직접 받는다.
+
+    종전엔 scfinew.jsp HTML 을 정규식으로 긁었는데 값은 그 페이지 JS 가 나중에 채우므로 늘 '패턴 미일치'였고,
+    SCFI 는 1주 늦은 네이버 값만 남았다(2026-11-04 실측: 10/30 공표분 대신 10/23). 이 JSON 은 이번 주와 직전 주를 준다.
+    """
     out = {}
     hdrs = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                           "(KHTML, like Gecko) Chrome/123.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9"}
-    for code, url in (("SCFI", "https://en.sse.net.cn/indices/scfinew.jsp"),
-                      ("CCFI", "https://en.sse.net.cn/indices/ccfinew.jsp")):
+            "Accept": "application/json", "Referer": "https://en.sse.net.cn/indices/scfinew.jsp"}
+    for code in _SSE_COMPOSITE:
         try:
-            r = requests.get(url, headers=hdrs, timeout=12)
+            r = requests.get(f"https://en.sse.net.cn/currentIndex?indexName={code.lower()}", headers=hdrs, timeout=12)
             if r.status_code != 200:
                 log(f"[운임-SSE] {code} HTTP {r.status_code}")
                 continue
-            r.encoding = r.apparent_encoding or "utf-8"
-            text = BeautifulSoup(r.text, "html.parser").get_text(" ", strip=True)
+            it = _sse_composite(r.json(), code)
         except Exception as e:
             log(f"[운임-SSE] {code} 오류: {e}")
             continue
-        # 'Comprehensive Index ... 1234.56' 패턴
-        m = _re.search(r"(?:Comprehensive Index|综合指数)[^\d]{0,30}([\d,]+\.\d+)", text)
-        if m:
-            out[code] = {"code": code, "price": _freight_num(m.group(1)),
-                         "change": None, "chgPct": None, "date": ""}
-            log(f"[운임-SSE] {code} {m.group(1)}")
+        if it:
+            out[code] = it
+            log(f"[운임-SSE] {code} {it['price']} ({it['date']})")
         else:
-            log(f"[운임-SSE] {code} 패턴 미일치")
+            log(f"[운임-SSE] {code} 종합지수 항목 없음")
     return out
 
 
@@ -950,7 +966,10 @@ def fetch_freight_indices():
             log(f"[운임] {strat.__name__} 오류: {e}")
             got = {}
         for code, it in got.items():
-            if code not in collected and it.get("price") is not None:
+            if it.get("price") is None:
+                continue
+            # 같은 지수를 여러 곳이 주면 기준일이 늦은 쪽(네이버 SCFI 는 공표처보다 한 주 늦게 올라온다)
+            if code not in collected or str(it.get("date") or "") > str(collected[code].get("date") or ""):
                 collected[code] = it
     if not collected:
         log("[운임] 전 소스 수집 실패 — 빈 결과")
@@ -1479,6 +1498,12 @@ def _corp_targets(data, prev, cfg_path="alerts_config.json"):
     ta = ((data.get("rankingsKr") or {}).get("tradingAmount")
           or ((prev or {}).get("rankingsKr") or {}).get("tradingAmount") or [])
     cands += [(str(r.get("code") or ""), r.get("name")) for r in ta if r.get("type") != "ETF"]
+    if not ta:
+        # 09시 일일 런엔 오늘 거래대금 순위가 아직 없고(토스 랭킹은 당일분만 잇는다) 직전 빌드도 이미 그것을
+        # 떨궜다 — 대상이 0 이 되어 빈 일정 · 빈 펀더멘털이 직전 값을 덮었다(10/25~11/4 7회 실측). 어제 대상을 잇는다.
+        pce = (prev or {}).get("corpEvents") or {}
+        names = {it.get("code"): it.get("name") for it in pce.get("items") or []}
+        cands += [(str(c), names.get(c)) for c, cc in (pce.get("corpMap") or {}).items() if cc]
     out = {}
     for code, name in cands:
         if re.fullmatch(r"[0-9A-Z]{6}", code) and code not in out:
@@ -1550,6 +1575,11 @@ def _corp_events_step(data, prev, daily=False):
         return
     first = not (pce and pce.get("asOf") == today.isoformat())     # 오늘 첫 일일 런 = 배당 표까지
     targets = _corp_targets(data, prev)
+    if not targets:
+        if pce:
+            data["corpEvents"] = _mark_preserved(pce)
+        log("[DART] 대상 0종목(거래대금 순위 · 직전 대상 모두 없음) — 직전 블록 유지")
+        return
     cmap = dict((pce or {}).get("corpMap") or {})
     try:   # 맵에 없는 종목이 있을 때만 목록(zip)을 받는다 — 거래대금 상위가 바뀐 16·22시 런도 새 종목을 잡는다
         import fetch_fundamentals as _ff
@@ -2191,6 +2221,16 @@ def fetch_fred_economic_indicators():
             log(f"[FRED] {series_id}: {obs[0]['value']} ({obs[0]['date']}) +{len(history)}점 시계열")
         else:
             log(f"[FRED] {series_id}: 데이터 없음")
+    # 미시간대 소비심리 — FRED UMCSENT 는 한 달 늦게 싣는다. 미시간대 CSV 가 더 새 달을 주면 그것으로 바꾼다
+    # (같은 지수 · 같은 확정치). 실패하거나 더 새롭지 않으면 FRED 값을 그대로 둔다.
+    try:
+        um = intl_sources.fetch_umich_sentiment()
+        fr = result.get("sentiment_us")
+        if um and (not fr or str(um["period"]) > str(fr.get("period") or "")):
+            result["sentiment_us"] = um
+            log(f"[UMich] 소비심리 {um['value']} ({um['period']}) — FRED({(fr or {}).get('period')})보다 새 달")
+    except Exception as e:
+        log(f"[UMich] 소비심리 실패(FRED 유지): {e}")
     return result
 
 
@@ -2213,7 +2253,7 @@ FRED_INTL_INDICATORS = {
     "jp": {
         "gdp":          ("JPNRGDPEXP",       "일본 실질GDP (분기, 십억엔)"),
         "gdp_yoy":      ("JPNRGDPEXP",       "일본 실질GDP 성장률 (YoY %)", "pc1"),
-        "unemployment": ("LRUN64TTJPM156S",  "일본 실업률 (15-64세, 계절조정)"),
+        # 실업률(unemployment_jp)은 2026-11-04 intl_sources(DBnomics STATJP 노동력조사)로 옮겼다 — FRED OECD 는 1개월 늦다.
         "base_rate":    ("IRSTCI01JPM156N",  "일본 정책금리 (BOJ 무담보 익일물 유도목표)"),
         # 일본 산업생산지수 (OECD 시계열, 2015=100, 계절조정)
         # 일본 10년 국채 수익률 (OECD 장기국채금리, 월별) — 카톡 07·21시 차트용.
@@ -2229,20 +2269,18 @@ FRED_INTL_INDICATORS = {
     },
     "cn": {
         "gdp":          ("MKTGDPCNA646NWDB",  "중국 GDP (USD)"),
-        "gdp_yoy":      ("MKTGDPCNA646NWDB",  "중국 GDP 성장률 (YoY %, 명목 USD)", "pc1"),
+        # 성장률(gdp_yoy_cn)은 2026-11-04 intl_sources(OECD 분기 실질)로 옮겼다 — 연간 명목 USD 는 1년 가까이 늦다.
     },
     "de": {
         "cpi":          ("CP0000DEM086NEST",  "독일 HICP (전체)"),
         "gdp":          ("CLVMNACSCAB1GQDE",  "독일 실질GDP"),
         "gdp_yoy":      ("CLVMNACSCAB1GQDE",  "독일 실질GDP 성장률 (YoY %)", "pc1"),
-        "unemployment": ("LRHUTTTTDEM156S",   "독일 실업률"),
+        # 실업률(unemployment_de)은 2026-11-04 intl_sources(Eurostat une_rt_m)로 옮겼다 — FRED OECD 는 2개월 늦다.
     },
     # 한국 — ECOS 가 주 소스라 여기엔 ECOS 에 없는 것만 둔다(키는 {key}_kr 로 붙는다).
     "kr": {
         "fx_reserves":  ("TRESEGKRM052N",     "한국 외환보유액 (금 제외, IMF IFS, 백만USD)"),
-        # 상품수출액(월간, USD). 같은 계열의 원화 표시본(XTEXVA01KRM664S)과 나눈 함의환율이
-        # 2026-06 실측 평균환율과 0.05% 안에서 일치해 단위·빈도를 확인했다.
-        "exports":      ("XTEXVA01KRM667S",   "한국 상품수출액 (월간, USD)"),
+        # 상품수출액(exports_kr)은 2026-11-04 ECOS 관세청 통관(901Y118)으로 옮겼다 — FRED OECD 중계는 3개월 늦다.
     },
     "uk": {
         "gdp":          ("NGDPRSAXDCGBQ",     "영국 실질GDP (분기, IMF)"),
@@ -2250,6 +2288,9 @@ FRED_INTL_INDICATORS = {
         "unemployment": ("LRHUTTTTGBM156S",   "영국 실업률"),
     },
 }
+
+
+FRED_INTL_DAILY = {"ECBDFR": 1300}   # 일간 국제 계열 → limit(≈5년)
 
 
 def fetch_fred_intl_indicators():
@@ -2262,8 +2303,9 @@ def fetch_fred_intl_indicators():
         for key, spec in ind_map.items():
             series_id, desc = spec[0], spec[1]
             units = spec[2] if len(spec) > 2 else None   # 예: "pc1" = 전년동기비 %
-            # 국제 시리즈는 대부분 월간이므로 limit=60 (5년)
-            obs = fetch_fred_series(series_id, limit=60, units=units)
+            # 국제 시리즈는 대부분 월간이므로 limit=60 (5년). 일간 계열(ECB 예금금리)은 60점이 두 달이라
+            # 차트가 2026-09 부터였다(2026-11-04 실측) — 일간은 5년치.
+            obs = fetch_fred_series(series_id, limit=FRED_INTL_DAILY.get(series_id, 60), units=units)
             if obs:
                 history = {o["date"]: o["value"] for o in obs}
                 cc_data[f"{key}_{cc}"] = {
@@ -3210,8 +3252,8 @@ def fetch_fred_realestate_kr():
 DBNOMICS_JP_CPI = "https://api.db.nomics.world/v22/series/STATJP/CPIm/001?observations=1&format=json"
 
 
-def _yoy_series(periods, values, n=14):
-    """월간 지수 → [(YYYY-MM, 전년동월비 %)] 오래된 순 최근 n개. 12칸 앞이 아니라 '같은 달 전년'을
+def _yoy_series(periods, values, n=60):
+    """월간 지수 → [(YYYY-MM, 전년동월비 %)] 오래된 순 최근 n개(5년 — 14 이던 때 차트가 1년치뿐이었다). 12칸 앞이 아니라 '같은 달 전년'을
     기간 키로 찾는다 — 중간에 빠진 달이 있어도 엉뚱한 달과 나누지 않는다. 'NA' 같은 비숫자는 버린다."""
     pts = {str(p)[:7]: v for p, v in zip(periods, values)
            if isinstance(v, (int, float)) and not isinstance(v, bool)}
@@ -3692,6 +3734,16 @@ def fetch_ecos_series(stat_code, item_code="", freq="A", start_period=None, end_
         return None
 
 
+def _exports_from_ecos(r):
+    """ECOS 901Y118 T002(천달러, 'YYYYMM') → 화면·번들이 읽는 FRED 모양(USD, 'YYYY-MM-01'). 없으면 None."""
+    if not r or not r.get("history") or r.get("value") is None:
+        return None
+    mk = lambda t: f"{str(t)[:4]}-{str(t)[4:6]}-01"
+    return {"value": round(r["value"] * 1000), "period": mk(r["period"]), "desc": r["desc"],
+            "source": r["source"], "unit": "USD",
+            "history": {mk(t): round(v * 1000) for t, v in r["history"].items()}}
+
+
 def _ecos_latest(stat_code, item_code, freq, desc, source_id, limit=60, name_filter=None):
     """ECOS 단일 시계열 최신값 + 60개월/분기/연 히스토리 조회 헬퍼.
     limit 60 → 월간이면 5년, 분기면 15년, 연이면 60년 (분기/연 차트 적절 표시).
@@ -3931,6 +3983,17 @@ def fetch_ecos_economic_indicators():
         log(f"[ECOS] 수출금액지수: {r['value']} ({r['period']})")
     else:
         log("[ECOS] 수출금액지수(403Y001) 미수집")
+
+    # 수출액(관세청 통관, 천달러) — 901Y118 「수출입 총괄」 T002. 종전 FRED XTEXVA01KRM667S(OECD 중계, 계절조정)는
+    # 약 3개월 늦어 2026-11-04 에 8월분이 마지막이었다(통관 9월분은 10월 중순 공표). 통관 원계열이라 언론 수치와
+    # 같고 FRED 계열과는 약 2% 다르다(계절조정 · 집계 기준) — 이어 붙이지 않고 계열째 바꾼다. 화면·번들이 FRED
+    # 모양(USD · 'YYYY-MM-01' 키)을 읽으므로 그 모양으로 바꿔 싣는다.
+    node = _exports_from_ecos(_ecos_latest("901Y118", "T002", "M", "한국 수출액 (관세청 통관, USD)", "901Y118/T002"))
+    if node:
+        result["exports_kr"] = node
+        log(f"[ECOS] 수출액(통관): {node['value'] / 1e8:.1f}억달러 ({node['period']}) +{len(node['history'])}점")
+    else:
+        log("[ECOS] 수출액(901Y118) 미수집 — 직전 값 유지")
 
     # ─── 부동산 (KR) ──────────────────────────────────────────
     # 주담대 평균금리 - 121Y006 (예금은행 가중평균금리), item: 종류별 코드
@@ -5264,7 +5327,11 @@ def fetch_exim_intl_rate():
 # ============================================================
 BERKSHIRE_CIK = "0001067983"
 # SEC EDGAR 는 식별 가능한 User-Agent 를 요구한다 (fair access 정책)
-SEC_HEADERS = {"User-Agent": "economic-site-dashboard/1.0 (github.com/0101-commits/economic-site)"}
+# SEC 공정 접근 규정: User-Agent 에 「이름 + 연락처 메일」이 있어야 한다 — 저장소 주소만 적던 때 data.sec.gov 가
+# 1,059런 연속 403 이었다(2026-11-04 확인). 메일은 공개 저장소에 적지 않고 시크릿 SEC_CONTACT 로만 받는다.
+SEC_CONTACT = os.environ.get("SEC_CONTACT", "").strip()
+SEC_HEADERS = {"User-Agent": f"economic-site-dashboard/1.0 {SEC_CONTACT}".strip(),
+               "Accept-Encoding": "gzip, deflate"}
 # 13F 인포테이블에는 티커가 없고 CUSIP 만 있어, 주요 종목의 표시용 매핑을 둔다.
 # 매핑에 없는 종목은 발행사명만 표시된다 (기능 영향 없음).
 BERKSHIRE_CUSIP_TICKERS = {
@@ -5289,6 +5356,9 @@ def fetch_berkshire_13f():
         r.raise_for_status()
         return r.json()
 
+    if "@" not in SEC_CONTACT:
+        log("[SEC-13F] SEC_CONTACT(연락처 메일) 미설정 — SEC 가 403 을 주므로 부르지 않는다(직전 값 유지)")
+        return None
     try:
         sub = _get_json(f"https://data.sec.gov/submissions/CIK{BERKSHIRE_CIK}.json")
         recent = (sub.get("filings") or {}).get("recent") or {}
@@ -5553,6 +5623,58 @@ def _naver_chart_history(symbol, validator=None, days_back=730):
         return {}
 
 
+def _vkospi_row_value(rows):
+    """KRX 지수 표 행들 → VKOSPI 종가(범위 검사 통과분) 또는 None. fetch_vkospi 의 행 고르기와 같은 규칙."""
+    for row in rows or []:
+        nm = (row.get("IDX_NM") or "").strip()
+        if "변동성" in nm or "VKOSPI" in nm.upper() or "V-KOSPI" in nm.upper():
+            val = _parse_num(row.get("CLSPRC_IDX"))
+            return round(val, 4) if _is_valid_vkospi(val) else None
+    return None
+
+
+VKOSPI_BACKFILL_PER_RUN = 40
+
+
+def _vkospi_backfill(hist, today=None, budget=VKOSPI_BACKFILL_PER_RUN, fetch=None):
+    """VKOSPI 일별 과거를 KRX /idx/drvprod_dd_trd 날짜별 조회로 거꾸로 채운다 → {YYYY-MM-DD: 값}(새로 받은 날만).
+
+    자가축적이 2026-05 말에 시작해 1년 차트가 반년치였다. 일일 런에서만 부르고 런당 budget 날(평일, 이미 있는 날 제외),
+    최근 1년에 235거래일 이상이면 부르지 않는다(그 뒤엔 휴장일만 남아 헛호출이 된다). 401(이용신청 미승인)이면 바로 멈춘다.
+    """
+    fetch = fetch or fetch_krx
+    if fetch is fetch_krx and not KRX_API_KEY:
+        return {}
+    today = today or datetime.now(KST).date()
+    floor = today - timedelta(days=365)
+    if sum(1 for k in hist or {} if str(k) >= floor.isoformat()) >= 235:
+        return {}
+    got, calls, miss, d = {}, 0, 0, today - timedelta(days=1)
+    while d >= floor and calls < budget:
+        iso = d.isoformat()
+        if d.weekday() < 5 and iso not in (hist or {}):
+            v = None
+            for ep in ("/idx/drvprod_dd_trd", "/idx/kospi_dd_trd"):   # fetch_vkospi 와 같은 차례 — 파생상품지수 표 먼저
+                if ep in _KRX_DENIED:
+                    continue
+                calls += 1
+                rows = fetch(ep, d.strftime("%Y%m%d"))
+                v = _vkospi_row_value(rows)
+                if v is not None or not rows:          # 값을 찾았거나 휴장(빈 응답) — 다른 표도 같은 날은 빈다
+                    break
+            if v is not None:
+                got[iso], miss = v, 0
+            else:
+                miss += 1
+            # 두 표 모두 거부(401)거나 평일 8일 연속 못 받으면 멈춘다 — 헛호출로 일일 런을 늘이지 않게
+            if miss >= 8 or all(ep in _KRX_DENIED for ep in ("/idx/drvprod_dd_trd", "/idx/kospi_dd_trd")):
+                break
+        d -= timedelta(days=1)
+    if calls:
+        log(f"[VKOSPI] KRX 과거 채우기 {calls}일 조회 → {len(got)}일 받음")
+    return got
+
+
 def _krx_vkospi_history_series(days_back=365):
     """KRX OpenAPI 의 변동성지수 일별 시세를 여러 날짜로 페치하여 시계열 구축.
     /idx/kospi_dd_trd 가 basd 별 한 날짜의 모든 인덱스 row 를 반환하므로
@@ -5792,95 +5914,6 @@ def fetch_move_index():
     return None
 
 
-def fetch_putcall_ratio():
-    """CBOE Put/Call Ratio (시장 옵션 심리).
-
-    다중 소스 폴백:
-    1) Stooq ^pcc (Total Put/Call Ratio)
-    2) CBOE 직접 페이지에서 최신 일별 데이터
-    3) yfinance ^PCC
-
-    또한 과거 시계열을 함께 수집 (history)
-    """
-    # 1) Stooq — CSV 직접 다운로드 (일별 ~1년치)
-    history = {}
-    latest = None
-    try:
-        # 1년치 일별 PCR 데이터 — 차트 표시용
-        end = datetime.now(KST).strftime("%Y%m%d")
-        start = (datetime.now(KST) - timedelta(days=400)).strftime("%Y%m%d")
-        r = requests.get(
-            f"https://stooq.com/q/d/l/?s=%5Epcc&i=d&d1={start}&d2={end}",
-            timeout=15,
-        )
-        if r.status_code == 200 and r.text:
-            lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("Date")]
-            for ln in lines:
-                parts = ln.split(",")
-                if len(parts) >= 5:
-                    dt = parts[0].strip()
-                    # 종가 (4번째 컬럼)
-                    v = _parse_num(parts[4])
-                    if v and 0.1 < v < 5.0:
-                        history[dt] = v
-            if history:
-                latest_date = sorted(history.keys())[-1]
-                latest = history[latest_date]
-                prev_keys = sorted(history.keys())
-                prev = history[prev_keys[-2]] if len(prev_keys) > 1 else None
-                chg = round((latest - prev) / prev * 100, 2) if prev else 0
-                log(f"[PCR] Stooq: {latest} ({latest_date}, +{len(history)}점 일별 시계열)")
-                return {"value": latest, "change": chg, "as_of": latest_date,
-                        "history": history, "source": "Stooq ^pcc (일별)"}
-    except Exception as e:
-        log(f"[PCR] Stooq 오류: {e}")
-
-    # 2) CBOE 직접 (Equity Put/Call Ratio) — 1년치 일별
-    try:
-        r = requests.get(
-            "https://cdn.cboe.com/api/global/us_indices/daily_prices/EQUITYPC_History.csv",
-            timeout=15,
-            headers={"User-Agent": "Mozilla/5.0"},
-        )
-        if r.status_code == 200 and r.text:
-            lines = [l for l in r.text.strip().split("\n") if l and not l.startswith("DATE")]
-            for ln in lines[-260:]:  # 최근 ~1년 영업일
-                parts = ln.split(",")
-                if len(parts) >= 2:
-                    dt = parts[0].strip()
-                    v = _parse_num(parts[1])
-                    if v and 0.1 < v < 5.0:
-                        history[dt] = v
-            if history:
-                latest_date = sorted(history.keys())[-1]
-                latest = history[latest_date]
-                prev_keys = sorted(history.keys())
-                prev = history[prev_keys[-2]] if len(prev_keys) > 1 else None
-                chg = round((latest - prev) / prev * 100, 2) if prev else 0
-                log(f"[PCR] CBOE Equity: {latest} ({latest_date}, +{len(history)}점)")
-                return {"value": latest, "change": chg, "as_of": latest_date,
-                        "history": history, "source": "CBOE Equity P/C (일별)"}
-    except Exception as e:
-        log(f"[PCR] CBOE 오류: {e}")
-
-    # 3) yfinance ^PCC
-    try:
-        q = fetch_yf("^PCC")
-        if q and q.get("price") and 0.1 < q["price"] < 5.0:
-            log(f"[PCR] yfinance: {q['price']}")
-            return {"value": q["price"], "change": q.get("change", 0),
-                    "as_of": datetime.now(KST).strftime("%Y-%m-%d"),
-                    "source": "yfinance ^PCC"}
-    except Exception as e:
-        log(f"[PCR] yfinance 오류: {e}")
-
-    log("[PCR] 데이터 수집 실패")
-    return None
-
-
-# ============================================================
-# CNN Fear & Greed Index (시장 심리 종합 지표 0~100)
-# ============================================================
 def fetch_cnn_fear_greed():
     """CNN Money 공식 Fear & Greed Index 조회.
     공개 JSON 엔드포인트:
@@ -8220,6 +8253,9 @@ def build_data():
 
         if _vk_val and _is_valid_vkospi(_vk_val) and _bday_iso(_asof_key):
             _merged[_asof_key] = round(_vk_val, 4)
+        if _vk and os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes"):   # 일일 런만 — 과거 채우기
+            for _k, _v in _vkospi_backfill(_merged).items():
+                _merged.setdefault(_k, _v)
         # 오염 방지: 범위 밖 값·주말 키 제거 후 최근 520거래일만 유지
         _merged = {k: v for k, v in _merged.items() if _is_valid_vkospi(v) and _bday_iso(k)}
         if _merged and _vk:
@@ -8239,14 +8275,8 @@ def build_data():
     except Exception as e:
         log(f"[MOVE] 오류: {e}")
 
-    # ── Put/Call Ratio (옵션 심리) ────────
-    try:
-        pc = fetch_putcall_ratio()
-        if pc:
-            data["sentiment"]["pcr"] = pc
-            data["sources"]["pcr"] = pc.get("source", "Stooq/CBOE")
-    except Exception as e:
-        log(f"[PCR] 오류: {e}")
+    # (삭제 2026-11-04) Put/Call Ratio — 2026-09-30 결정(D1)으로 화면·판정표에서 뺐는데 수집은 남아 매 런
+    #   Stooq 404 · CBOE 403 을 1,059런 연속 찍었다. 무료 공식 경로가 생기면 되살린다.
 
     # ── CNN Fear & Greed Index (시장 심리 종합 지표) ────────
     try:

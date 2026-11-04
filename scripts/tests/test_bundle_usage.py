@@ -36,6 +36,10 @@ UNREAD = [
     # 종목 기사 원본(계약 C4)은 이유 줄의 근거(stockReasons.refs)로 옮겨 싣는다 · 이유 줄은 작성 시각이 오늘인 것만 실려
     # 밤 · 휴장일 수집분엔 안 실린다(그 칸이 묶음에 실리는지는 test_stock_reasons 가 본다)
     "stockNews", "stockReasons",
+    # 경제 일정 지난 회차 기록(2026-10-30) — 옛 화면의 「차이 크기」 표시와 알림 E3 가 data.json 에서 직접 읽는다. 새 앱 묶음엔
+    # 아직 안 싣는다. 이 칸은 일일 런이 채운 뒤에야 생겨, 시험 통과 표식이 캐시된 동안 게이트 실패가 가려져 있었다(2026-11-04 발견 —
+    # scripts 를 바꾸는 다음 커밋에서 시험이 다시 돌며 수집·커밋 전체를 멈출 뻔했다).
+    "economicCalendar.consensusHistory",
 ]
 excused = lambda u: any(u == e or u.startswith(e + ".") for e in UNREAD)
 
