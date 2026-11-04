@@ -277,7 +277,8 @@ def _raw_asof(node, depth=0):
 _ATOMIC_TOPS = ("freight", "investorTrading", "news", "economicCalendar", "marketCalendarKr",
                 "nps", "subscription", "marketHalts", "aiBriefing", "lmeInventory", "sectorMoves",
                 "corpEvents",   # 배당·실적 일정(2026-10) — items·corpMap 을 쪼개지 않는다. as-of = 공시 검색 끝 날짜
-                "stockNews", "stockReasons")   # 종목 기사 · 이유 줄(계약 C4) — 종목코드 칸을 쪼개면 칸마다 as-of 미상이 된다
+                "stockNews", "stockReasons",   # 종목 기사 · 이유 줄(계약 C4) — 종목코드 칸을 쪼개면 칸마다 as-of 미상이 된다
+                "berkshire")   # 13F 한 벌(2026-11-04 처음 수집) — as-of = reportDate. 쪼개면 holdings 가 as-of 미상(unknown)이 된다
 _SKIP_TOPS = ("lastUpdated", "sources", "diagnostics", "dataHealth")
 # 현재가 스냅샷 블록 — 자체 날짜 필드가 없고 신선도는 같은 심볼의 history 가 대변한다.
 # 여기서 판정하면 심볼마다 'unknown' 이 중복으로 쌓여 요약이 무의미해진다.
@@ -633,6 +634,9 @@ def _demo():
     assert by["sentiment.vkospi"]["state"] == "stale", by["sentiment.vkospi"]
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
+    bk = {"berkshire": {"reportDate": "2026-06-30", "filedDate": "2026-08-14", "holdings": [{"name": "APPLE INC", "pct": 22.0}]}}
+    bk_items = {i["path"]: i for i in build_health(bk, today=date(2026, 11, 4))["items"]}
+    assert bk_items["berkshire"]["state"] == "ok" and "berkshire.holdings" not in bk_items   # 원자 블록 — reportDate 로 한 번
     assert by["lmeInventory"]["state"] == "missing", by["lmeInventory"]
     assert h["summary"]["missing"] == 2 + 4          # berkshire·lme + 화면 공백 경로 2(region·region_sub)
     assert by["marketBreadth"]["state"] == "missing" and by["sectorMoves"]["state"] == "missing"    # A19 — 프런트가 읽어 기대 목록에 넣음
