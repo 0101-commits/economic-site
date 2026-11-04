@@ -5032,12 +5032,16 @@ _KOSIS_UNSOLD = {"org": "116", "tbl": "DT_MLTM_2080", "itm": "13103792722T1",
 
 
 # 착공·준공·인허가 — KOSIS 국토부 표. R-ONE T 표는 통계누리보다 1개월 늦다(2026-11-04: R-ONE 8월분, 국토부 9월분 공표).
-# 코드는 2026-11-03 일일 런 [KOSIS-probe] getMeta 실측(구분 = 총계 · 항목 하나). 월분인지 연간 누계인지는 메타에 없어,
+# 코드는 2026-11-03 일일 런 [KOSIS-probe] getMeta 실측 — 분류가 세 단(A 구분 · B 부문명 · C 시도별)이라 셋 다 못 박아야 한다
+# (A 만 주면 KOSIS 가 「오류 20: 필수요청변수값 누락(objL)」, 2026-11-04 실측). 월분인지 연간 누계인지는 메타에 없어,
 # 겹치는 달을 R-ONE 과 대조해 맞는 해석일 때만 쓴다(_kosis_supply_node).
-_KOSIS_SUPPLY = {
-    "housing_permit_kr":   ("DT_MLTM_1946", "13103871089T1", "13102871089A.0001"),   # 인허가실적 · 총계
-    "housing_start_kr":    ("DT_MLTM_5386", "13103766971T1", "13102766971A.0001"),   # 착공실적 · 총계
-    "housing_complete_kr": ("DT_MLTM_5372", "13103766972T1", "13102766972A.0001"),   # 사용검사(준공)실적 · 총계
+_KOSIS_SUPPLY = {   # (표, 항목, (A 총계, B 총계, C 전국))
+    "housing_permit_kr":   ("DT_MLTM_1946", "13103871089T1",
+                            ("13102871089A.0001", "13102871089B.0001", "13102871089C.0001")),   # 인허가실적
+    "housing_start_kr":    ("DT_MLTM_5386", "13103766971T1",
+                            ("13102766971A.0001", "13102766971B.0001", "13102766971C.0001")),   # 착공실적
+    "housing_complete_kr": ("DT_MLTM_5372", "13103766972T1",
+                            ("13102766972A.0001", "13102766972B.0001", "13102766972C.0001")),   # 사용검사(준공)실적
 }
 KOSIS_SUPPLY_MAX_DEV = 0.03   # 겹치는 달(최근 12) 중앙 상대 차 허용치
 
@@ -5076,10 +5080,10 @@ def _kosis_supply_node(key, rone, fetch=None):
     R-ONE 과 겹치는 최근 12달(6달 이상)의 중앙 상대 차가 3% 안인 해석(월분 그대로 / 연간 누계 차분)만 쓰고,
     KOSIS 최신 달이 R-ONE 보다 뒤일 때만 바꾼다. R-ONE 이 이번 런에 없으면 대조할 수 없어 바꾸지 않는다.
     과거는 R-ONE 이력 위에 KOSIS 값을 얹는다(두 원천이 3% 안에서 같다는 것을 확인한 뒤에만)."""
-    tbl, itm, obj = _KOSIS_SUPPLY[key]
+    tbl, itm, objs = _KOSIS_SUPPLY[key]
     if not rone or not rone.get("history"):
         return None
-    hist = (fetch or _kosis_history)(tbl, itm, (obj,), 240, key)
+    hist = (fetch or _kosis_history)(tbl, itm, objs, 240, key)
     if not hist:
         return None
     ref = rone["history"]
@@ -9457,6 +9461,9 @@ def _us_et_kst(d, hhmm):
 # 각 항목: (dotted-path, "fmt" 함수, lower_is_positive?)
 # - fmt: "pct1" = "%.1f%%", "pct2" = "%.2f%%", "raw1" = "%.1f", "k" = "%dK"
 # - lower_is_positive: True 면 act < fore 가 긍정 (CPI/실업률), False/None 이면 act > fore
+# 일정 칸만 쓰는 잎 — 화면 카드(지표 레지스트리)가 없다. test_check_releases 가 레지스트리 대조에서 뺀다.
+CAL_ONLY_LEAVES = {"economicIndicators.kr.ip_all_kr", "economicIndicators.kr.employed_kr"}
+
 CALENDAR_INDICATOR_MAP = {
     # 한국 — 대부분 발표 형식이 % 변화율 (전월비/전년비)
     "한국은행 금통위 회의":   ("economicIndicators.kr.base_rate_kr", "pct2", False),
@@ -9469,8 +9476,11 @@ CALENDAR_INDICATOR_MAP = {
     "한국 제조업 PMI":        ("economicIndicators.kr.pmi_kr", "raw1", False),
     # 일정표(A19 공식 페이지)가 실제로 내는 이름 — 2026-10-05. 산업활동동향(전산업생산)·고용동향(취업자 증감)은 짝이 되는
     # 잎이 없어 비워 뒀다(ip_kr 은 광공업생산, unemployment_kr 은 실업률이라 헤드라인이 다르다 — 라벨↔값 정합성).
-    # 2026-11-04 헤드라인과 같은 잎(ip_all_kr · employed_kr)을 따로 받기 시작했다 — 잎이 data.json 에 생긴 뒤 여기 잇는다
-    # (test_check_releases 가 「표의 잎은 data.json 에 있어야」를 보므로 한 커밋에 넣으면 CI 시험 관문이 수집을 막는다).
+    # 2026-11-04 헤드라인과 같은 잎을 따로 받는다(#178) — 전산업생산지수 계절조정 전월비 · 취업자(원계열) 전년동월 증감.
+    # 두 잎은 화면 카드 없이 이 칸만 쓴다(CAL_ONLY_LEAVES). 잎이 data.json 에 생긴 뒤에 이었다 — 표의 잎이 data.json 에
+    # 있어야 한다는 시험(test_check_releases)이 수집 앞 관문이라, 한 커밋에 넣으면 수집이 막힌다.
+    "한국 산업활동동향":      ("economicIndicators.kr.ip_all_kr", "mom1", False),
+    "한국 고용동향":          ("economicIndicators.kr.employed_kr", "ykd", False),
     "한국 소비자물가동향":    ("economicIndicators.kr.cpi_kr", "yoy1", True),     # 전년동월비 = 헤드라인 그대로, refPeriod 월 관측만
     "한국은행 금통위 (통화정책방향)": ("economicIndicators.kr.base_rate_kr", "pct2", False),
     # 미국 — CPI/PPI/소매/산업생산은 전월비 % 발표가 표준

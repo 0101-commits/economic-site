@@ -247,3 +247,12 @@ def test_calendar_kr_headlines(monkeypatch):
     fd.backfill_calendar_actuals([ev, ip], data)
     assert ev["act"] == "+19.3만명" and ev["prev"] == "+20.0만명"
     assert ip["act"] == ""                                            # 이력 없는 변화율은 수준 값으로 찍지 않는다
+
+
+def test_kosis_supply_pins_three_levels(monkeypatch):
+    """세 단(구분 · 부문명 · 시도별)을 다 못 박는다 — A 만 주면 KOSIS 오류 20(objL 누락)."""
+    seen = []
+    monkeypatch.setattr(fd, "log", lambda *a, **k: None)
+    fd._kosis_supply_node("housing_start_kr", _rone({"202601": 1.0}), fetch=lambda t, i, objs, *a: seen.append(objs))
+    assert seen == [("13102766971A.0001", "13102766971B.0001", "13102766971C.0001")]
+    assert all(len(v[2]) == 3 for v in fd._KOSIS_SUPPLY.values())

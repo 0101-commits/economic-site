@@ -111,8 +111,8 @@ def test_fomc_page_parser_gives_kst_dates_and_keeps_us_date():
 
 
 # ── 3. 일정표 이름 → 지표 잎 ──────────────────────────────────────────────────
-# 짝이 되는 잎이 없어 비워 둔 일정 — 라벨(전산업생산 · 취업자 증감)과 값(광공업생산 · 실업률)의 헤드라인이 다르다.
-UNPAIRED = {"한국 산업활동동향", "한국 고용동향"}
+# 짝이 되는 잎이 없어 비워 둔 일정 — 2026-11-04 부터 없다(산업활동동향 = 전산업생산 ip_all_kr, 고용동향 = 취업자 employed_kr).
+UNPAIRED = set()
 
 
 def test_every_calendar_name_is_mapped_or_explicitly_unpaired():
@@ -132,7 +132,7 @@ def test_mapped_leaves_exist_in_registry_and_economic_indicators():
     for name, (path, fmt, _lower) in fd.CALENDAR_INDICATOR_MAP.items():
         node = fd._get_by_path(data, path)
         assert isinstance(node, dict) and node.get("history"), (name, path)       # 잎이 있고 history 가 있다
-        if path.startswith("economicIndicators."):
+        if path.startswith("economicIndicators.") and path not in fd.CAL_ONLY_LEAVES:   # 일정 칸 전용 잎은 화면 카드가 없다
             assert path in reg, (name, path)                                       # 지표 레지스트리에도 있다
 
 

@@ -264,8 +264,9 @@ def test_kostat_plan_parser_picks_three_releases():
     assert got[:3] == [("2026-09-02", "09.02 08:00", "한국 소비자물가동향", 3, "2026-08"),
                        ("2026-09-09", "09.09 08:00", "한국 고용동향", 2, "2026-08"),
                        ("2026-09-30", "09.30 08:00", "한국 산업활동동향", 2, "2026-08")]
-    # 짝이 되는 잎이 없는 둘(전산업생산·취업자 증감)은 표 밖 — 소비자물가동향만 cpi_kr 로 연결(refPeriod 월 관측만 act)
-    assert {e["name"] for e in ev if e["name"] in fd.CALENDAR_INDICATOR_MAP} == {"한국 소비자물가동향"}
+    # 셋 다 연결(refPeriod 월 관측만 act) — 2026-11-04 전산업생산(ip_all_kr)·취업자 증감(employed_kr) 잎이 생겼다
+    assert {e["name"] for e in ev if e["name"] in fd.CALENDAR_INDICATOR_MAP} == {"한국 소비자물가동향", "한국 고용동향",
+                                                                            "한국 산업활동동향"}
     one = ('<h3>2026년 전체 보도계획</h3><table><tr class="tr-notice"><td>12.31.( 목 )</td><td>08:00</td>'
            '<td>2026년 12월 및 연간 소비자물가동향</td></tr><tr class="tr-notice"><td>09.10.( 목 )</td>'
            '<td>12:00</td><td>국가데이터처, 추석 일일물가조사로 민생안정대책 신속 지원</td></tr></table>')

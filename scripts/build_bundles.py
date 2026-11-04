@@ -129,6 +129,8 @@ SHORT_M, SHORT_PC = LIMITS["short"]          # 상한 표의 단일 원천 = che
 # 지표 id → (PC, 모바일). 괄호를 떼도 상한을 넘는 것만 사람이 정한다. 넘는 행이 새로 생기면
 # scripts/tests/test_build_bundles.py 가 실패하고 그 id 를 알려 준다 — 여기에 한 줄 더한다.
 SHORT = {
+    "core_pce_us": ("미국 근원 PCE", "근원 PCE"),      # 2026-11-04 새 잎(근원 물가)
+    "ip_all_kr": ("한국 전산업생산", "전산업생산"),     # 2026-11-04 새 잎(산업활동동향 헤드라인)
     "trade_count_kr": ("아파트 거래량", "아파트 거래"),
     "trade_count_kr_rone_kr": ("아파트 거래량", "아파트 거래"),
     "jns_price_idx_kr": ("전세가격지수", "전세지수"),
