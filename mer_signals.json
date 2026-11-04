@@ -1,5 +1,5 @@
 {
- "asOf": "2026-11-04T13:11:01.887364+09:00",
+ "asOf": "2026-11-04T13:26:15.753243+09:00",
  "window": {
   "from": "2025-09-16",
   "to": "2026-11-04"
@@ -12243,7 +12243,7 @@
    "unit": "엔",
    "dataPath": "history.fx.USDJPY",
    "current": {
-    "value": 157.5,
+    "value": 157.6,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -13285,7 +13285,7 @@
     },
     {
      "date": "2026-11-04",
-     "value": 157.5
+     "value": 157.6
     }
    ],
    "thresholds": [
@@ -13302,7 +13302,7 @@
    ],
    "nearest": {
     "level": 160.0,
-    "distancePct": -1.5625
+    "distancePct": -1.5000000000000036
    },
    "state": "near",
    "postDates": [
@@ -13319,7 +13319,7 @@
    "unit": "idx",
    "dataPath": "economicIndicators.us.dxy_idx",
    "current": {
-    "value": 101.38,
+    "value": 101.364,
     "asOf": "2026-11-03"
    },
    "history1y": [
@@ -14329,7 +14329,7 @@
     },
     {
      "date": "2026-11-03",
-     "value": 101.38
+     "value": 101.364
     }
    ],
    "thresholds": [],
@@ -14410,6 +14410,114 @@
   },
   {
    "id": "core_cpi_us",
+   "label": "미 근원 CPI(전년비)",
+   "layer": "market",
+   "unit": "%",
+   "dataPath": "economicIndicators.us.core_cpi_us",
+   "current": {
+    "value": 2.57,
+    "asOf": "2026-09-01"
+   },
+   "history1y": [
+    {
+     "date": "2025-09-01",
+     "value": 3.02
+    },
+    {
+     "date": "2025-11-01",
+     "value": 2.6
+    },
+    {
+     "date": "2025-12-01",
+     "value": 2.65
+    },
+    {
+     "date": "2026-01-01",
+     "value": 2.51
+    },
+    {
+     "date": "2026-02-01",
+     "value": 2.47
+    },
+    {
+     "date": "2026-03-01",
+     "value": 2.6
+    },
+    {
+     "date": "2026-04-01",
+     "value": 2.74
+    },
+    {
+     "date": "2026-05-01",
+     "value": 2.82
+    },
+    {
+     "date": "2026-06-01",
+     "value": 2.57
+    },
+    {
+     "date": "2026-07-01",
+     "value": 2.47
+    },
+    {
+     "date": "2026-08-01",
+     "value": 2.45
+    },
+    {
+     "date": "2026-09-01",
+     "value": 2.57
+    }
+   ],
+   "thresholds": [
+    {
+     "level": 3.0,
+     "levelText": "3.0%",
+     "meaning": "돌파시 에너지 충격의 서비스물가 전이 확인, 인하 소멸",
+     "quote": "시장 발작 포인트가 근원CPI 3.0% 돌파여부가 될 것 같다.",
+     "logNo": "224311307187",
+     "date": "2026-06-10",
+     "kind": "level",
+     "dir": "up"
+    },
+    {
+     "level": 3.0,
+     "levelText": "3.0%",
+     "meaning": "돌파시 금리인상 확률 급등(시장 발작 포인트)",
+     "quote": "근원CPI가 3%를 찍지 않았고, CPI는 예상한 숫자가 나왔다.",
+     "logNo": "224312087790",
+     "date": "2026-06-11",
+     "kind": "level",
+     "dir": "up"
+    },
+    {
+     "level": 0.2,
+     "levelText": "0.2%",
+     "meaning": "0.2% 이하면 동결, 초과면 금리인상 조건 충족",
+     "quote": "9월 인상은 딱 하나에 달렸다. 이번 달 근원 물가가 예상보다 튀느냐. 나는 0.2%로 얌전하게 나올 거라 본다. 그럼 동결이다",
+     "logNo": "224409005416",
+     "date": "2026-09-12",
+     "kind": "level",
+     "dir": "up"
+    }
+   ],
+   "nearest": {
+    "level": 3.0,
+    "distancePct": -14.33333333333334
+   },
+   "state": "below",
+   "postDates": [
+    "2026-06-10",
+    "2026-06-11",
+    "2026-09-12"
+   ],
+   "lastQuotes": [
+    "9월 인상은 딱 하나에 달렸다. 이번 달 근원 물가가 예상보다 튀느냐. 나는 0.2%로 얌전하게 나올 거라 본다. 그럼 동결이다",
+    "근원CPI가 3%를 찍지 않았고, CPI는 예상한 숫자가 나왔다.",
+    "시장 발작 포인트가 근원CPI 3.0% 돌파여부가 될 것 같다."
+   ]
+  },
+  {
+   "id": "cpi_us",
    "label": "미 CPI(전년비)",
    "layer": "market",
    "unit": "%",
@@ -14480,36 +14588,6 @@
      "dir": "up"
     },
     {
-     "level": 3.0,
-     "levelText": "3.0%",
-     "meaning": "돌파시 에너지 충격의 서비스물가 전이 확인, 인하 소멸",
-     "quote": "시장 발작 포인트가 근원CPI 3.0% 돌파여부가 될 것 같다.",
-     "logNo": "224311307187",
-     "date": "2026-06-10",
-     "kind": "level",
-     "dir": "up"
-    },
-    {
-     "level": 3.0,
-     "levelText": "3.0%",
-     "meaning": "돌파시 금리인상 확률 급등(시장 발작 포인트)",
-     "quote": "근원CPI가 3%를 찍지 않았고, CPI는 예상한 숫자가 나왔다.",
-     "logNo": "224312087790",
-     "date": "2026-06-11",
-     "kind": "level",
-     "dir": "up"
-    },
-    {
-     "level": 0.2,
-     "levelText": "0.2%",
-     "meaning": "0.2% 이하면 동결, 초과면 금리인상 조건 충족",
-     "quote": "9월 인상은 딱 하나에 달렸다. 이번 달 근원 물가가 예상보다 튀느냐. 나는 0.2%로 얌전하게 나올 거라 본다. 그럼 동결이다",
-     "logNo": "224409005416",
-     "date": "2026-09-12",
-     "kind": "level",
-     "dir": "up"
-    },
-    {
      "level": 0.2,
      "levelText": "0.2%",
      "meaning": "연준이 10월 금리를 동결할 논리가 나오게 됨",
@@ -14527,15 +14605,99 @@
    "state": "below",
    "postDates": [
     "2025-12-07",
-    "2026-06-10",
-    "2026-06-11",
-    "2026-09-12",
     "2026-10-15"
    ],
    "lastQuotes": [
     "코어가 0.2%라면, 연준이 10월 금리를 동결할 논리가 나오게 됨",
-    "9월 인상은 딱 하나에 달렸다. 이번 달 근원 물가가 예상보다 튀느냐. 나는 0.2%로 얌전하게 나올 거라 본다. 그럼 동결이다",
-    "근원CPI가 3%를 찍지 않았고, CPI는 예상한 숫자가 나왔다."
+    "2% 대인 CPI에 자가 주거비를 반영했다면, 4%가 넘는 CPI가 나올 수 있다는 말이 된다."
+   ]
+  },
+  {
+   "id": "core_pce_us",
+   "label": "미 근원 PCE(전년비)",
+   "layer": "market",
+   "unit": "%",
+   "dataPath": "economicIndicators.us.core_pce_us",
+   "current": {
+    "value": 3.12,
+    "asOf": "2026-09-01"
+   },
+   "history1y": [
+    {
+     "date": "2025-09-01",
+     "value": 2.82
+    },
+    {
+     "date": "2025-10-01",
+     "value": 2.7
+    },
+    {
+     "date": "2025-11-01",
+     "value": 2.72
+    },
+    {
+     "date": "2025-12-01",
+     "value": 2.87
+    },
+    {
+     "date": "2026-01-01",
+     "value": 2.94
+    },
+    {
+     "date": "2026-02-01",
+     "value": 2.96
+    },
+    {
+     "date": "2026-03-01",
+     "value": 3.11
+    },
+    {
+     "date": "2026-04-01",
+     "value": 3.08
+    },
+    {
+     "date": "2026-05-01",
+     "value": 3.16
+    },
+    {
+     "date": "2026-06-01",
+     "value": 3.04
+    },
+    {
+     "date": "2026-07-01",
+     "value": 3.0
+    },
+    {
+     "date": "2026-08-01",
+     "value": 3.03
+    },
+    {
+     "date": "2026-09-01",
+     "value": 3.12
+    }
+   ],
+   "thresholds": [
+    {
+     "level": 2.0,
+     "levelText": "2.0%",
+     "meaning": "현행 3.4%로는 아득하나 절사평균이면 2.3%로 근접",
+     "quote": "연준이 목표로 하는 근원 PCE 2.0%에는 아득한 숫자임.",
+     "logNo": "224327359398",
+     "date": "2026-06-26",
+     "kind": "level",
+     "dir": "up"
+    }
+   ],
+   "nearest": {
+    "level": 2.0,
+    "distancePct": 56.00000000000001
+   },
+   "state": "crossed",
+   "postDates": [
+    "2026-06-26"
+   ],
+   "lastQuotes": [
+    "연준이 목표로 하는 근원 PCE 2.0%에는 아득한 숫자임."
    ]
   },
   {
@@ -14615,16 +14777,6 @@
     },
     {
      "level": 2.0,
-     "levelText": "2.0%",
-     "meaning": "현행 3.4%로는 아득하나 절사평균이면 2.3%로 근접",
-     "quote": "연준이 목표로 하는 근원 PCE 2.0%에는 아득한 숫자임.",
-     "logNo": "224327359398",
-     "date": "2026-06-26",
-     "kind": "level",
-     "dir": "up"
-    },
-    {
-     "level": 2.0,
      "levelText": "2%",
      "meaning": "연준의 공식 인플레이션 목표(CPI 2%보다 달성 쉬움)",
      "quote": "연준의 인플레이션 목표가 PCE 2%로 공식적으로 선포된 역사적 배경임",
@@ -14661,7 +14813,6 @@
    "state": "crossed",
    "postDates": [
     "2025-12-06",
-    "2026-06-26",
     "2026-07-31",
     "2026-08-29",
     "2026-09-21"
@@ -20099,6 +20250,10 @@
    },
    "history1y": [
     {
+     "date": "2025-12-01",
+     "value": 18.1
+    },
+    {
      "date": "2026-06-01",
      "value": 29.1
     },
@@ -20165,7 +20320,7 @@
    "unit": "억원",
    "dataPath": "investorTrading.daily:foreign",
    "current": {
-    "value": -19250.0,
+    "value": -20101.0,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -21147,7 +21302,7 @@
     },
     {
      "date": "2026-11-04",
-     "value": -19250.0
+     "value": -20101.0
     }
    ],
    "thresholds": [
@@ -21177,7 +21332,7 @@
    "unit": "p",
    "dataPath": "history.indices.KOSPI",
    "current": {
-    "value": 5449.3,
+    "value": 5462.42,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -22159,7 +22314,7 @@
     },
     {
      "date": "2026-11-04",
-     "value": 5449.3
+     "value": 5462.42
     }
    ],
    "thresholds": [
@@ -22280,7 +22435,7 @@
    ],
    "nearest": {
     "level": 5380.0,
-    "distancePct": 1.288104089219334
+    "distancePct": 1.5319702602230498
    },
    "state": "near",
    "postDates": [
@@ -22309,7 +22464,7 @@
    "unit": null,
    "dataPath": "history.indices.KOSDAQ",
    "current": {
-    "value": 687.3,
+    "value": 689.85,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -23291,7 +23446,7 @@
     },
     {
      "date": "2026-11-04",
-     "value": 687.3
+     "value": 689.85
     }
    ],
    "thresholds": [],
@@ -24372,7 +24527,7 @@
    "unit": null,
    "dataPath": "history.indices.Nikkei",
    "current": {
-    "value": 60352.38,
+    "value": 60200.04,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -25346,7 +25501,7 @@
     },
     {
      "date": "2026-11-04",
-     "value": 60352.38
+     "value": 60200.04
     }
    ],
    "thresholds": [
@@ -27702,7 +27857,7 @@
    "unit": null,
    "dataPath": "history.commodities.Gold",
    "current": {
-    "value": 3946.3,
+    "value": 3959.7,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -28708,11 +28863,11 @@
     },
     {
      "date": "2026-11-03",
-     "value": 3945.3
+     "value": 3960.5
     },
     {
      "date": "2026-11-04",
-     "value": 3946.3
+     "value": 3959.7
     }
    ],
    "thresholds": [
@@ -28802,10 +28957,14 @@
    "unit": null,
    "dataPath": "history.commodities.Silver",
    "current": {
-    "value": 49.23,
-    "asOf": "2026-11-04"
+    "value": 49.49,
+    "asOf": "2026-11-03"
    },
    "history1y": [
+    {
+     "date": "2025-11-03",
+     "value": 47.888
+    },
     {
      "date": "2025-11-04",
      "value": 47.13
@@ -29808,11 +29967,7 @@
     },
     {
      "date": "2026-11-03",
-     "value": 49.225
-    },
-    {
-     "date": "2026-11-04",
-     "value": 49.23
+     "value": 49.49
     }
    ],
    "thresholds": [
@@ -29842,10 +29997,14 @@
    "unit": null,
    "dataPath": "history.commodities.Copper",
    "current": {
-    "value": 6.28,
-    "asOf": "2026-11-04"
+    "value": 6.2905,
+    "asOf": "2026-11-03"
    },
    "history1y": [
+    {
+     "date": "2025-11-03",
+     "value": 5.047
+    },
     {
      "date": "2025-11-04",
      "value": 4.926
@@ -30848,11 +31007,7 @@
     },
     {
      "date": "2026-11-03",
-     "value": 6.275
-    },
-    {
-     "date": "2026-11-04",
-     "value": 6.28
+     "value": 6.2905
     }
    ],
    "thresholds": [],
@@ -30868,7 +31023,7 @@
    "unit": "$",
    "dataPath": "history.commodities.WTI",
    "current": {
-    "value": 95.63,
+    "value": 95.27,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -31874,11 +32029,11 @@
     },
     {
      "date": "2026-11-03",
-     "value": 95.66
+     "value": 95.28
     },
     {
      "date": "2026-11-04",
-     "value": 95.63
+     "value": 95.27
     }
    ],
    "thresholds": [
@@ -32022,7 +32177,7 @@
    ],
    "nearest": {
     "level": 150.0,
-    "distancePct": -36.24666666666667
+    "distancePct": -36.486666666666665
    },
    "state": "below",
    "postDates": [
@@ -32052,7 +32207,7 @@
    "unit": "$",
    "dataPath": "history.commodities.Gasoline",
    "current": {
-    "value": 2.93,
+    "value": 2.92,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -33058,11 +33213,11 @@
     },
     {
      "date": "2026-11-03",
-     "value": 2.9255
+     "value": 2.9181
     },
     {
      "date": "2026-11-04",
-     "value": 2.93
+     "value": 2.92
     }
    ],
    "thresholds": [
@@ -33089,7 +33244,7 @@
    ],
    "nearest": {
     "level": 4.0,
-    "distancePct": -26.749999999999996
+    "distancePct": -27.0
    },
    "state": "below",
    "postDates": [
@@ -34203,7 +34358,7 @@
    "unit": "$",
    "dataPath": "history.crypto.BTC",
    "current": {
-    "value": 76626.1094,
+    "value": 76579.7578,
     "asOf": "2026-11-04"
    },
    "history1y": [
@@ -35665,7 +35820,7 @@
     },
     {
      "date": "2026-11-04",
-     "value": 76626.1094
+     "value": 76579.7578
     }
    ],
    "thresholds": [
@@ -35718,13 +35873,9 @@
    "dataPath": "history.commodities.Corn",
    "current": {
     "value": 439.0,
-    "asOf": "2026-11-03"
+    "asOf": "2026-11-04"
    },
    "history1y": [
-    {
-     "date": "2025-11-03",
-     "value": 434.25
-    },
     {
      "date": "2025-11-04",
      "value": 431.5
@@ -36727,6 +36878,10 @@
     },
     {
      "date": "2026-11-03",
+     "value": 438.75
+    },
+    {
+     "date": "2026-11-04",
      "value": 439.0
     }
    ],
@@ -38586,26 +38741,6 @@
    ]
   },
   {
-   "from": "core_cpi_us",
-   "to": "ff_target",
-   "dir": "+",
-   "strength": 3,
-   "horizon": "단기",
-   "n": 2,
-   "quotes": [
-    {
-     "logNo": "224409005416",
-     "date": "2026-09-12",
-     "q": "근원CPI가 전월대비 0.3% 인상되면서, 워시의 금리인상 조건이 충족되었고"
-    },
-    {
-     "logNo": "224441926403",
-     "date": "2026-10-15",
-     "q": "12월이 아니라 10월 FOMC에서 금리를 인상할 가능성이 살아나는 것임"
-    }
-   ]
-  },
-  {
    "from": "regulation",
    "to": "banks",
    "dir": "+",
@@ -38671,6 +38806,26 @@
    ]
   },
   {
+   "from": "pce_us",
+   "to": "core_pce_us",
+   "dir": "-",
+   "strength": 2,
+   "horizon": "단기",
+   "n": 2,
+   "quotes": [
+    {
+     "logNo": "224417669671",
+     "date": "2026-09-21",
+     "q": "9월30일의 변경안을 반영하면 근원PCE가 0.2%p 낮아짐."
+    },
+    {
+     "logNo": "224427709873",
+     "date": "2026-10-01",
+     "q": "산수로 합산해보면, -0.2%, -0.1%, +0.05%=0.25%p정도 근원PCE가 낮아진다는 계산을 할 수 있게 됨."
+    }
+   ]
+  },
+  {
    "from": "realestate",
    "to": "regulation",
    "dir": "-",
@@ -38722,17 +38877,17 @@
     "view": 1
    },
    {
-    "id": "ff_target",
-    "label": "미 기준금리(FFR)",
-    "layer": "cause",
-    "state": "below",
-    "view": null
-   },
-   {
     "id": "regulation",
     "label": "제도·규제 변경",
     "layer": "cause",
     "state": "unknown",
+    "view": null
+   },
+   {
+    "id": "ff_target",
+    "label": "미 기준금리(FFR)",
+    "layer": "cause",
+    "state": "below",
     "view": null
    },
    {
@@ -38834,10 +38989,10 @@
     "view": null
    },
    {
-    "id": "core_cpi_us",
-    "label": "미 CPI(전년비)",
+    "id": "core_pce_us",
+    "label": "미 근원 PCE(전년비)",
     "layer": "market",
-    "state": "below",
+    "state": "crossed",
     "view": null
    },
    {
@@ -38867,6 +39022,13 @@
     "layer": "market",
     "state": "unknown",
     "view": -1
+   },
+   {
+    "id": "pce_us",
+    "label": "미 PCE(전년비)",
+    "layer": "market",
+    "state": "crossed",
+    "view": null
    },
    {
     "id": "rrp",
@@ -39958,17 +40120,6 @@
     ]
    },
    {
-    "from": "core_cpi_us",
-    "to": "ff_target",
-    "dir": "+",
-    "n": 2,
-    "horizon": "단기",
-    "logNos": [
-     "224409005416",
-     "224441926403"
-    ]
-   },
-   {
     "from": "regulation",
     "to": "banks",
     "dir": "+",
@@ -40000,6 +40151,17 @@
     "logNos": [
      "224407457877",
      "224407457877"
+    ]
+   },
+   {
+    "from": "pce_us",
+    "to": "core_pce_us",
+    "dir": "-",
+    "n": 2,
+    "horizon": "단기",
+    "logNos": [
+     "224417669671",
+     "224427709873"
     ]
    },
    {
@@ -45395,7 +45557,7 @@
   },
   {
    "asset": "us_equity",
-   "factor": "미 CPI(전년비)",
+   "factor": "미 근원 CPI(전년비)",
    "side": "bear",
    "horizon": "단기",
    "logNo": "224311307187",
