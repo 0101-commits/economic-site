@@ -459,7 +459,10 @@ GitHub Actions (fetch_data.py)
 4. **ECOS API** — Bank of Korea data
 5. **R-ONE API** — Korean real estate indices
 6. **KOSIS API** — Korean statistics
-7. **DBnomics** (keyless) — 일본 CPI(`STATJP/CPIm`, 총무성 원본; FRED OECD 계열은 2021 종료). 일본 IIP 는 대체 없음(묘비)
+7. **DBnomics** (keyless) — 일본 CPI(`STATJP/CPIm`, 총무성 원본; FRED OECD 계열은 2021 종료) · 일본 실업률(`STATJP/MIm/M.UR.B.PCT.SA`, 15세 이상). 일본 IIP 는 대체 없음(묘비)
+   **FRED 의 OECD 중계 계열은 1~3개월 늦다(2026-11-04 점검)** — 그래서 독일 실업률 = Eurostat `une_rt_m`, 일본 실업률 = DBnomics,
+   중국 GDP 성장률 = OECD 분기 직접(`intl_sources`), 한국 수출액 = ECOS 관세청 통관 `901Y118/T002`, 미시간 심리 = 미시간대 CSV(FRED 보다 새 달일 때만),
+   SCFI·CCFI = SSE `/currentIndex` JSON(HTML 은 값이 JS 로 늦게 채워져 늘 빈다)으로 옮겼다. 옮긴 계열은 FRED 표에서 지웠다 — 남겨 두면 대체 원천이 실패한 런에 늦은 값이 새 값을 덮는다
 8. **Twelve Data** (optional key) — 해외지수 6종 2순위·대조(`scripts/twelvedata.py`, 풀 런 1회, 일 800 크레딧)
 9. **Naver/yfinance fallbacks** — when primary sources fail
 
@@ -529,7 +532,7 @@ The script **preserves previous values** on partial failure — individual API e
   1개라 동시에 돌면 서로 끊는다 → 서버 `TOSS_SNAPSHOT_ROLE=primary`, PC 는 `standby`(origin 스냅샷 `host` 가 다르고
   40분 이내면 건너뜀). 스냅샷 `host` 필드는 해시에서 제외.
 - **지표 제외(2026-09-30 사용자 결정 D1)**: 풋콜비율·전월세전환율·엘니뇨 공식 예측 확률표는 화면·판정표에서 뺐다(무료 공식
-  경로 없음). 버크셔 13F 는 미확보로 유지(고정 IP 서버에서 재시험 예정). NAHB 주택시장지수도 제거(FRED 종료, 그 자리에
+  경로 없음). 버크셔 13F 의 403 은 IP 가 아니라 User-Agent 에 연락처 메일이 없어서였다(2026-11-04 실측: 메일 넣으면 200) — 시크릿 `SEC_CONTACT`(메일)가 있을 때만 부른다. 풋콜비율 수집 코드는 2026-11-04 지웠다(헛호출 1,059런). NAHB 주택시장지수도 제거(FRED 종료, 그 자리에
   MSACSR 이 잘못 표시되고 있었다). 전월세전환율은 수집(R-ONE 카탈로그 검색)도 지웠다 — 옛 data.json·lane·preserve 로
   되살아나지 않게 **묘비 표 `data_sla.TOMBSTONED`**(단일 원천) 에 올렸고, 같은 표를 `fetch_data`(모든 preserve 뒤
   `drop_tombstoned`)·판정표(`_walk_paths`)·지표 레지스트리(`build_indicators`)가 본다. 지표를 뺄 때는 수집 블록 삭제 +

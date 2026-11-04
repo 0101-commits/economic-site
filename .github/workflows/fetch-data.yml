@@ -255,6 +255,9 @@ jobs:
           KOSIS_API_KEY:      ${{ secrets.KOSIS_API_KEY }}
           # OpenDART — 배당·실적 일정(data.json.corpEvents, 일일 런 하루 1회). 펀더멘털 단계와 같은 시크릿.
           OPENDART_API_KEY:   ${{ secrets.OPENDART_API_KEY }}
+          # SEC EDGAR 연락처(메일) — SEC 는 User-Agent 에 연락처가 없으면 403 을 준다(버크셔 13F, 1,059런 연속 실패).
+          # 공개 저장소라 메일을 코드에 적지 않는다. 미설정이면 13F 를 부르지 않는다.
+          SEC_CONTACT:        ${{ secrets.SEC_CONTACT }}
           # 신규 API 키 — 사용자 발급 키를 GitHub Secrets 에 추가해야 함
           # 공공데이터포털 통합 키 (data.go.kr): 국토부 실거래가, 금융위, KOTRA, KOSIS, 농수산식품 등 50+ 서비스
           DATA_GO_KR_API_KEY: ${{ secrets.DATA_GO_KR_API_KEY }}

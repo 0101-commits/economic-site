@@ -78,14 +78,16 @@ SLA_RULES = [
 # 주기별 허용치 — '기간이 끝난 날'부터 센다(2026-09-24 개편). 종전엔 기간 시작일(월 1일·
 # 분기 첫날·연 1월 1일)부터 세면서 경로마다 100·150·200 일을 손으로 맞췄고, 연간 지표
 # (중국 GDP)·월간 곡선(일본 10년물)이 상시 '지연'으로 떠 경고 9건 중 5건이 거짓이었다.
-# 값 = 공표 지연 + 여유. 월간 70 = 대부분 다음 달 중순~말 공표, 분기 120, 연간 300.
-CADENCE_SLA = {"daily": 4, "weekly": 12, "monthly": 70, "quarterly": 120, "annual": 300}
+# 값 = 다음 기간 공표까지 걸리는 날 + 여유. 월간 70 = 대부분 다음 달 중순~말 공표.
+# 분기 150(2026-11-04, 120 에서): 일본 · 영국 · 유로 GDP 와 한국 가계신용은 분기 끝 +45~55일에 나오므로 직전 분기는
+# 분기 끝부터 약 92+55=147일까지 최신이다 — 120 이던 때 11/4 에 최신 2분기 값 5건이 '지연'으로 떴다.
+# 연간 580(300 에서): 연간 값은 다음 해 중반(세계은행 7월)에 나오므로 직전 해 값이 기간 끝부터 ~560일까지 최신이다.
+CADENCE_SLA = {"daily": 4, "weekly": 12, "monthly": 70, "quarterly": 150, "annual": 580}
 _PERIOD_MONTHS = {"monthly": 1, "quarterly": 3, "annual": 12}
 # 주기 허용치에 더하는 경로별 공표 지연(일). 케이스실러는 두 달 뒤 마지막 화요일 공표라
-# 월간 70 일로는 정상 갱신 중에도 지연으로 뜬다. 한국 수출 달러액(FRED XTEXVA01KRM667S,
-# OECD MEI)은 약 3개월 늦다 — 2026-09-28 에 원천 최신이 6월이라 90일째 '지연'으로 떴지만
-# 수집은 정상이었다(적시성은 ECOS 수출금액지수 exports_idx_kr 가 맡는다).
-EXTRA_LAG = [("realestate.us.case_shiller*", 30), ("economicIndicators.kr.exports_kr", 60)]
+# 월간 70 일로는 정상 갱신 중에도 지연으로 뜬다. (한국 수출 달러액의 60일 여유는 2026-11-04 원천을 ECOS 관세청
+# 통관으로 바꾸며 지웠다 — 그 여유가 FRED OECD 계열의 2개월 지연을 '정상'으로 가리고 있었다.)
+EXTRA_LAG = [("realestate.us.case_shiller*", 30)]
 DEFAULT_SLA = (60, "normal")
 
 # as-of 로 인정하는 키 (우선순위 순)
@@ -621,7 +623,13 @@ def _demo():
     assert by["history.indices.KOSPI"]["state"] == "ok", by["history.indices.KOSPI"]
     assert by["economicIndicators.cn.gdp_cn"]["state"] == "ok", by["economicIndicators.cn.gdp_cn"]      # 연간, 연말+216일
     assert by["economicIndicators.kr.cpi_kr"]["state"] == "stale", by["economicIndicators.kr.cpi_kr"]  # 월간, 4월말+95일
-    assert by["economicIndicators.kr.exports_kr"]["state"] == "ok", by["economicIndicators.kr.exports_kr"]  # 같은 95일이나 원천 3개월 지연(EXTRA_LAG)
+    assert by["economicIndicators.kr.exports_kr"]["state"] == "stale", by["economicIndicators.kr.exports_kr"]  # 같은 95일 — 원천 지연 여유 없음(2026-11-04)
+    # 분기 150일 — 2분기(6/30 끝) 값은 11/4(127일)에 아직 최신, 12/1(154일)엔 지연
+    q2 = {"jp": {"gdp_jp": {"period": "2026-04-01", "history": {"2025-10-01": 1, "2026-01-01": 1, "2026-04-01": 1}}}}
+    def _q2_state(day):
+        return {i["path"]: i["state"] for i in build_health({"economicIndicators": q2}, today=day)["items"]}[
+            "economicIndicators.jp.gdp_jp"]
+    assert _q2_state(date(2026, 11, 4)) == "ok" and _q2_state(date(2026, 12, 1)) == "stale"
     assert by["sentiment.vkospi"]["state"] == "stale", by["sentiment.vkospi"]
     assert by["stockMovers.kospiGainers"]["state"] == "failed", by["stockMovers.kospiGainers"]
     assert by["berkshire"]["state"] == "missing", by["berkshire"]      # _EXPECTED_TOPS 실종 감지
