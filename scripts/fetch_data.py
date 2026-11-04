@@ -1737,10 +1737,10 @@ def _get_via_proxies(target_url, headers=None, timeout=15, expect_json=True):
 def fetch_naver_api_movers(market="KOSPI", direction="up", top_n=10):
     """네이버 증권 모바일 JSON API (m.stock.naver.com)로 등락 상위/하위 조회.
 
-    엔드포인트: https://m.stock.naver.com/api/stocks/exchange/{KOSPI|KOSDAQ}/{up|down}?page=1&pageSize=20
+    엔드포인트: https://m.stock.naver.com/api/stocks/{up|down}/{KOSPI|KOSDAQ}?page=1&pageSize=20 (2026-11-04 주소 변경)
     응답 구조: {"stocks": [{"itemCode","stockName","closePrice","fluctuationsRatio", ...}]}
 
-    GHA 러너 IP 차단 회피 — 직접 호출 실패 시 corsproxy.io / allorigins.win / codetabs 순차 시도.
+    GHA 러너 IP 차단 회피 — 직접 호출 실패 시 저장소 Worker · allorigins.win 순차 시도.
     """
     market = market.upper()
     market = "KOSDAQ" if market == "KOSDAQ" else "KOSPI"
@@ -1755,7 +1755,8 @@ def fetch_naver_api_movers(market="KOSPI", direction="up", top_n=10):
     }
     today = datetime.now(KST).strftime("%Y-%m-%d")
     targets = [
-        f"https://m.stock.naver.com/api/stocks/exchange/{market}/{direction}?page=1&pageSize=30",
+        # 2026-11-04: 옛 모바일 주소(/api/stocks/exchange/{시장}/{방향})는 404 — 같은 응답 모양의 새 주소로 바꿨다
+        f"https://m.stock.naver.com/api/stocks/{direction}/{market}?page=1&pageSize=30",
         f"https://api.stock.naver.com/stock/exchange/{market}/{direction}?page=1&pageSize=30",
     ]
     for url in targets:
