@@ -709,6 +709,14 @@ Downstream of the snapshot (2026-08-20 full-adoption plan, artifact bf927a4a):
   `toss_api.py` shares tokens across processes via `%TEMP%\toss_token_cache.json`
   and re-issues once on 401.
 
+**On this PC the collector never touches the repo folder's working tree (2026-11-04).** It used to
+`pull --rebase --autostash` and, on conflict, `reset --hard origin/main` in this folder — that wiped a
+person's uncommitted edits (6 files lost at 13:53). Now `git_push()` commits from a dedicated
+`--no-checkout` worktree (`%LOCALAPPDATA%\economic-site-toss-push`, override `TOSS_PUSH_DIR`) that holds only
+`toss_snapshot.json`, pushes `HEAD:main`, and then fast-forwards this folder **only if it is on `main` with no
+tracked changes** (so the collector script itself still updates). The server (Linux) keeps the old path — its
+clone is collector-only. Guard: `scripts/tests/test_toss_push_dir.py`.
+
 Because it runs often, the script hashes only the fields `fetch_data.py` consumes and skips
 rewriting the file when nothing moved — otherwise every run would be a commit. `usdkrw` is
 deliberately outside that hash: it drifts around the clock and nothing reads it. A no-change
