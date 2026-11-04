@@ -336,6 +336,30 @@ def krx_commodity(endpoint, isu_match):
 # ImportError 외 예외도 잡는다 — pykrx 1.2.x 는 KRX_ID/KRX_PW 가 있으면 import 시점에
 # KRX 로그인을 시도하는데, KRX 서버가 점검/차단으로 HTML 을 반환하면 JSONDecodeError 가
 # import 문 자체에서 터진다. 그 경우 KRX 섹션만 skip 하고 나머지 수집은 계속한다.
+# KRX 로그인 응답 기록 — pykrx 는 실패하면 「자격 증명을 확인하세요」만 찍고 KRX 가 준 오류 코드·문구를 버린다
+# (2026-11-04: 브라우저 로그인은 되는데 CI 만 실패, 원인 불명). import 동안만 로그인 POST 응답을 엿봐 코드·문구를 남긴다.
+# 아이디·비밀번호는 찍지 않는다(요청 본문은 안 본다).
+KRX_LOGIN_TRACE = []
+
+
+def _krx_login_peek():
+    import requests as _rq
+    orig = _rq.sessions.Session.post
+
+    def post(self, url, *a, **k):
+        r = orig(self, url, *a, **k)
+        if str(url).endswith("MDCCOMS001D1.cmd"):
+            try:
+                j = r.json()
+                KRX_LOGIN_TRACE.append((r.status_code, j.get("_error_code"), str(j.get("_error_message") or "")[:120]))
+            except Exception:                                      # noqa: BLE001
+                KRX_LOGIN_TRACE.append((r.status_code, None, (r.text or "")[:80].replace("\n", " ")))
+        return r
+    _rq.sessions.Session.post = post
+    return lambda: setattr(_rq.sessions.Session, "post", orig)
+
+
+_restore_post = _krx_login_peek()
 try:
     from pykrx import stock as _pykrx_stock
     _PYKRX_AVAILABLE = True
@@ -343,12 +367,39 @@ except Exception as _pykrx_err:
     print(f"[pykrx] import 실패 — KRX 데이터 skip, 이전 값 유지: {type(_pykrx_err).__name__}: {_pykrx_err}", file=sys.stderr)
     _pykrx_stock = None
     _PYKRX_AVAILABLE = False
+finally:
+    _restore_post()
 
 # KRX 로그인 가능 여부 — 2026 부터 KRX 정보데이터시스템이 로그인을 요구하기 시작했다.
 # pykrx 1.2.x 는 KRX_ID/KRX_PW 환경변수가 있으면 import 시 자동 로그인하며, 없으면
 # 익명 접근을 시도하나 KRX 가 거부해 데이터가 비는 경우가 많다(투자자별 순매매가 대표적).
 # 워크플로 Secrets(KRX_ID/KRX_PW)에 data.krx.co.kr 무료 계정을 등록하면 정상화된다.
 _KRX_LOGIN_AVAILABLE = bool(os.environ.get("KRX_ID", "").strip() and os.environ.get("KRX_PW", "").strip())
+
+
+def _krx_login_outcome():
+    """import 때 로그인 결과를 로그로 남기고, 실패면 이 런의 재시도를 끈다(→ 로그인 상태).
+
+    pykrx 는 세션이 없으면 **조회할 때마다** 환경변수로 다시 로그인한다 — 실패한 계정으로 런마다 5번씩 실패가 쌓였다
+    (2026-11-04 실측). 실패를 거듭하면 계정이 잠길 수 있어, 첫 실패 뒤엔 이 프로세스의 KRX_ID/KRX_PW 를 지워 멈춘다."""
+    if not (_PYKRX_AVAILABLE and _KRX_LOGIN_AVAILABLE):
+        return False
+    try:
+        from pykrx.website.comm import auth as _krx_auth
+        ok = getattr(_krx_auth, "_auth_session", None) is not None
+    except Exception:                                              # noqa: BLE001
+        ok = bool(KRX_LOGIN_TRACE) and KRX_LOGIN_TRACE[-1][1] == "CD001"
+    codes = ", ".join(f"HTTP {s} {c or '-'} {m}".strip() for s, c, m in KRX_LOGIN_TRACE) or "응답 없음"
+    if ok:
+        log(f"[KRX-login] 로그인 됨 ({codes})")
+        return True
+    log(f"[KRX-login] 로그인 실패 — KRX 응답: {codes}. 이 런은 재시도하지 않는다(계정 잠금 방지)")
+    os.environ.pop("KRX_ID", None)
+    os.environ.pop("KRX_PW", None)
+    return False
+
+
+_KRX_LOGGED_IN = _krx_login_outcome()
 if _PYKRX_AVAILABLE and not _KRX_LOGIN_AVAILABLE:
     log("[KRX-login] KRX_ID/KRX_PW 미설정 — pykrx 익명 접근 시도(투자자별 순매매 등 일부 데이터가 거부될 수 있음). "
         "data.krx.co.kr 무료 가입 후 Secrets 에 KRX_ID/KRX_PW 등록 권장.")
@@ -7765,6 +7816,8 @@ def build_data():
     data["diagnostics"]["kisEnabled"]        = KIS_ENABLED
     data["diagnostics"]["pykrxAvailable"]    = _PYKRX_AVAILABLE
     data["diagnostics"]["krxLoginAvailable"] = _KRX_LOGIN_AVAILABLE
+    data["diagnostics"]["krxLoggedIn"] = _KRX_LOGGED_IN            # 계정이 있는 것과 로그인 된 것은 다르다(2026-11-04)
+    data["diagnostics"]["krxLoginTrace"] = [list(t) for t in KRX_LOGIN_TRACE][-3:]
     # pykrx 가용률(런 누계, A17) — import 성공은 거의 늘 True 라 신호가 안 된다(KRX 로그인 거부 시
     # 빈 응답). 이번 런에 KRX 확정 수급(krxDaily)을 실제로 받았으면 ok. 직전 누계에 더한다.
     data["diagnostics"]["pykrxRuns"] = _pykrx_runs(

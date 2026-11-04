@@ -226,14 +226,98 @@ def collect_stock_data(days=20):
 _LAST_PAYLOAD = ""   # 마지막으로 저장한 스냅샷 본문 — rebase 충돌 복구 때 다시 쓴다
 
 
+def _git(*args, cwd=None):
+    # ⚠ encoding 을 명시한다. text=True 만 주면 파이썬이 **로케일 인코딩(cp949)** 으로
+    #   디코드하는데 git 출력은 UTF-8 이라(커밋 메시지에 한글) 리더 스레드가
+    #   UnicodeDecodeError 로 죽고 stdout 이 None 이 된다 — 스케줄러 실행에서 실측된 버그.
+    try:
+        return subprocess.run(["git", *args], cwd=cwd or ROOT, capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", timeout=180)
+    except subprocess.TimeoutExpired:                        # 네트워크가 멎어도 배경 작업이 매달리지 않게
+        return subprocess.CompletedProcess(["git", *args], 124, "", "timeout")
+
+
+# ── 수집기 전용 작업 폴더(이 PC) ─────────────────────────────────────────────
+# 이 PC 의 저장소 폴더(ROOT)는 사람이 코드를 고치는 곳이다. 수집기가 거기서 pull --autostash · reset --hard 를 하면
+# 커밋 전 수정이 통째로 사라진다(2026-11-04 13:53 실측: 수정 6파일 소실, stash 도 없음). 그래서 Windows 에선 전용
+# worktree(파일을 펼치지 않는 --no-checkout, 스냅샷 한 파일만 꺼낸다)에서만 커밋·푸시하고 ROOT 는 fetch 만 한다.
+# 서버(Linux)는 저장소 자체가 수집기 전용이라 종전 경로 그대로다. TOSS_PUSH_DIR 로 어디서든 켤 수 있다.
+def push_dir():
+    d = os.environ.get("TOSS_PUSH_DIR", "").strip()
+    if d:
+        return d
+    if os.name == "nt":
+        return os.path.join(os.environ.get("LOCALAPPDATA") or os.path.dirname(ROOT), "economic-site-toss-push")
+    return None
+
+
+def _prepare_push_dir(d):
+    """전용 worktree 를 origin/main 으로 맞추고 그 안의 toss_snapshot.json 경로를 돌려준다(실패 = None).
+    파일 트리는 펼치지 않는다 — 인덱스만 origin/main 으로 두고 스냅샷 한 파일만 꺼낸다(commit --only 가 그 파일만 담는다)."""
+    _git("fetch", "-q", "origin", "main")
+    if not os.path.exists(os.path.join(d, ".git")):
+        _git("worktree", "prune")
+        r = _git("worktree", "add", "-q", "--no-checkout", "--detach", d, "origin/main")
+        if r.returncode != 0:
+            log(f"전용 작업 폴더 만들기 실패 — 푸시 중단: {(r.stderr or '').strip()[:200]}")
+            return None
+        log(f"전용 작업 폴더 만듦: {d}")
+    for args in (("reset", "-q", "origin/main"), ("checkout", "origin/main", "--", "toss_snapshot.json")):
+        r = _git(*args, cwd=d)
+        if r.returncode != 0:
+            log(f"전용 작업 폴더 맞추기 실패({args[0]}) — 푸시 중단: {(r.stderr or '').strip()[:200]}")
+            return None
+    return os.path.join(d, "toss_snapshot.json")
+
+
+def _push_from(d, stamp):
+    """전용 worktree 에서 스냅샷만 커밋해 origin main 으로 올린다. 거절되면 origin 을 다시 받아 그 위에 다시 커밋."""
+    for attempt in range(3):
+        if attempt:
+            _git("fetch", "-q", "origin", "main", cwd=d)
+            _git("reset", "-q", "origin/main", cwd=d)
+            with open(os.path.join(d, "toss_snapshot.json"), "w", encoding="utf-8") as f:
+                f.write(_LAST_PAYLOAD)
+        _git("add", "toss_snapshot.json", cwd=d)
+        c = _git("commit", "-q", "-o", "toss_snapshot.json", "-m", f"data: 토스 스냅샷 {stamp}", cwd=d)
+        if c.returncode != 0:
+            log(f"커밋 실패 — 푸시 중단: {((c.stdout or '') + (c.stderr or '')).strip()[:200]}")
+            return False
+        r = _git("push", "-q", "origin", "HEAD:main", cwd=d)
+        if r.returncode == 0:
+            log("푸시 완료(전용 작업 폴더)")
+            return True
+        log(f"푸시 실패({attempt + 1}/3): {(r.stderr or '').strip()[:200]}")
+    return False
+
+
+def _safe_ff_root():
+    """사람 폴더(ROOT)를 origin/main 으로 빨리감기 — **수정 중인 파일이 없고 main 브랜치일 때만**.
+    종전엔 수집기의 pull 이 ROOT(와 이 스크립트 자신)를 최신으로 유지했다. 그 일을 지우지 않는 방식으로만 이어 간다:
+    추적 파일 변경이 하나라도 있거나 다른 브랜치면 손대지 않고, 빨리감기가 안 되는 경우(로컬 커밋)도 건너뛴다."""
+    if (_git("rev-parse", "--abbrev-ref", "HEAD").stdout or "").strip() != "main":
+        return False
+    if (_git("status", "--porcelain", "--untracked-files=no").stdout or "").strip():
+        return False
+    return _git("merge", "-q", "--ff-only", "origin/main").returncode == 0
+
+
 def git_push():
     """toss_snapshot.json 만 커밋·푸시. 봇 커밋과 충돌해도 rebase 로 흡수된다."""
+    d = push_dir()
+    if d:
+        if not (_git("status", "--porcelain", "--", "toss_snapshot.json", cwd=d).stdout or "").strip():
+            log("변경 없음 — 푸시 생략")
+            ok = True
+        else:
+            ok = _push_from(d, datetime.now(KST).strftime("%Y-%m-%d %H:%M KST"))
+        _git("fetch", "-q", "origin", "main")
+        if _safe_ff_root():
+            log("저장소 폴더 최신화(빨리감기)")
+        return ok
+
     def run(*args):
-        # ⚠ encoding 을 명시한다. text=True 만 주면 파이썬이 **로케일 인코딩(cp949)** 으로
-        #   디코드하는데 git 출력은 UTF-8 이라(커밋 메시지에 한글) 리더 스레드가
-        #   UnicodeDecodeError 로 죽고 stdout 이 None 이 된다 — 스케줄러 실행에서 실측된 버그.
-        return subprocess.run(args, cwd=ROOT, capture_output=True,
-                              text=True, encoding="utf-8", errors="replace")
+        return _git(*args[1:])
 
     # `git diff --quiet` 는 **추적되지 않는 파일을 '변경 없음'으로 본다** — 최초 실행에서
     # 스냅샷이 영원히 푸시되지 않는 함정. status --porcelain 으로 신규/변경을 함께 본다.
@@ -342,12 +426,20 @@ def _other_collector_alive():
 
 
 def main():
+    global OUT
     if not toss_api.enabled():
         log("TOSS_CLIENT_ID/SECRET 미설정 — 종료")
         return 1
     if os.environ.get("TOSS_SNAPSHOT_ROLE", "primary") == "standby" and _other_collector_alive():
         log("다른 수집기 가동 중 — 건너뜀")
         return 0
+    if "--push" in sys.argv and push_dir():
+        # 스냅샷 파일도 전용 작업 폴더에 쓴다 — ROOT 의 toss_snapshot.json 은 건드리지 않는다(사람이 pull 할 때 충돌 없게).
+        # 직전 해시도 origin/main 판에서 읽어 서버 수집기가 올린 판과 견준다.
+        out = _prepare_push_dir(push_dir())
+        if not out:
+            return 3
+        OUT = out
     snap = collect()
     payload_keys = [k for k in snap if k not in ("generatedAt", "source", "host")]
     if not payload_keys:
