@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, monthCells, addMonth, type FlowRow } from './calc.ts'
+import { monthIndex, yearAgo, yoySeries, rebase, alignDates, cumsum, rollSum, weekKey, groupFlows, column, spans, monthCells, addMonth, derivedSeries, fromInvestors, type FlowRow } from './calc.ts'
 import type { Pt } from '../../lib/format.ts'
 
 test('monthIndex: 월·일·분기', () => {
@@ -93,4 +93,20 @@ test('격자 끝 뉴스 제목 이름표(parts.tsx NEWS_NAME) = data.json 뉴스
   const table = /const NEWS_NAME[^{]*\{([^}]*)\}/.exec(read('./parts.tsx'))?.[1] ?? ''
   assert.equal(topics.length, 16)
   assert.deepEqual([...table.matchAll(/([^\s,:]+): '[^']+'/g)].map(m => m[1]).sort(), topics)
+})
+
+test('derivedSeries: 띠의 전년비 · 수급 칸 시계열(시장 화면 = 지표 상세)', () => {
+  const idx: Pt[] = [['2025-01', 100], ['2025-02', 101], ['2026-01', 103], ['2026-02', 104.03]]
+  const yoy = derivedSeries({ id: 'cpi_kr_yoy', source: 'cpi_kr' }, { src: idx })
+  assert.deepEqual(yoy.map(p => p[0]), ['2026-01', '2026-02'])
+  assert.ok(Math.abs(yoy[1][1] - 3) < 1e-9)
+  assert.deepEqual(derivedSeries({ id: 'cpi_kr_yoy', source: 'cpi_kr' }, {}), [])   // 원지수 없음 = 빈 배열
+  const investors = { columns: ['date', 'retail', 'foreign', 'inst'], rows: [['d1', 1, 10, 100], ['d2', 2, null, 200], ['d3', 3, 30, 300], ['d4', 4, 40, 400], ['d5', 5, 50, 500], ['d6', 6, 60, 600]] }
+  assert.deepEqual(derivedSeries({ id: 'flow_foreign' }, { investors }), [['d1', 10], ['d3', 30], ['d4', 40], ['d5', 50], ['d6', 60]])   // 열 이름으로 찾고 빈 값은 뺀다
+  assert.deepEqual(derivedSeries({ id: 'flow_retail' }, { investors }).at(-1), ['d6', 6])
+  assert.deepEqual(derivedSeries({ id: 'flow_inst_5d' }, { investors }), [['d5', 1500], ['d6', 2000]])
+  assert.deepEqual(derivedSeries({ id: 'flow_foreign' }, { investors: null }), [])
+  assert.deepEqual(derivedSeries({ id: 'kospi' }, { investors }), [])
+  assert.equal(fromInvestors('flow_foreign_5d'), true)
+  assert.equal(fromInvestors('cpi_kr_yoy'), false)
 })

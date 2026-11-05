@@ -7,7 +7,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { DivergingBars, LineChart } from '../charts'
 import { Panel, RankTable, type Col } from '../panels'
 import { BigChart, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
-import { column, cumsum, groupFlows, rollSum, type FlowRow } from './calc'
+import { column, cumsum, derivedSeries, groupFlows, type FlowRow } from './calc'
 
 /** 종목 한 줄. short = 줄임 이름 · shortVol = 공매도 거래량 · lending = 대차 잔고 · program = 프로그램 순매수(모두 주, 없으면 null), flowDates = 각 값의 마지막 날. */
 type StockFlow = {
@@ -103,8 +103,8 @@ export default function Flows({ b, selId }: BodyProps<FlowsBundle>) {
   // 띠 칸에 시계열이 없으니 투자자 400행으로 채운다(5일 누적은 끝에서 5개씩 합)
   const fSeries = column(daily, 1)
   const pool = poolOf(b.strip, b.strip.flatMap(x => {
-    const s = x.id === 'flow_foreign' ? fSeries : x.id === 'flow_inst' ? column(daily, 2) : x.id === 'flow_retail' ? column(daily, 3) : x.id === 'flow_foreign_5d' ? rollSum(fSeries, 5) : null
-    return s ? [{ ...x, series: s }] : []
+    const s = derivedSeries(x, { investors: inv })
+    return s.length ? [{ ...x, series: s }] : []
   }))
   const sel = pool.get(selId) ?? b.strip[0]
   const [grain, setGrain] = useState<Grain>(isGrain(v) ? v : 'daily')

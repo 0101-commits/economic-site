@@ -9,7 +9,7 @@ import { useViewParam } from '../../lib/useViewParam'
 import { AsOfBadge, Pill, SegBar } from '../ui'
 import { More, Panel, RankTable, type Col } from '../panels'
 import { BigChart, counted, Empty, EventList, MarketGrid, poolOf, type Block, type BodyProps } from './parts'
-import { addMonth, monthCells, yearAgo, yoySeries } from './calc'
+import { addMonth, derivedSeries, monthCells, yearAgo } from './calc'
 import { kstDay } from '../../lib/personal/calc'
 
 type MacroItem = StripItem & { country?: string; topic?: string; source?: string }
@@ -145,7 +145,10 @@ export default function Macro({ b, selId, setS }: BodyProps<MacroBundle>) {
   const all = Object.values(b.views?.topics ?? {}).flat()
   const byId = new Map(all.map(x => [x.id, x]))
   // 띠의 「전년비」 칸은 원지수(source)에서 만든 파생값이라 시계열이 없다 → 원지수 24개월로 전년비 시계열을 만든다
-  const derived = b.strip.flatMap(x => (x.id.endsWith('_yoy') && x.source && byId.get(x.source)?.series?.length ? [{ ...x, series: yoySeries(byId.get(x.source)!.series) }] : []))
+  const derived = b.strip.flatMap(x => {
+    const s = derivedSeries(x, { src: x.source ? byId.get(x.source)?.series : null })
+    return s.length ? [{ ...x, series: s }] : []
+  })
   const pool = poolOf(b.strip, all, derived)
   const sel = pool.get(selId) ?? b.strip[0]
   // 나라 차례대로(같은 나라 안은 묶음 차례). 차례표에 없는 나라는 뒤로.

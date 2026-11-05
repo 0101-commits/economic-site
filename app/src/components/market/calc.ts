@@ -90,6 +90,31 @@ export function column(rows: (string | number | null)[][], col: number): Pt[] {
   return rows.flatMap((r): Pt[] => (typeof r[col] === 'number' ? [[String(r[0]), r[col] as number]] : []))
 }
 
+/** 투자자 매매 표(수급 묶음 views.investors · 국내 묶음 views.flows): 열 이름 + 행 [날짜, 값…]. */
+export type InvTable = { columns?: string[]; rows?: (string | number | null)[][] }
+
+/** 수급 띠 칸 → [투자자 열, 몇 개씩 합할지]. 5일 칸은 끝에서 5개씩 합. */
+const FLOW_COL: Record<string, [string, number]> = {
+  flow_foreign: ['foreign', 1], flow_inst: ['inst', 1], flow_retail: ['retail', 1], flow_foreign_5d: ['foreign', 5], flow_inst_5d: ['inst', 5],
+}
+/** 이 칸의 시계열을 투자자 매매 표로 만드는가 — 지표 상세가 수급 묶음을 받을지 고른다. */
+export const fromInvestors = (id: string): boolean => id in FLOW_COL
+
+/**
+ * 묶음에 시계열 없이 오는 띠 칸의 시계열 — 시장 화면(거시 · 수급 · 국내)과 지표 상세(lib/bundle.ts loadIndicator)가 같이 쓴다.
+ * 한쪽에만 두면 화면엔 차트가 있고 「자세히」 상세는 비는 일이 생긴다(2026-11-05 실측: 전년비 2 · 수급 4칸).
+ * 전년비 칸(id 끝 _yoy, source = 원지수 id) = 원지수(src)의 전년비 · 수급 칸 = 투자자 매매 표의 열. 만들 수 없으면 빈 배열.
+ */
+export function derivedSeries(item: { id: string; source?: string }, from: { src?: Pt[] | null; investors?: InvTable | null }): Pt[] {
+  if (item.id.endsWith('_yoy') && item.source) return yoySeries(from.src)
+  const f = FLOW_COL[item.id], t = from.investors
+  if (!f || !t?.rows?.length) return []
+  const col = (t.columns ?? ['date', 'foreign', 'inst', 'retail']).indexOf(f[0])
+  if (col < 0) return []
+  const s = column(t.rows, col)
+  return f[1] > 1 ? rollSum(s, f[1]) : s
+}
+
 /** 달력 한 달(일요일 시작 7열): 'YYYY-MM' → 첫 주 앞 빈칸(null) + 그 달 날짜('YYYY-MM-DD'). 끝 주 뒤 빈칸은 격자가 남긴다. */
 export function monthCells(ym: string): (string | null)[] {
   const [y, m] = ym.split('-').map(Number)

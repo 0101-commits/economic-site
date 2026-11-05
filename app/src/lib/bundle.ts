@@ -9,6 +9,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { changeFromPct, marketCtx, type Market, type MarketCtx, type PeriodKey, type Pt } from './format'
 import { buildOf, changedBundles, homeCacheFrom, reloadDue, waitMs, HOME_CACHE_KEY, type Halt, type HomeCache } from './refresh'
 import { stockRows, type StockRow } from './detail'
+import { derivedSeries, fromInvestors, type InvTable } from '../components/market/calc'
 
 /** 사이트 루트(자료·현행 화면 legacy.html 이 있는 곳). */
 export const ROOT = new URL(/\/next\/$/.test(new URL(document.baseURI).pathname) ? '../' : './', document.baseURI)
@@ -303,7 +304,20 @@ export async function loadIndicator(id: string): Promise<{ reg?: RegRow; item?: 
     const m = findItem(await loadBundle(name).catch(() => null), id)
     if (m) { item = m; if (m.series?.length) break }
   }
-  return { reg, item, series: item?.series?.length ? item.series : undefined }
+  let series = item?.series?.length ? item.series : undefined
+  // 묶음에 시계열 없이 오는 띠 칸(전년비 · 수급)은 시장 화면과 같은 계산(calc.ts derivedSeries)으로 만든다 — 「자세히」 차트가 비지 않게
+  if (item && !series) {
+    const source = (item as StripItem & { source?: string }).source
+    let src: Pt[] | undefined
+    if (source) for (const name of names) {
+      const m = findItem(await loadBundle(name).catch(() => null), source)
+      if (m?.series?.length) { src = m.series; break }
+    }
+    const investors = fromInvestors(id) ? await loadBundle<{ views?: { investors?: InvTable } }>('market-flows').then(b => b?.views?.investors, () => undefined) : undefined
+    const d = derivedSeries({ id, source }, { src, investors })
+    if (d.length) series = d
+  }
+  return { reg, item, series }
 }
 
 /** 묶음의 종목 행(코드 → 이름 · 값 · 기준 시각) — 홈 거래대금 → 국내 시장 보기(순위 · 체결 · 상승하락 · 공시) → 수급 종목 차례로(detail.ts stockRows). 종목 상세 · 검색이 쓴다. */
