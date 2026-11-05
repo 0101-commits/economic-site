@@ -9,7 +9,7 @@ import { AsOfBadge, Pill, SegBar } from '../ui'
 import { DivergingBars, Heatmap } from '../charts'
 import { More, Panel, RankTable, type Col } from '../panels'
 import { BigChart, ChangeText, counted, Empty, MarketGrid, poolOf, Toc, type Block, type BodyProps } from './parts'
-import { column } from './calc'
+import { derivedSeries } from './calc'
 
 type Mover = Stock & { volume?: number | null }
 type Breadth = { up?: number; down?: number; flat?: number; limitUp?: number; limitDown?: number; as_of?: string }
@@ -137,7 +137,7 @@ export default function Domestic({ b, selId, setS }: BodyProps<DomesticBundle>) 
   const invCol = (k: string) => (inv?.columns ?? ['date', 'foreign', 'inst', 'retail']).indexOf(k)
   // 띠의 외국인 칸은 시계열이 없으니 투자자 매매 20거래일로 채운다
   const ff = b.strip.find(x => x.id === 'flow_foreign')
-  const pool = poolOf(b.strip, ff && [{ ...ff, series: column(inv?.rows ?? [], invCol('foreign')) }])
+  const pool = poolOf(b.strip, ff && [{ ...ff, series: derivedSeries(ff, { investors: inv }) }])
   const sel = pool.get(selId) ?? b.strip[0]
   const scopeName = SCOPES.find(o => o.key === m)!.label
   // ETF 범위엔 KRX 순위 넷이 빈 상자로만 남는다(주식 일별표라 ETF 가 없다) — 칸과 목차에서 빼고 한 줄로 말한다
