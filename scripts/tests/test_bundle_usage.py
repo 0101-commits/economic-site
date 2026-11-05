@@ -49,7 +49,11 @@ UNREAD = [
     # 화면 묶음은 포털(네이버) 값 daily 를 싣는다.
     "investorTrading.krxDaily",
 ]
-excused = lambda u: any(u == e or u.startswith(e + ".") for e in UNREAD)
+# 직전 값으로 이은 표식(fetch_data 의 preserve) — 어느 블록이든 그 런의 수집이 실패했을 때만 생기는 운영 꼬리표다.
+# 2026-11-05 배당·실적 일정 수집 실패로 corpEvents.preservedAt 이 생기자 이 게이트가 자료 따라 깨졌다(블록 이름마다
+# 기준선에 적으면 다음엔 다른 블록에서 또 터진다). 묶음은 preserved 여부를 상태로 따로 만든다.
+PRESERVE_TAGS = ("preservedAt", "preserved_reason")
+excused = lambda u: any(u == e or u.startswith(e + ".") for e in UNREAD) or u.rsplit(".", 1)[-1] in PRESERVE_TAGS
 
 
 def _leaves(o):
