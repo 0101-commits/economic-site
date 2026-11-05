@@ -105,8 +105,16 @@ def test_push_dir_only_on_windows_or_env(monkeypatch):
 
 # ── KRX 로그인 결과(fetch_data) — 실패하면 코드를 남기고 이 런의 재시도를 끈다 ──
 def test_krx_login_outcome(monkeypatch):
+    import types
     import fetch_data as fd
-    from pykrx.website.comm import auth
+    # pykrx 는 fetch-data 런에만 깔린다 — stock-alerts · alerts-v2 · briefing 의 시험 관문엔 없어
+    # 진짜 모듈을 import 하면 scripts 가 바뀔 때마다 그 런들이 ModuleNotFoundError 로 죽었다(2026-11-04 15:03·15:16).
+    # fetch_data 를 먼저 읽은 뒤 가짜 모듈을 끼워, 깔려 있든 없든 같은 판정 로직만 본다.
+    auth = types.ModuleType("pykrx.website.comm.auth")
+    for name in ("pykrx", "pykrx.website", "pykrx.website.comm"):
+        monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
+    monkeypatch.setattr(sys.modules["pykrx.website.comm"], "auth", auth, raising=False)
+    monkeypatch.setitem(sys.modules, "pykrx.website.comm.auth", auth)
     logs = []
     monkeypatch.setattr(fd, "log", logs.append)
     monkeypatch.setattr(fd, "_PYKRX_AVAILABLE", True)
