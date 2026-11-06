@@ -27,6 +27,7 @@ from alerts_v2 import history_sink, schema          # noqa: E402
 from alerts_v2.context import KST, Context          # noqa: E402
 from alerts_v2.events import JUDGES, extract        # noqa: E402
 from alerts_v2.ledger import Ledger                 # noqa: E402
+from alerts_v2.schedule import CAP_LEVELS           # noqa: E402  하루 최대가 세는 등급(마스터 · 멤버 같은 규칙)
 
 try:                                                # 물결 A6 · A7 이 채우는 판정 모듈 — 하나가 없어도 다른 하나는 읽는다
     from alerts_v2 import judges_market  # noqa: F401,E402
@@ -113,14 +114,12 @@ class _MemberBook:
         return None
 
 
-RING_LEVELS = ("alarm", "alert")
-
-
 def _rung(s) -> int:
-    """마스터 원장의 하루 울림 셈(schedule._ring_count_today)과 같게 — 행 등급이 경보 · 알림인 것, 묶음은 묶음 행 + 안의 행."""
+    """마스터 원장의 하루 최대 셈(schedule._ring_count_today)과 같게 — 주의(alert) 한 통 = 1, 묶음 한 통 = 1(안의 행은 안 셈),
+    경보는 세지 않는다(2026-11-06 받는 곳 나누기). 보류(held)는 이 함수에 오지 않는다(호출 쪽이 보낸 것만 센다)."""
     if s.kind == "bundle":
-        return 1 + sum(1 for r in s.bundle if r.get("level") in RING_LEVELS)
-    return 1 if s.row.get("level") in RING_LEVELS else 0
+        return 1
+    return 1 if s.row.get("level") in CAP_LEVELS else 0
 
 
 def _read_book(path: str) -> dict:

@@ -227,7 +227,7 @@ def test_member_daily_cap_counter_bundles_without_touching_ledger(env):
     sides = env(people, at, rows=[_mrow(at)], sides={day: {"d": "2026-10-02", "n": 10}})   # 기본 상한 10 — 꽉 참
     assert len(env.rec.pushes) == 1 and env.rec.pushes[0]["title"].startswith("알림 1건 더")
     assert env.rec.pushes[0]["uid"] == MEMBER
-    assert sides[day] == {"d": "2026-10-02", "n": 12}       # 마스터 원장 셈과 같게 — 묶음 행 1 + 묶인 알림 행 1
+    assert sides[day] == {"d": "2026-10-02", "n": 11}       # 마스터 원장 셈과 같게 — 묶음은 한 통(안의 행은 안 셈, 2026-11-06)
     assert env.ledger.get(_mrow(at)["key"])["sent"]["bundled"] is False      # 공개 원장은 멤버 편성이 안 건드린다
     assert not any(r["key"].startswith("BUNDLE") for r in env.ledger.rows)
     at2 = _at("2026-10-03", "10:00")
@@ -572,3 +572,15 @@ def test_brief_marker_when_only_members_received(monkeypatch, tmp_path):
     assert uid == OWNER and settings["briefings"]["morning"] is False
     assert [m[0] for m in members] == [MEMBER]
     assert os.path.exists(tmp_path / run.BRIEF_SENT_MARKER)                  # 마스터 꺼짐 + 멤버가 받음 = 마커
+
+
+def test_member_rung_counts_only_alert_and_bundle_once():
+    """멤버 하루 최대 셈 = 마스터 schedule._ring_count_today 와 같은 규칙(2026-11-06): 경보는 안 세고, 묶음은 한 통."""
+    from types import SimpleNamespace
+    from alerts_v2 import run
+    alarm = SimpleNamespace(kind="event", row={"level": "alarm"}, bundle=[])
+    alert = SimpleNamespace(kind="event", row={"level": "alert"}, bundle=[])
+    bundle = SimpleNamespace(kind="bundle", row={"level": "alert"}, bundle=[{"level": "alert"}] * 4)
+    assert run._rung(alarm) == 0
+    assert run._rung(alert) == 1
+    assert run._rung(bundle) == 1
