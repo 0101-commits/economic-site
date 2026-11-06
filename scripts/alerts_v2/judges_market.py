@@ -332,23 +332,35 @@ def swing_sigma(ctx: Context, ev: dict) -> list[Hit]:
     daily = bool(p.get("daily"))
     targets = list(ev.get("targets") or [])
     states = {t: _swing_state(ctx, t, daily) for t in targets}
+    tiers_all = p.get("tiers") or {}
+    alarm_all = p.get("alarm_pct") or {}
     hits = []
     for t in targets:
         st = states[t]
         if not st:
             continue
         v, day, chg, sd, fresh = st
-        thr = vol.clamp_threshold(sd, k, float(lo), float(hi), _num(fallback.get(t)))
+        # 고정 단계(지수 급변, 2026-11-06 P4): 요즘처럼 평소 움직임이 크면 kσ 기준이 상한 5%에 붙어 ±3~5% 날이 조용했다.
+        tiers = sorted(float(x) for x in (tiers_all.get(t) or tiers_all.get("default") or []) if _num(x) is not None)
+        if tiers:
+            thr = tiers[0]
+        else:
+            thr = vol.clamp_threshold(sd, k, float(lo), float(hi), _num(fallback.get(t)))
         if thr is None or chg == 0 or abs(chg) < thr:
             continue
         up = chg > 0
         z = chg / sd if sd else None
-        hits.append(Hit(
-            target=t, dir="up" if up else "down", value=v, unit=_unit(ctx, t), asOf=day, fresh=fresh,
-            chg=_r(chg, 2),
-            fields={"z": _r(z, 2), "abs_z": _r(abs(z), 2) if z is not None else None, "sigma": _r(sd, 3),
-                    "thr": _r(thr, 2), "peer": _swing_peer(ctx, t, up, states),
-                    "next_round": _next_round(ctx, t, v, up)}))
+        f = {"z": _r(z, 2), "abs_z": _r(abs(z), 2) if z is not None else None, "sigma": _r(sd, 3),
+             "thr": _r(thr, 2), "peer": _swing_peer(ctx, t, up, states),
+             "next_round": _next_round(ctx, t, v, up),
+             "zx": f"{abs(z):.1f}" if z is not None else None}               # 「평소의 2.1배」
+        if tiers:
+            tier = max(x for x in tiers if abs(chg) >= x)
+            top = float(_num(alarm_all.get(t)) or _num(alarm_all.get("default")) or tiers[-1])
+            f.update(tier=_tidy(tier), top=1 if tier >= top else 0,
+                     next_tier=_tidy(next((x for x in tiers if x > abs(chg)), None)))
+        hits.append(Hit(target=t, dir="up" if up else "down", value=v, unit=_unit(ctx, t), asOf=day, fresh=fresh,
+                        chg=_r(chg, 2), fields=f))
     return hits
 
 

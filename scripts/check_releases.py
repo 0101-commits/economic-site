@@ -157,6 +157,15 @@ def release_due(ev, now):
     timeApprox 가 참이면 +30분, dt 에 시각이 없으면 그날 09:00. now 가 naive 면 KST 로 본다.
     왜: 예전엔 '날짜 == 오늘 and act 가 있다' 만 봤다. act 는 발표일 00시부터 직전 관측치로 채워지므로
     22:15 발표 알림이 00:11 에 나갔다(2026-10-02 실측). 다른 모듈(alerts_v2 E2)도 이 함수를 쓴다."""
+    at = release_at(ev)
+    if at is None:
+        return False
+    now = now if now.tzinfo else now.replace(tzinfo=KST)
+    return now >= at
+
+
+def release_at(ev):
+    """일정 행의 발표 시각(KST aware) — release_due 와 같은 규칙. 못 읽으면 None."""
     iso = str(ev.get("iso") or "")
     m = re.search(r"(\d{1,2}):(\d{2})", str(ev.get("dt") or ""))
     try:
@@ -168,11 +177,26 @@ def release_due(ev, now):
             at = datetime.datetime(d.year, d.month, d.day, int(m.group(1)) if m else NO_TIME_HOUR,
                                    int(m.group(2)) if m else 0, tzinfo=KST)
     except ValueError:
-        return False
+        return None
     if ev.get("timeApprox") and (m or "T" in iso):
         at += APPROX_DELAY
+    return at
+
+
+def wake_times(events, now, names, min_stars=2, back_min=35, ahead_h=36, cap=24):
+    """Worker 가 발표 직후 풀 런을 깨울 시각(UTC 「YYYY-MM-DDTHH:MMZ」, 오름차순) — data_meta.json releaseAt.
+    ★ min_stars 이상 · 실제 값을 채울 길이 있는 이름(names)만. 막 지난 발표(back_min 분 안)도 남겨 +9 · +29분 깨움이 산다.
+    왜: 발표 결과(E2)는 풀 런만 판정하는데 풀 런은 매시 :07 이라 21:30 발표가 37분 뒤에 왔다(알림 개편 P4)."""
     now = now if now.tzinfo else now.replace(tzinfo=KST)
-    return now >= at
+    lo, hi = now - datetime.timedelta(minutes=back_min), now + datetime.timedelta(hours=ahead_h)
+    out = set()
+    for ev in events or []:
+        if int(ev.get("stars") or 0) < min_stars or ev.get("name") not in names:
+            continue
+        at = release_at(ev)
+        if at is not None and lo <= at <= hi:
+            out.add(at.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"))
+    return sorted(out)[:cap]
 
 
 def collect(data, today=None, now=None):

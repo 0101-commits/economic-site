@@ -59,8 +59,9 @@ def test_swing_sigma_hit_escalates_and_names_peer():
     h = by_target(hits(ctx(), "A1"))
     k = h["kospi"]
     assert (k.dir, k.chg, k.asOf, k.fresh) == ("down", -4.0, "2026-10-05", "live")
-    assert k.fields["abs_z"] == 4.0 and k.fields["thr"] == 2.0      # 사전 sigma 2.0(보통) × σ 1% — 울림 세기는 구독이 거른다
-    assert k.fields["level"] == "alarm"                      # escalate abs_z>=3.0
+    assert k.fields["abs_z"] == 4.0 and k.fields["thr"] == 3.0      # 고정 단계(2026-11-06 P4) — 코스피 첫 단계 ±3%
+    assert k.fields["tier"] == 3 and k.fields["next_tier"] == 5 and k.fields["zx"] == "4.0"
+    assert "level" not in k.fields                           # 맨 위 단계(국내 ±5%)만 경보 — σ 4배여도 −4% 는 주의
     assert k.fields["peer"] == "KOSDAQ"                      # 같은 방향 1σ 이상(코스닥 −1.8σ)
     assert k.fields["next_round"] == 5000                    # B2 마디표(코스피 1000) 아래쪽 다음 마디
 
@@ -75,10 +76,10 @@ def test_run_event_reports_value_in_screen_units():
 
 def test_swing_sigma_clamp_upper_and_lower():
     h = by_target(hits(ctx(), "A1"))
-    # 상한: 코스닥 σ 3% 라 2.5σ=7.5% 지만 5% 에서 걸린다(z 1.8 → 경보로 올리지 않음)
+    # 고정 단계: 코스닥 −5% 이상 = 맨 위 단계 → 경보(평소 움직임이 커서 z 1.8 이어도)
     q = h["kosdaq"]
-    assert q.fields["thr"] == 5.0 and q.fields["abs_z"] < 2.5 and "level" not in q.fields
-    # 하한: S&P 500 σ 0.1% 라 +0.4% 가 z +4 지만 0.5% 하한 아래 → 안 걸림
+    assert q.fields["thr"] == 3.0 and q.fields["tier"] == 5 and q.fields["abs_z"] < 2.5 and q.fields["level"] == "alarm"
+    # S&P 500 +0.4% 는 첫 단계(±2%) 아래 → 안 걸림(σ 0.1% 라 z +4 여도)
     assert "sp500" not in h
     assert vol.clamp_threshold(0.1, 2.5, 0.5, 5.0) == 0.5
     assert vol.clamp_threshold(3.0, 2.5, 0.5, 5.0) == 5.0
@@ -285,7 +286,7 @@ def test_same_observation_not_relogged_next_day(tmp_path):
     keys = {r.key for r in first}
     assert {"C1:us10y:up:2026-10-02", "C8:t10y2y:down:2026-10-02"} <= keys
     # 급변 키 = 사건:대상:방향:거래일 + 세기 단계(:2s · :2.5s · :3s) — 같은 날 커지는 급변이 새 행이 되게
-    assert any(k.startswith("A1:kospi:down:2026-10-05:") and k.endswith("s") for k in keys), keys
+    assert any(k.startswith("A1:kospi:down:2026-10-05:") and k.endswith(":t3") for k in keys), keys
     assert extract(ctx(), evs, led) == []                    # 같은 날 재시도 런
     led.save()
     nxt = Ledger(day=dt.date(2026, 10, 6), root=str(tmp_path))

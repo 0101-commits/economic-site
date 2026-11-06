@@ -130,14 +130,17 @@ def story_key(row: dict) -> str | None:
     return f"{day}:{STORY_GROUP.get(tgt, tgt)}" if day and tgt else None
 
 
-def story_rank(row: dict) -> int:
+def story_rank(row: dict) -> float:
     """이야기 안의 단계 — 클수록 높다. 서킷 N단계(20+N) > 사이드카(15) > 경보(12) > 주의(11) > 안내(10)."""
     key = str(row.get("key") or "")
     if m := re.search(r"\.circuit(\d)", key):
         return 20 + int(m.group(1))
     if key.endswith(".sidecar"):
         return 15
-    return {"alarm": 12, "alert": 11}.get(str(row.get("level") or ""), 10)
+    base = {"alarm": 12, "alert": 11}.get(str(row.get("level") or ""), 10)
+    if m := re.search(r":t(\d+(?:\.\d+)?)$", key):    # 지수 급변 고정 단계(±3% → ±5%)도 단계 오름(P4)
+        return base + float(m.group(1)) / 100
+    return base
 
 
 def _story_state(rows) -> dict:

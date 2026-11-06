@@ -4,7 +4,7 @@
 // 2026-09-08 진단의 원인(장외 공백 최장 324분)이 그대로 돌아온다.
 //
 // 실행: node cloudflare-worker/test_offhours_tick.mjs
-import worker, { isOffHoursFetchTick, fullFetchMode, inMarketHours, isKrHoliday, v2Ticks, isEveAlertsTick } from './worker.js';
+import worker, { isOffHoursFetchTick, fullFetchMode, inMarketHours, isKrHoliday, v2Ticks, isEveAlertsTick, releaseWakeTicks } from './worker.js';
 
 const at = (dowUtcDate, hUtc, mUtc) => new Date(Date.UTC(2026, 8, dowUtcDate, hUtc, mUtc));
 // 2026-09: 07일=월 … 11일=금, 12일=토, 13일=일
@@ -105,6 +105,17 @@ await fire(Date.UTC(2026, 9, 10, 12, 5));
 await fire(Date.UTC(2026, 9, 10, 12, 6));
 check('토 12:05 · 12:06 → alerts-cron dispatch 1번', sent.map((x) => x[1]).join(','), 'alerts-cron');
 check('dispatch 주소', sent.length && sent[0][0].endsWith('/dispatches'), true);
+
+// 발표 직후 풀 런(P4) — 미국 CPI 11/12 22:30 KST(13:30Z) + 같은 분 다른 발표 · 틀린 꼴은 무시
+const rel = ['2026-11-12T13:30Z', '2026-11-12T13:30Z', 'bad', 42];
+const ru = (h, m) => releaseWakeTicks(new Date(Date.UTC(2026, 10, 12, h, m)), rel).join(',');
+check('발표 13:30Z → 13:31 은 아직', ru(13, 31), '');
+check('발표 +2분 13:32 → 깨움 1번(같은 분 두 발표)', ru(13, 32), '2026-11-12T13:32');
+check('발표 +3분 13:33 → 보강 틱(같은 키)', ru(13, 33), '2026-11-12T13:32');
+check('발표 +9분 13:39 → 깨움', ru(13, 39), '2026-11-12T13:39');
+check('발표 +29분 13:59 → 깨움', ru(13, 59), '2026-11-12T13:59');
+check('발표 +31분 14:01 → 없음', ru(14, 1), '');
+check('목록 없음 → 없음', releaseWakeTicks(new Date(), undefined).join(','), '');
 
 console.log(fails ? `실패 ${fails}건` : '실패 0건');
 process.exit(fails ? 1 : 0);

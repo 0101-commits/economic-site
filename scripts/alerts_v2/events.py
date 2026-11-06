@@ -55,6 +55,8 @@ def _tier(ev: dict, h) -> str:
     단계마다 한 행 — 같은 단계는 여전히 하루 한 번이다."""
     if ev.get("judge") != "swing_sigma":
         return ""
+    if h.fields.get("tier") not in (None, ""):        # 고정 단계(지수 급변) — 단계마다 한 행(「:t3」 · 「:t5」)
+        return f":t{h.fields['tier']}"
     z = h.fields.get("abs_z")
     if not isinstance(z, (int, float)):
         return ""

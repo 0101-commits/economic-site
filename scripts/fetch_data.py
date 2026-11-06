@@ -17,6 +17,7 @@ API 키는 모두 GitHub Secrets 에서 환경변수로 주입됩니다.
 import json
 import os
 import re
+import html as _html_mod   # 「html」 은 이 파일 곳곳에서 지역 변수 이름이다
 import sys
 import time as _time
 import requests as _requests
@@ -8668,6 +8669,12 @@ def build_data():
                 _ph = ((prev or {}).get("economicCalendar") or {}).get("consensusHistory")
                 if _ph and isinstance(cal_data, dict) and "consensusHistory" not in cal_data:
                     cal_data["consensusHistory"] = _ph
+            try:
+                _kq = fill_kostat_cpi_act(cal_data.get("events", []) or [], _prev_ev)
+                if _kq:
+                    data.setdefault("diagnostics", {})["calendarKostat"] = {"filled": _kq}
+            except Exception as e:
+                log(f"[KOSTAT] 빠른 채움 오류: {e}")
             data["economicCalendar"] = cal_data
             data["sources"]["economicCalendar"] = cal_data.get("source", "FRED")
             log(f"[Calendar] 수집 완료: {len(cal_data.get('events', []))}건 (백필 {cal_data.get('backfilled',0)})")
@@ -10128,6 +10135,81 @@ def _cal_get(url):
     return r.content.decode("utf-8", "replace")
 
 
+# ── 한국 소비자물가 발표값 빠른 채움(알림 개편 P4, 2026-11-06) ─────────────────────────────
+# 나스닥 경제 일정은 08:00 발표값을 12:07 에야 올렸고(11/3 실측) ECOS 901Y009 는 발표일 안에 새 달이 안 들어왔다 — 그래서
+# 발표 결과 알림이 4시간 늦었다. 국가데이터처 물가 보도자료 게시판(무키 HTML)은 08:00 에 글이 올라오고 본문 첫 줄이
+# 「10월 소비자물가지수는 전월대비 0.2%, 전년동월대비 2.8% 각각 상승」이다. 그날 발표가 지났고 act 가 비어 있을 때만
+# 그 줄의 전년동월비를 act 로 쓴다(나스닥 값이 오면 다음 런의 apply_consensus 가 같은 자료원 값으로 덮는다).
+_KOSTAT_CPI_BOARD = "https://mods.go.kr/board.es?mid=a10301040100&bid=213"
+_KOSTAT_CPI_NAME = "한국 소비자물가동향"
+KOSTAT_ACT_SRC = "국가데이터처 보도자료"
+
+
+def _kostat_yoy(text):
+    """보도자료 본문 → 전년동월비(float) · 없으면 None. 「각각 상승」 · 「2.0% 상승」 · 「1.1% 하락」 · 「보합」 꼴."""
+    t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", _html_mod.unescape(text or "")))
+    m = re.search(r"소비자물가지수는[^□]{0,80}?전년동월(?:대비|비)\s*(보합|(\d+(?:\.\d+)?)\s*%\s*(?:각각\s*)?(상승|하락))", t)
+    if not m:
+        return None
+    if m.group(1) == "보합":
+        return 0.0
+    return float(m.group(2)) * (-1 if m.group(3) == "하락" else 1)
+
+
+def fill_kostat_cpi_act(events, prev_events=None, now=None, get=None):
+    """오늘 발표된 한국 소비자물가동향 행의 빈 act 를 보도자료 전년동월비로 채운다. 반환 = 채운 행 수.
+    직전 런이 이미 보도자료로 채웠으면 다시 묻지 않고 잇는다(풀 런마다 게시판을 두 번씩 부르지 않게)."""
+    from check_releases import release_due
+    now = now or datetime.now(KST)
+    get = get or _cal_get
+    today = now.astimezone(KST).date().isoformat()
+    carry = {(e.get("iso"), e.get("name")): e for e in prev_events or []
+             if e.get("actSrc") == KOSTAT_ACT_SRC and e.get("act")}
+    n = 0
+    for ev in events or []:
+        if ev.get("name") != _KOSTAT_CPI_NAME or ev.get("iso") != today or str(ev.get("act") or "").strip():
+            continue
+        if not ev.get("refPeriod") or not release_due(ev, now):
+            continue
+        old = carry.get((ev.get("iso"), ev.get("name")))
+        if old:
+            ev["act"], ev["actSrc"] = old["act"], KOSTAT_ACT_SRC
+            n += 1
+            continue
+        y, mo = ev["refPeriod"].split("-")[:2]
+        title = f"{int(y)}년 {int(mo)}월 소비자물가동향"
+        try:
+            board = get(_KOSTAT_CPI_BOARD)
+            hit = re.search(r"act=view&(?:amp;)?list_no=(\d+)[^>]*>(?:(?!</a>).)*?" + re.escape(title), board, re.S)
+            if not hit:
+                log(f"[KOSTAT] {title} 보도자료 아직 없음")
+                continue
+            yoy = _kostat_yoy(get(f"{_KOSTAT_CPI_BOARD}&act=view&list_no={hit.group(1)}"))
+        except Exception as e:                       # noqa: BLE001 — 빠른 길이 막혀도 나스닥 · ECOS 길은 그대로 돈다
+            log(f"[KOSTAT] 보도자료 조회 실패: {type(e).__name__}")
+            continue
+        if yoy is None or abs(yoy) > 30:
+            log(f"[KOSTAT] {title} 전년동월비를 못 읽음")
+            continue
+        ev["act"] = f"{'+' if yoy > 0 else ''}{yoy:.1f}%"
+        ev["actSrc"] = KOSTAT_ACT_SRC
+        n += 1
+        log(f"[KOSTAT] {title} 전년동월비 {ev['act']}")
+    return n
+
+
+def calendar_wake_times(data, now=None):
+    """data_meta.json releaseAt — Worker 가 발표 +2 · +9 · +29분에 풀 런을 깨운다(check_releases.wake_times)."""
+    try:
+        from check_releases import wake_times
+        from consensus import CONSENSUS_MAP
+        evs = ((data or {}).get("economicCalendar") or {}).get("events") or []
+        return wake_times(evs, now or datetime.now(KST), set(CALENDAR_INDICATOR_MAP) | set(CONSENSUS_MAP))
+    except Exception as e:                           # noqa: BLE001 — 메타 파일은 늘 쓴다
+        log(f"[meta] 발표 시각 목록 실패: {type(e).__name__}")
+        return []
+
+
 def _cal_sources(today):
     """(원천 키, 이벤트 source 접두사, 가져오기 함수). 금통위는 연말이 창에 걸리면 이듬해 쪽도 본다(비어 있어도 됨)."""
     def bok():
@@ -10392,7 +10474,7 @@ def run_light_build():
     _payload = json.dumps(d, ensure_ascii=False, separators=(",", ":"))
     with open("data.json", "w", encoding="utf-8") as f:
         f.write(_payload)
-    meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize("data.json")}
+    meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize("data.json"), "releaseAt": calendar_wake_times(d)}
     with open("data_meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False)
     log(f"=== 경량 빌드 완료: 시세 {updated}건 갱신 → data.json ===")
@@ -10469,7 +10551,7 @@ if __name__ == "__main__":
         f.write(_payload)
     # 경량 메타 파일(~100B) — 프런트 loadRealData() 가 이것만 선조회해 lastUpdated 가 그대로면
     # 3.6MB 본체 재다운로드를 생략한다 (자동 갱신 주기마다 전량 재수신하던 트래픽 절감).
-    meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize(output_path)}
+    meta = {"lastUpdated": d["lastUpdated"], "bytes": os.path.getsize(output_path), "releaseAt": calendar_wake_times(d)}
     with open("data_meta.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False)
     log(f"=== 완료: {d['lastUpdated']} → {output_path} ===")
