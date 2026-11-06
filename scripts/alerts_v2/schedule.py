@@ -9,6 +9,7 @@ plan(decisions, ledger, ctx, settings) -> list[Send]   — 사건 알림은 폰 
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 from . import LEVELS
 from . import compose
@@ -113,11 +114,50 @@ def close_brief_ahead(ctx, s: dict) -> bool:
         return True
 
 
+# ── 이어진 알림(2026-11-06 알림 개편 P3) ─────────────────────────────
+# 같은 날 같은 시장에서 이어진 급변 · 사이드카 · 서킷 · 선 돌파는 한 이야기다. 단계가 오를 때만 폰 알림을 보내고,
+# 나머지는 원장에 이야기 이름표(sent.story)만 달아 알림 기록 카드에 모은다. 아이폰 웹 푸시는 같은 tag 로 보내도
+# 앞 알림을 바꿔 끼우지 않아(11/6 실기기) 「조용히 고쳐 쓰기」는 쓰지 않는다.
+STORY_EVENTS = ("A1", "A2", "A3", "A4", "A5", "B2", "C3", "C4", "C7")
+STORY_GROUP = {"kospi": "kr", "kosdaq": "kr", "sp500": "us", "nasdaq": "us", "sox": "us"}
+
+
+def story_key(row: dict) -> str | None:
+    if str(row.get("event") or "") not in STORY_EVENTS:
+        return None
+    day = str(row.get("ts") or row.get("asOf") or "")[:10]
+    tgt = str(row.get("target") or "")
+    return f"{day}:{STORY_GROUP.get(tgt, tgt)}" if day and tgt else None
+
+
+def story_rank(row: dict) -> int:
+    """이야기 안의 단계 — 클수록 높다. 서킷 N단계(20+N) > 사이드카(15) > 경보(12) > 주의(11) > 안내(10)."""
+    key = str(row.get("key") or "")
+    if m := re.search(r"\.circuit(\d)", key):
+        return 20 + int(m.group(1))
+    if key.endswith(".sidecar"):
+        return 15
+    return {"alarm": 12, "alert": 11}.get(str(row.get("level") or ""), 10)
+
+
+def _story_state(rows) -> dict:
+    """오늘 이야기마다 폰 알림으로 보낸 가장 높은 단계."""
+    top: dict = {}
+    for r in rows or []:
+        s = r.get("sent") or {}
+        k = s.get("story") or None
+        if k and s.get("push") and not s.get("joined"):
+            top[k] = max(top.get(k, 0), story_rank(r))
+    return top
+
+
 def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
          events_by_id: dict | None = None, history: list[dict] | None = None,
-         kakao_rings: bool = True) -> list[Send]:
+         kakao_rings: bool = True, story_rows: list | None = None) -> list[Send]:
+    """story_rows = 이야기 단계를 읽을 원장 행(기본 ledger.rows). 멤버 편성은 마스터 원장을 넘겨 같은 이야기를 본다."""
     s = _settings(settings)
     now = ctx.now
+    stories = _story_state(ledger.rows if story_rows is None else story_rows)
     quiet = in_quiet(now, s.get("quiet"))
     rung = _ring_count_today(ledger)
     cap = s["dailyCap"]
@@ -141,10 +181,19 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
         if quiet and not (level == "alarm" and s.get("quietAlarm")):
             out.append(Send(row=row, level=level, held=True))
             continue
+        sk = story_key(row)
+        if sk and sk in stories and story_rank(dict(row, level=level)) <= stories[sk]:
+            if story_rows is None:                     # 마스터 원장에만 적는다(멤버 편성은 원장을 안 건드린다)
+                ledger.update_sent(row["key"], story=sk, folded=True)
+            continue                                   # 같은 이야기의 같은 · 낮은 단계 = 알림 기록 카드에만
         if level == "alert" and rung >= cap:
             bundle.append(row)
             continue
         out.append(Send(row=row, level=level, push=True, kakao=False))
+        if sk:
+            stories[sk] = max(stories.get(sk, 0), story_rank(dict(row, level=level)))
+            if story_rows is None:
+                ledger.update_sent(row["key"], story=sk)
         if level == "alert":
             rung += 1
 
