@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { eventsFor, familyCount, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, memberView, passes, personalRow, publicLedger, railFeed, savedNote, sheetEvents, storyCards, todayRows, yearCounts, type Dict, type StoryCard } from './v2.ts'
+import { eventsFor, familyCount, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, memberView, passes, personalRow, publicLedger, railFeed, savedNote, sheetEvents, statsLine, storyCards, todayRows, yearCounts, type Dict, type StoryCard } from './v2.ts'
 import { condStatus, rearm } from '../personal/alertStatus.ts'
 
 const dict: Dict = JSON.parse(readFileSync(new URL('./dict.json', import.meta.url), 'utf8'))
@@ -216,4 +216,13 @@ test('이어진 알림: 이름표가 글자가 아니면(옛 합치기의 true) 
   ]
   const out = storyCards(fromLedger(rows, new Map()))
   assert.deepEqual(out.map(x => (x as { key: string }).key), ['b', 'a'])          // 줄 그대로(새것부터)
+})
+
+test('설정 화면 숫자: 꾸러미 · 하루 최대 · 조용한 시간 칸을 읽고, 없으면 빈 글', () => {
+  const st = { days: 28, sim: { 'normal:10:q': [2.6, 7], 'many:50:n': [7, 15] } }
+  assert.equal(statsLine(st, 'normal', 10, true), '최근 28일 기록으로는 하루 평균 2.6통, 많은 날 7통입니다.')
+  assert.equal(statsLine(st, 'many', 80, false), '최근 28일 기록으로는 하루 평균 7.0통, 많은 날 15통입니다.')   // 50 넘는 상한은 50 칸
+  assert.equal(statsLine(st, 'quiet', 5, true), '')
+  assert.equal(statsLine(null, 'normal', 10, true), '')
+  assert.equal(statsLine({ days: 0, sim: st.sim }, 'normal', 10, true), '')
 })

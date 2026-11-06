@@ -1,11 +1,12 @@
-// 알림 — 기획서 v2 7장. 탭 셋: 받은 알림(원장) · 사건(꾸러미 → 갈래 → 사건 낱개 → 내 조건 → 새 조건) · 채널.
+// 알림 — 기획서 v2 7장 · 알림 개편 P5(2026-11-06 목업 ⑦). 탭 둘: 알림 기록(원장) · 설정(알림 양 → 받는 곳 · 하루 최대 · 조용한 시간 ·
+// 브리핑 → 알림 종류: 갈래 → 사건 낱개 → 내 조건 → 새 조건). 옛 주소 v=chan 은 설정으로 넘긴다.
 // 폰 알림 · 앱키 · 받는 기기는 설정 「내 계정」, 카톡은 설정 「고급」(명세 S5 · S7). 범위 문구는 sync.ts scopeText.
 // 받은 알림 = events/latest.json(원장 최근 7일). 원장이 아직 없으면(배포 전) 현행 발송 이력 alerts_state.json · 홈 묶음 렌즈 돌파 ·
 // 국내 시장 매매중단으로 그린다. 금액 · 보유 종목명은 싣지 않는다. 이 화면은 PinGate 밖이라 portfolioV1 을 읽지 않는다 —
 // 사용자 조건 줄의 이름은 이 기기 econPrefsV1.alerts 와 지표 사전에서만 찾는다(원장에는 조건 id 만 있다).
 // 사건 이름 · 등급 · 갈래 · 꾸러미 · 세기 이름은 사전 lib/alerts/dict.json(scripts/alerts_v2/export_dict.py 산출)에서만 읽는다.
 // 조건 행의 상태 7과 다시 켜기 규칙은 lib/personal/alertStatus.ts, 자동 정리는 lib/personal/housekeeping.ts.
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, ChevronRight, Trash2 } from 'lucide-react'
 import { SegBar } from '../components/ui'
@@ -25,24 +26,24 @@ import { getKeyHash, scopeText, useSyncStatus, type SyncStatus } from '../lib/pe
 import { useMe } from '../lib/personal/account'
 import { pushSubscribed } from '../lib/push'
 import { CAP_MSG } from '../components/personal/BellSheet'
-import { adjustOf, ALERT_CAP, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, memberView, passes, savedNote, storyCards, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter, type StoryCard } from '../lib/alerts/v2'
+import { adjustOf, ALERT_CAP, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, memberView, passes, savedNote, statsLine, storyCards, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter, type StoryCard } from '../lib/alerts/v2'
 import { loadDaily } from '../lib/alerts/daily'
 import { convertLegacy, type Imported } from '../lib/alerts/legacy'
 import dictJson from '../lib/alerts/dict.json'
 
 const dict = dictJson as unknown as Dict
 const EV = new Map(dict.events.map(e => [e.id, e]))
-const TABS = [{ key: 'inbox', label: '알림 기록' }, { key: 'cond', label: '알림 종류' }, { key: 'chan', label: '받는 곳' }] as const
-type Tab = typeof TABS[number]['key']
+const TABS = [{ key: 'inbox', label: '알림 기록' }, { key: 'cond', label: '설정' }] as const
+type Tab = typeof TABS[number]['key'] | 'chan'
 const FILTER_LABEL: Record<Filter, string> = { all: '전체', alarm: LV.alarm, alert: LV.alert, notice: LV.notice, brief: '브리핑', mine: '내 조건' }
 const FILTER_OPTS = FILTERS.map(k => ({ key: k, label: FILTER_LABEL[k] }))
 const PKG_OPTS = dict.packages.map(p => ({ key: p.id as Pkg, label: p.name }))
 // 알림 양 = 어느 등급까지 폰 알림으로 받나 + 하루 최대(경보 · 아침 브리핑 제외). 받는 곳 나누기(2026-11-06) 뒤 안내는
 // 알림 기록 · 카톡 브리핑에만 남는다(「많이」만 폰 알림). 숫자는 prefsV2.PACKAGE_PRESET 한 곳.
 const PKG_NOTE: Record<Pkg, string> = {
-  quiet: `${LV.alarm} · 내 조건을 폰 알림으로 받습니다. 하루 최대 ${PACKAGE_PRESET.quiet.cap}통`,
-  normal: `${LV.alarm} · ${LV.alert} · 내 조건을 폰 알림으로 받습니다. 하루 최대 ${PACKAGE_PRESET.normal.cap}통`,
-  many: `${LV.notice}까지 폰 알림으로 받습니다. 하루 최대 ${PACKAGE_PRESET.many.cap}통`,
+  quiet: `${LV.alarm} · 내 조건을 폰 알림으로 받습니다.`,
+  normal: `${LV.alarm} · ${LV.alert} · 내 조건을 폰 알림으로 받습니다.`,
+  many: `${LV.alarm} · ${LV.alert} · ${LV.notice} · 내 조건을 폰 알림으로 받습니다.`,
 }
 const STRENGTH_OPTS = dict.strengths.filter(s => s.sigma != null).map(s => ({ key: s.id as Strength, label: s.name }))
 const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '한 번' }] as const
@@ -116,7 +117,8 @@ function legacyFeed(state: Record<string, unknown> | null, md: MarketData | null
 }
 
 export default function Alerts() {
-  const [tab, setTab] = useViewParam<Tab>('v', 'inbox', TABS.map(o => o.key))
+  const [tab, setTab] = useViewParam<Tab>('v', 'inbox', [...TABS.map(o => o.key), 'chan'])
+  useEffect(() => { if (tab === 'chan') setTab('cond') }, [tab, setTab])   // 옛 「받는 곳」 탭 주소
   // 상세의 「알림 조건 추가」는 ?v=cond&id=지표 로 온다. id 만 있어도 사건 탭을 연다 — 폼의 대상 채우기·주소 지우기는 NewCondition 이 한다.
   const [wantId] = useViewParam<string>('id', '')
   useEffect(() => { if (wantId && tab !== 'cond') setTab('cond') }, [wantId, tab, setTab])
@@ -130,11 +132,13 @@ export default function Alerts() {
   const [pushOn, setPushOn] = useState(false)
   const [msg, setMsg] = useState('')
   const [reg, setReg] = useState<RegRow[]>([])
+  const [stats, setStats] = useState<unknown>(null)   // events/stats.json — 지난 4주에 지금 규칙을 대 본 하루 통수(stats.py)
   // 멤버: 공개 원장 · 공개 기록의 사용자 조건은 마스터 것이다 — 내 울림은 내 칸(GET /fired)에서 읽는다(lib/alerts/v2.ts memberView)
   const member = useMe()?.role === 'member'
   const [firedItems, setFiredItems] = useState<unknown>(undefined)   // undefined 아직 · null 못 읽음 · 배열
   useEffect(() => {
     loadRootJson<unknown>('events/latest.json').then(r => setLedger(Array.isArray(r) ? (r as LedgerRow[]) : null), () => setLedger(null))
+    loadRootJson<unknown>('events/stats.json').then(setStats, () => setStats(null))
     loadRootJson<Record<string, unknown>>('alerts_state.json').then(setState, () => setState(null))
     loadMarketData().then(setMd, () => {})
     loadRegistry().then(setReg, () => {})
@@ -189,17 +193,17 @@ export default function Alerts() {
           {' · '}알림 양 {PKG_OPTS.find(o => o.key === prefs.settings.package)?.label} · {scopeText(sync.on, pushOn)}
         </span>
       </header>
-      {demoted > 0 && <p role="status" className="m-0 text-13 text-ink-1">90일 동안 알림 화면을 열지 않아 알림 양을 「{PKG_OPTS[0].label}」로 내렸습니다({mdHm(new Date(demoted))}). 알림 종류 탭에서 바꿀 수 있고, 저절로 내리지 않게 하려면 설정 › 고급에서 끕니다.</p>}
+      {demoted > 0 && <p role="status" className="m-0 text-13 text-ink-1">90일 동안 알림 화면을 열지 않아 알림 양을 「{PKG_OPTS[0].label}」로 내렸습니다({mdHm(new Date(demoted))}). 설정 탭에서 바꿀 수 있고, 저절로 내리지 않게 하려면 설정 › 고급에서 끕니다.</p>}
 
-      <SegBar label="알림 보기" options={TABS} value={tab} onChange={setTab} />
+      <SegBar label="알림 보기" options={TABS} value={tab === 'chan' ? 'cond' : tab} onChange={setTab} />
       {msg && <p role="alert" className="m-0 text-12 text-warn">{msg}</p>}
 
       {tab === 'inbox' && <Inbox feed={feed} ledger={ledger} state={state} today={today} yesterday={yesterday} />}
-      {tab === 'cond' && (
+      {(tab === 'cond' || tab === 'chan') && (
         <EventsTab prefs={prefs} save={save} sync={sync} pushOn={pushOn} ledger={statusRows} known={mv ? Array.isArray(firedItems) : Array.isArray(ledger) || !!state} fired={fired} hk={hk} setHk={setHk}
-          names={names} rows={reg} labelOf={labelOf} cur={id => curOf(md, id)} />
+          names={names} rows={reg} labelOf={labelOf} cur={id => curOf(md, id)} stats={stats}
+          channels={<Channels prefs={prefs} setS={setS} member={member} />} />
       )}
-      {tab === 'chan' && <Channels prefs={prefs} setS={setS} member={member} />}
     </div>
   )
 }
@@ -323,11 +327,12 @@ function StoryItem({ card }: { card: StoryCard }) {
 type EventsProps = {
   prefs: Prefs; save: (p: Prefs) => void; sync: SyncStatus; pushOn: boolean; ledger: LedgerRow[]; known: boolean; fired: Record<string, FiredRec>
   hk: Hk; setHk: (h: Hk) => void; names: Map<string, string>; rows: RegRow[]; labelOf: (id: string) => string; cur: (id: string) => number | null
+  stats: unknown; channels: ReactNode
 }
 
 // known = 울림 기록(원장 · 현행 이력 · 멤버는 /fired)을 하나라도 읽었나 — 못 읽었으면 「대기」라고 말하지 않는다
 // ledger · fired = 조건 상태 재료(마스터 = 공개 원장 · 공개 기록 _prefs, 멤버 = 내 울림 /fired — Alerts 가 고른다)
-function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk, names, rows, labelOf, cur }: EventsProps) {
+function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk, names, rows, labelOf, cur, stats, channels }: EventsProps) {
   const mine = prefs.alerts.filter(a => a.target !== '*')
   const off = new Set(hk.off ?? [])
   const put = (alerts: AlertCond[]) => save({ ...prefs, alerts })
@@ -354,7 +359,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
     <>
       <Panel title="알림 양">
         <SegBar label="알림 양" options={PKG_OPTS} value={want ?? pkg} onChange={k => setWant(k === pkg ? null : k)} />
-        <p className="mt-2 mb-0 text-12 text-ink-2">{PKG_NOTE[want ?? pkg]}</p>
+        <p className="mt-2 mb-0 text-12 text-ink-2">{PKG_NOTE[want ?? pkg]}{' '}{statsLine(stats, want ?? pkg, next ? next.cap : prefs.settings.dailyCap, !!prefs.settings.quiet)}</p>
         {want && next ? (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-13 text-ink-1">하루 최대 <span className="num">{prefs.settings.dailyCap}→{next.cap}</span>통 · 브리핑 <span className="num">{briefN(prefs.settings.briefings)}→{briefN(next.briefings)}</span>개로 바뀝니다</span>
@@ -364,6 +369,9 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
         ) : <p className="mt-1 mb-0 text-12 text-ink-3">바꾸면 하루 최대와 브리핑 시각이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>}
       </Panel>
 
+      {channels}
+
+      <h2 className="m-0 mt-2 text-16 font-bold text-ink-1">알림 종류</h2>
       <Panel title="알림 분류" source="갈래를 누르면 사건마다 세기 · 등급">
         <ul className="m-0 p-0 list-none">
           {dict.families.map(f => <FamilyRow key={f.id} fam={f} prefs={prefs} save={save} adjust={adjust} />)}

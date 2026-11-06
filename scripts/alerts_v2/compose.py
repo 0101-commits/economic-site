@@ -53,7 +53,27 @@ _EVENT_SHORT = (
     ("비농업고용(NFP)", "비농업 고용"), ("비농업고용", "비농업 고용"), ("금융정책결정회합", "금리 결정"), ("통화정책 결정", "금리 결정"),
     ("일본은행(BOJ)", "일본은행"), ("금융통화위원회", "금통위"), ("FOMC 금리 결정", "FOMC"), ("개인소비지출(PCE)", "PCE"),
     ("국내총생산(GDP)", "GDP"), ("PCE 물가지수", "PCE"), ("물가지수", "물가"), ("소매판매", "소매판매"), ("실업률", "실업률"),
+    # 경제 일정 ★★ 이름의 괄호 꼬리(P5 글자 수 검사 — 「미국 CP… +0.4% · 예상과 큰 차이」)
+    (" (전월비)", ""), (" (Housing Starts)", ""), (" (통화정책방향)", ""), ("산업활동동향", "산업활동"), ("고용동향", "고용"),
 )
+
+
+# 둘째 줄이기 — 첫 줄이기로도 넘칠 때만(중앙은행 결정 · 긴 일정 이름). 나라 이름은 일반 지표에선 남긴다(한국 · 미국 CPI 를 가른다).
+_EVENT_SHORT2 = (("일본은행 금리 결정", "일본은행 금리"), ("ECB 금리 결정", "ECB 금리"), ("한국은행 금통위", "금통위"),
+                 ("미국 FOMC 회의", "FOMC"), ("미국 비농업 고용", "미국 고용"))
+# 판정어 줄이기 — 큰 차이(E3) 제목이 넘칠 때만 「예상과 큰 차이」 → 「큰 차이」(본문이 「평소 어긋나는 폭의 N배」를 말한다).
+_VERDICT_SHORT = {"예상과 큰 차이": "큰 차이"}
+
+
+def _short2(x: dict) -> dict:
+    return dict(x, vs_big=_VERDICT_SHORT[x["vs_big"]]) if x.get("vs_big") in _VERDICT_SHORT else x
+
+
+def _short_event2(x: dict) -> dict:
+    nm = str(x.get("event_name") or "")
+    for a, b in _EVENT_SHORT2:
+        nm = nm.replace(a, b)
+    return dict(x, event_name=nm) if x.get("event_name") else x
 
 
 def short_event(name: str) -> str:
@@ -261,7 +281,8 @@ _STALE_TAIL = re.compile(r"\s*\((?:\d{1,2}/\d{1,2}|이전 값)\)")
 
 def fit_title(templates, data: dict, w: float = TITLE_W) -> str:
     """제목 한 줄(폭 w). 이름을 글자로 자르지 않는다 — 넘치면 차례로: 더 짧은 이름 → 운용사 이름 빼기 → 일정 이름 줄이기 →
-    값의 날짜 꼬리 빼기 → 뒤 「 · 」 조각 빼기. 그래도 넘치면(드묾) 폭으로 자른다. 틀 목록이면 앞 틀부터."""
+    일정 이름 둘째 줄이기 → 판정어 줄이기 → 값의 날짜 꼬리 빼기 → 이름만 줄이기 → 뒤 「 · 」 조각 빼기. 그래도 넘치면(드묾)
+    폭으로 자른다. 틀 목록이면 앞 틀부터."""
     if isinstance(templates, str):
         templates = [templates]
     if not templates:
@@ -270,6 +291,8 @@ def fit_title(templates, data: dict, w: float = TITLE_W) -> str:
         lambda x: dict(x, name=x.get("name_m") or x.get("name")),
         lambda x: dict(x, name=_BRAND_RE.sub("", str(x.get("name") or ""))),
         lambda x: dict(x, event_name=short_event(x.get("event_name"))),
+        _short_event2,                                  # 중앙은행 결정 · 긴 일정 이름 둘째 줄이기
+        _short2,                                        # 판정어(예상과 큰 차이 → 큰 차이)
         lambda x: dict(x, value=_STALE_TAIL.sub("", str(x.get("value") or ""))),
     )
     shortest = []                                       # 틀마다 줄이기를 다 한 글
