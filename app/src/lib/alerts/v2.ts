@@ -60,7 +60,7 @@ export function fromLedger(rows: unknown, names: Map<string, string>): FeedRow[]
       key: r.key, level: (r.level as FeedLevel) ?? 'notice', title: (r.cond && names.get(r.cond)) || r.title,
       why: r.why || undefined, next: r.next || undefined, at, timed: true, day: kstDay(at),
       to: r.url?.startsWith('#/') ? r.url.slice(1) : undefined, mine,
-      story: r.sent?.story || undefined, rung: !!r.sent?.push && !r.sent?.joined,
+      story: typeof r.sent?.story === 'string' && r.sent.story ? r.sent.story : undefined, rung: !!r.sent?.push && !r.sent?.joined,
     })
   }
   return out.sort((a, b) => b.at - a.at)

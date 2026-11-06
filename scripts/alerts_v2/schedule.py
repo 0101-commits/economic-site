@@ -123,8 +123,8 @@ STORY_GROUP = {"kospi": "kr", "kosdaq": "kr", "sp500": "us", "nasdaq": "us", "so
 
 
 def story_key(row: dict) -> str | None:
-    if str(row.get("event") or "") not in STORY_EVENTS:
-        return None
+    if str(row.get("event") or "") not in STORY_EVENTS or row.get("dir") == "exit":
+        return None                                    # 해제(사이드카 · 서킷 풀림)는 단계가 아니다 — 들어간 단계와 같은 순위라 묶이면 해제 알림이 안 나간다
     day = str(row.get("ts") or row.get("asOf") or "")[:10]
     tgt = str(row.get("target") or "")
     return f"{day}:{STORY_GROUP.get(tgt, tgt)}" if day and tgt else None

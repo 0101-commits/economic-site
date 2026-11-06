@@ -296,7 +296,7 @@ function StoryItem({ card }: { card: StoryCard }) {
         <span className="text-13 font-bold text-ink-1">{card.label}</span>
         <span className="num text-12 text-ink-3">{hm(first.at)}~{hm(last.at)} · {card.rows.length}건</span>
       </span>
-      <ol className="m-0 mt-2 p-0 list-none flex gap-0 overflow-x-auto" aria-label={`${card.label} 이어진 알림 ${card.rows.length}건`}>
+      <ol tabIndex={0} className="m-0 mt-2 p-0 list-none flex gap-0 overflow-x-auto" aria-label={`${card.label} 이어진 알림 ${card.rows.length}건`}>
         {card.rows.map(r => (
           <li key={r.key} className="relative flex-1 min-w-[4.5rem] text-center">
             <span aria-hidden className="absolute top-[5px] left-0 right-0 h-px bg-line" />
@@ -313,7 +313,7 @@ function StoryItem({ card }: { card: StoryCard }) {
   const row = 'flex items-start gap-3 py-2'
   return (
     <li className="border-b border-line last:border-b-0">
-      {card.to ? <Link to={card.to} className={`${row} no-underline`} aria-label={`${card.label} 화면으로`}>{body}</Link> : <div className={row}>{body}</div>}
+      {card.to ? <Link to={card.to} className={`${row} no-underline`}>{body}</Link> : <div className={row}>{body}</div>}
     </li>
   )
 }

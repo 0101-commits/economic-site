@@ -381,7 +381,7 @@ def _next_event(slot: str, ctx) -> str:
     if not m:
         return ""
     try:
-        d = dt.date(today.year, int(m[1]), int(m[2]))
+        d = dt.date(today.year + (int(m[1]) < today.month), int(m[1]), int(m[2]))     # 12/30 에 본 1/2 일정 = 다음 해
     except ValueError:
         return ""
     word = "오늘" if d == today else "내일" if d == today + dt.timedelta(days=1) else f"{_md(d)}({WD[d.weekday()]})"
@@ -459,6 +459,8 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
                 facts.append((f"{sp1[0]}(전일)", f"{sp1[1]} {sp1[2]}".strip()))
         if holiday:
             facts.append(("휴장", holiday))
+        if changed:                                    # 합침 사건(G3 · E5)의 유일한 길 — 시간띠 창(09:00~15:30) 밖 안내도 빠지지 않게 늘 행으로
+            facts.insert(0, ("오늘 바뀐 것", f"안내 {len(changed)}건 · " + " · ".join(changed_lines(changed))))
         links = k.card_links(d, lslot, False, now, focus_key=fkey)
         ai_rows = held + list(ledger.rows)
         ai_blocks = k.build_digest_parts(d, slot=lslot)[1]          # 옛 묶음 글 — 행엔 안 싣고 AI 재료로만
@@ -513,9 +515,8 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     except Exception as e:                             # noqa: BLE001 — 카드가 죽어도 브리핑은 나간다(카톡은 텍스트, 경고 남음)
         print(f"[v2 brief] 카드 렌더 실패: {type(e).__name__} {str(e)[:120]}")
         png = None
-    if png is None:                                    # 카드가 못 그린 것(일정 칩 · 「오늘 바뀐 것」)은 행으로 — 합침 사건(G3 · E5)의 유일한 길이다
-        extra_rows = ([("다음 일정", spec["next"])] if spec.get("next") else []) + (
-            [("오늘 바뀐 것", f"안내 {len(changed)}건 · " + " · ".join(changed_lines(changed)))] if changed else [])
+    if png is None:                                    # 카드가 못 그린 일정 칩은 행으로(「오늘 바뀐 것」은 위 facts 가 이미 싣는다)
+        extra_rows = [("다음 일정", spec["next"])] if spec.get("next") else []
         items = (extra_rows + items)[:ITEMS_MAX]
     return {"title": title, "lines": lines, "items": items, "card_png": png, "held_rows": held,
             "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links,

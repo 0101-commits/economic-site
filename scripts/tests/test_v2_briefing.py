@@ -206,9 +206,9 @@ def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeyp
     led.append(_row("A1:kospi:up:2026-10-06", level="alert"))
     out = briefing.build("close", ctx, led, ALL_ON)
     assert len(out["changed_rows"]) == 5 and all(r["level"] == "notice" for r in out["changed_rows"])
-    # 「오늘 바뀐 것」은 마감 카드 칸(기획서 5장)이 한 줄씩 맡고, 카톡 행 · 설명엔 다시 안 쓴다(그림 · 글 중복 제거)
-    assert out["card_info"] == []                     # 새 카드는 글 줄이 없다 — 시간띠 점이 맡는다
-    assert "오늘 바뀐 것" not in dict(out["items"]) and out["caption"] == out["lines"][0]
+    # 새 카드(P3)는 글 줄이 없고 시간띠는 09:00~15:30 창만 그린다 — 합침 사건(G3 · E5)이 빠지지 않게 「오늘 바뀐 것」은 늘 카톡 행에
+    assert out["card_info"] == []
+    assert dict(out["items"])["오늘 바뀐 것"].startswith("안내 5건 · ") and out["caption"] == out["lines"][0]
     assert briefing.changed_lines(out["changed_rows"][:4]) == [r["title"] for r in out["changed_rows"][:4]]
     assert not _no_relative(out)
 
@@ -266,3 +266,11 @@ def test_card_failure_keeps_briefing(real_ctx, tmp_path, monkeypatch):
     monkeypatch.setattr(briefing.cards, "brief_card_png", boom)
     out = briefing.build("close", real_ctx, Ledger(day=real_ctx.now.date(), root=str(tmp_path)), ALL_ON)
     assert out["card_png"] is None and out["title"]
+
+
+def test_next_event_rolls_into_next_year(real_ctx, monkeypatch):
+    """12/30 에 본 1/2 일정은 다음 해 — 요일 · 「내일」이 틀리던 자리(P3 검토)."""
+    ctx = copy.copy(real_ctx)
+    ctx.now = dt.datetime(2026, 12, 31, 7, 0, tzinfo=KST)
+    monkeypatch.setattr(briefing, "calendar_lines", lambda *a, **k: ["1/1 09:00 새해 지표 ★★★"])
+    assert briefing._next_event("morning", ctx) == "내일 09:00 새해 지표"

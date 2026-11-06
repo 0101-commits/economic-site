@@ -142,3 +142,16 @@ def test_story_pushes_only_when_step_rises():
     assert c["sent"].get("folded") and d["sent"].get("folded")          # 나머지는 이야기 카드로
     assert S.story_key({"event": "A1", "target": "sp500", "ts": "2026-11-06T00:12"}) == "2026-11-06:us"
     assert S.story_key({"event": "E2", "target": "calendar", "ts": "2026-11-06T00:12"}) is None
+
+    e = dict(row("A5:kosdaq:exit:2026-11-06.sidecar", "A5", "kosdaq", "alarm", "09:26"), dir="exit")
+    led.rows[-1] = e
+    out = S.plan([Decision(e, "alarm", True)], led, ctx, sets)
+    assert [o.row["key"] for o in out] == [e["key"]] and not e["sent"].get("folded")   # 해제는 단계가 아니다 — 늘 나간다
+
+
+def test_merge_sent_keeps_story_label():
+    """푸시 충돌 재시도 합치기가 이야기 이름표(글자)를 True 로 바꾸지 않는다(P3 검토)."""
+    from alerts_v2.ledger import _merge_sent
+    m = _merge_sent({"story": "2026-11-06:kr", "push": 1}, {"push": 0})
+    assert m["story"] == "2026-11-06:kr" and m["push"] == 1
+    assert _merge_sent({"push": 0}, {"story": "2026-11-06:us"})["story"] == "2026-11-06:us"

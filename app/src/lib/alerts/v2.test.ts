@@ -208,3 +208,12 @@ test('이어진 알림 카드 이름: 국내 · 미국 증시는 시장 이름, 
   const out = storyCards(fromLedger([mk('x', '비트코인 −4.3% · $76,981', '2026-11-06T00:12:00+09:00'), mk('y', '비트코인 −5.3% · $76,157', '2026-11-06T00:49:00+09:00')], new Map()))
   assert.equal((out[0] as StoryCard).label, '비트코인')
 })
+
+test('이어진 알림: 이름표가 글자가 아니면(옛 합치기의 true) 카드로 묶지 않고 화면이 죽지 않는다', () => {
+  const rows = [
+    { key: 'a', event: 'A5', target: 'kospi', level: 'alarm', title: '코스피 사이드카', ts: '2026-11-06T09:21:00+09:00', sent: { push: 1, story: true } },
+    { key: 'b', event: 'A5', target: 'kospi', level: 'alarm', title: '코스피 서킷 1단계', ts: '2026-11-06T09:26:00+09:00', sent: { push: 1, story: true } },
+  ]
+  const out = storyCards(fromLedger(rows, new Map()))
+  assert.deepEqual(out.map(x => (x as { key: string }).key), ['b', 'a'])          // 줄 그대로(새것부터)
+})
