@@ -18,9 +18,8 @@ import os
 
 import sys
 
-if __package__ in (None, ""):                          # python scripts/alerts_v2/stats.py 로 바로 돌릴 때
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    __package__ = "alerts_v2"
+if __package__ in (None, ""):                          # python scripts/alerts_v2/stats.py 로 바로 돌릴 때 — 이 폴더 대신 scripts/ 를 앞에
+    sys.path[0] = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from alerts_v2 import schema  # noqa: E402
 from alerts_v2.ledger import EVENTS_DIR, KST, Ledger  # noqa: E402
 from alerts_v2.schedule import story_key, story_rank  # noqa: E402
@@ -46,9 +45,10 @@ def _on(r: dict, default_on: dict) -> bool:
 
 def _night(r: dict) -> bool:
     try:
-        t = dt.datetime.fromisoformat(r["ts"]).astimezone(KST).time()
+        at = dt.datetime.fromisoformat(r["ts"])
     except (KeyError, ValueError):
         return False
+    t = (at.replace(tzinfo=KST) if at.tzinfo is None else at.astimezone(KST)).time()   # 시각대 없는 옛 행 = 한국 시각
     return t >= QUIET[0] or t < QUIET[1]
 
 
@@ -95,7 +95,9 @@ def build(end: dt.date, root: str | None = None, days: int = DAYS) -> dict:
             mornings.add(day)
         if not _personal(r) and _on(r, default_on):
             by_day.setdefault(day, []).append(r)
-    seen = [d for d in span if d in by_day or d in mornings]
+    root = root or EVENTS_DIR
+    # 원장 파일이 있는 날은 조용했어도(0통) 센다 — 울린 날만 나누면 「조용히」 평균이 부풀었다(P5 검토)
+    seen = [d for d in span if d in by_day or d in mornings or os.path.exists(os.path.join(root, f"{d}.json"))]
     sim = {}
     for pkg in PACKAGES:
         for cap in CAPS:

@@ -48,3 +48,11 @@ def test_write_file_and_empty_ledger(tmp_path):
     p = stats.write(end=dt.date(2026, 11, 6), root=str(tmp_path))
     s = json.load(open(p, encoding="utf-8"))
     assert s["days"] == 0 and s["sim"]["normal:10:q"] == [0, 0] and len(s["sim"]) == 3 * 50 * 2
+
+
+def test_quiet_days_with_a_ledger_file_count_as_zero(tmp_path):
+    d = "2026-11-05"
+    _day(str(tmp_path), d, [_r(f"A5:kospi:enter:{d}.sidecar", "A5", "kospi", "alarm", f"{d}T09:21:00")])
+    _day(str(tmp_path), "2026-11-04", [])                     # 아무 일 없던 날도 하루로 센다
+    s = stats.build(dt.date(2026, 11, 6), root=str(tmp_path))
+    assert s["days"] == 2 and s["sim"]["quiet:5:q"] == [0.5, 1]
