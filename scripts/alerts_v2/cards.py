@@ -308,16 +308,9 @@ def _draw_bundle(plt, fig, rows: list[dict], ctx) -> None:
     fig.text(0.03, 0.022, "ecom · 받은 알림에서 전체 보기", color=dc.FAINT, fontsize=dc._fs(13, True))
 
 
-# ---------- 브리핑 카드(기획서 5장 대화창 목업) ----------
-# 아침 = 목록(미국 · 환율 · 금리 · 유가), 마감 = 칸 3 + 하루 흐름 + 수급 3주체, 주간 = 칸 4 + 행. 옛 시황 6칸 카드
-# (send_kakao_digest._build_kakao_card)를 쓰던 자리다 — 2026-10-09 「브리핑 사진이 옛 시황 카드」.
-BRIEF_US = ("sp500", "nasdaq", "usdkrw", "usdjpy", "us10y", "wti")
-BRIEF_KR = ("kospi", "kosdaq", "usdkrw")
-FS_ROW = (25, 32, 25)              # 목록 행 이름 · 값 · 등락
-FS_INFO = (18, 22)                 # 정보 행 이름표 · 본문
-Y_FLOOR = 0.07                     # 꼬리(0.022) 위로 남길 자리
-
-
+# ---------- 브리핑 카드 ----------
+# 정사각 한 장 = ① 칸 3(이름 · 큰 등락 · 값) ② 알림 시간띠(점 · 건수) ③ 다음 주요 일정 칩. 글 문장 없음 —
+# 칸 · 시간띠 · 일정을 만드는 쪽은 briefing.build(spec).
 def quote(ctx, target: str):
     """번들 띠(화면과 같은 값) → (이름, 값 글자, 등락 글자, 등락값, 기준일 date|None). 값이 없으면 None.
     금리(단위 %)의 등락은 bp, 나머지는 %."""
@@ -345,86 +338,113 @@ def _chg_color(c) -> str:
     return dc.UP_TXT if (c or 0) > 0 else dc.DN_TXT if (c or 0) < 0 else dc.MUT
 
 
-def _rows(fig, plt, rows, y: float) -> float:
-    """목록 행 — 이름(+ 묵은 값이면 「· M/D」) · 값(오른쪽 맞춤) · 등락(색). 아래로 내려간 y 를 돌려준다."""
-    h = min(0.10, (y - 0.30) / max(len(rows), 1))
-    fn, fv, fc = (dc._fs(f, True) for f in FS_ROW)
-    for name, val, txt, c, tag in rows:
-        y -= h
-        base = y + h * 0.32
-        shown = dc._clip(fig, name, 0.40 - (0.09 if tag else 0), fn)
-        fig.text(0.03, base, shown, color=dc.INK, fontsize=fn)
-        if tag:                                                      # 묵은 값 — 이름 뒤 작은 「10/7」
-            fig.text(0.03 + dc._text_w(fig, shown, fn) + 0.012, base, tag, color=dc.FAINT, fontsize=dc._fs(18, True))
-        fig.text(0.73, base, dc._clip(fig, val, 0.29, fv, "bold"), color=dc.INK, fontsize=fv, fontweight="bold", ha="right")
-        fig.text(0.97, base, txt, color=_chg_color(c), fontsize=fc, fontweight="bold", ha="right")
-        fig.add_artist(plt.Line2D([0.03, 0.97], [y] * 2, transform=fig.transFigure, color=dc.FAINT, lw=0.8, alpha=0.35))
-    return y
+AMBER = "#D98A00"                  # 주의 점 — 경보(상승색) · 안내(회색)와 갈리는 유일한 따뜻한 색
+AMBER_TXT = "#8A5A00"              # 주의 글자(흰 바탕 6:1)
+LV_ORDER = ("alarm", "alert", "notice")
+LV_DOT = {"alarm": (dc.UP, 17), "alert": (AMBER, 12), "notice": (dc.FAINT, 8)}      # (색, 점 크기 pt)
+LV_TXT = {"alarm": dc.UP_TXT, "alert": AMBER_TXT, "notice": dc.MUT}
+FS_TILE = (20, 38, 20)             # 칸 이름표 · 큰 등락 · 값
+FS_STRIP, FS_TICK = 20, 14
+X0, X1 = 0.06, 0.94                # 시간띠 양끝(점이 캔버스 가장자리에 안 닿게 안쪽)
+Y_FLOOR = 0.07                     # 꼬리(0.022) 위로 남길 자리
 
 
-def _bars(fig, plt, bars, y: float) -> float:
-    """수급 막대 — 가운데 0선, 순매수는 오른쪽(상승색) · 순매도는 왼쪽(하락색), 값은 오른쪽 끝."""
-    from .compose import MINUS, fmt_num        # 카드 글꼴에 「−」(U+2212)가 없을 수 있어 막대 값은 ASCII
-    m = max(abs(v) for _, v in bars) or 1.0
-    fl, fv = dc._fs(20, True), dc._fs(22, True)
-    cx, half, h = 0.46, 0.20, 0.056
-    top = y
-    for name, v in bars:
-        y -= h
-        fig.text(0.03, y + h * 0.3, name, color=dc.MUT, fontsize=fl)
-        w = half * abs(v) / m
-        fig.patches.append(plt.Rectangle((cx if v >= 0 else cx - w, y + h * 0.22), w, h * 0.5,
-                                         transform=fig.transFigure, fc=dc.UP if v >= 0 else dc.DN, ec="none"))
-        fig.text(0.97, y + h * 0.3, ("+" if v > 0 else "") + fmt_num(v, "억").replace(MINUS, "-"), color=_chg_color(v), fontsize=fv,
-                 fontweight="bold", ha="right")
-    fig.add_artist(plt.Line2D([cx, cx], [y + h * 0.1, top - h * 0.1], transform=fig.transFigure, color=dc.FAINT, lw=1.0))
-    return y
+def _fit_fs(fig, s: str, max_w: float, fs: float, weight: str = "normal") -> float:
+    """폭 max_w 안에 들어갈 때까지 글자 크기를 줄인다(하한 SQ_MIN_FS)."""
+    fs = float(fs)
+    while fs > dc.SQ_MIN_FS and dc._text_w(fig, s, fs, weight) > max_w:
+        fs -= 1
+    return max(fs, dc.SQ_MIN_FS)
 
 
-def _info(fig, info, y: float) -> float:
-    """정보 행(이름표 · 글) — 자리가 모자라면 뒤 행을 버린다(반쯤 잘린 행보다 낫다)."""
-    fl, ft = (dc._fs(f, True) for f in FS_INFO)
-    info = [(lab, txt) for lab, txt in info if txt]
-    x = 0.03 + max((dc._text_w(fig, lab, fl, "bold") for lab, _ in info), default=0) + 0.025
-    for lab, txt in info:
-        if y - 0.062 < Y_FLOOR:
-            break
-        y -= 0.062
-        fig.text(0.03, y, lab, color=dc.MUT, fontsize=fl, fontweight="bold")
-        fig.text(x, y, dc._clip(fig, txt, 0.97 - x, ft), color=dc.INK, fontsize=ft)
-    return y
+def _tile_color(c) -> str:
+    return dc.UP_TXT if (c or 0) > 0 else dc.DN_TXT if (c or 0) < 0 else dc.INK
+
+
+def _tiles(fig, tiles: list[dict], top: float, h: float) -> None:
+    """칸 ≤3 한 줄 — 이름표(회색) · 큰 등락(상승 빨강 · 하락 파랑) · 아래 작은 값."""
+    from matplotlib.patches import FancyBboxPatch
+    gap = 0.02
+    w = (0.94 - gap * (len(tiles) - 1)) / len(tiles)
+    fl, fb, fv = (dc._fs(f, True) for f in FS_TILE)
+    for i, t in enumerate(tiles):
+        x = 0.03 + i * (w + gap)
+        fig.patches.append(FancyBboxPatch((x, top - h), w, h, boxstyle="round,pad=0,rounding_size=0.015",
+                                          transform=fig.transFigure, fc=dc.TILE, ec="none"))
+        cx, inner = x + w / 2, w - 0.04
+        lab = dc._clip(fig, t.get("label", ""), inner, fl, "bold")
+        fig.text(cx, top - 0.065, lab, color=dc.MUT, fontsize=fl, fontweight="bold", ha="center")
+        big = str(t.get("big") or "")
+        fs = _fit_fs(fig, big, inner, fb, "bold")
+        fig.text(cx, top - 0.155, big, color=_tile_color(t.get("chg")), fontsize=fs, fontweight="bold", ha="center")
+        sub = dc._clip(fig, t.get("sub", ""), inner, fv)
+        if sub:
+            fig.text(cx, top - 0.22, sub, color=dc.MUT, fontsize=fv, ha="center")
+
+
+def _strip(fig, plt, strip: dict) -> None:
+    """시간띠 — 가로선 위 점(등급별 색 · 크기), 이름은 경보 · 가장 큰 주의만(≤2), 아래 눈금 · 등급별 건수."""
+    fig.text(0.03, 0.585, strip.get("caption", ""), color=dc.INK, fontsize=dc._fs(19, True), fontweight="bold")
+    dots = strip.get("dots") or []
+    if not dots:
+        fig.text(0.5, 0.43, strip.get("empty") or "알림 없음", color=dc.MUT, fontsize=dc._fs(24, True), ha="center")
+        return
+    ya = 0.40
+    X = lambda f: X0 + (X1 - X0) * min(max(f, 0.0), 1.0)                     # noqa: E731
+    fig.add_artist(plt.Line2D([X0, X1], [ya] * 2, transform=fig.transFigure, color=dc.FAINT, lw=2.0))
+    fk = dc._fs(FS_TICK, True)
+    for f, lab in strip.get("ticks") or []:
+        fig.add_artist(plt.Line2D([X(f)] * 2, [ya - 0.012, ya + 0.012], transform=fig.transFigure, color=dc.FAINT, lw=1.2))
+        fig.text(X(f), ya - 0.06, lab, color=dc.MUT, fontsize=fk, ha="center")
+    for lv in reversed(LV_ORDER):                                            # 작은 점 먼저 — 큰 점이 위에
+        col, ms = LV_DOT[lv]
+        for d in dots:
+            if d["level"] == lv:
+                fig.add_artist(plt.Line2D([X(d["x"])], [ya], transform=fig.transFigure, marker="o", markersize=ms,
+                                          color=col, markeredgecolor=dc.BG, markeredgewidth=1.5, linestyle="none"))
+    fs, placed = dc._fs(FS_STRIP, True), [[], []]
+    for d in [d for d in dots if d.get("label")][:2]:
+        s = dc._clip(fig, d["label"], 0.46, fs, "bold")
+        w = dc._text_w(fig, s, fs, "bold")
+        x0 = min(max(X(d["x"]) - w / 2, 0.03), 0.97 - w)
+        tier = 1 if any(x0 < b + 0.012 and x0 + w > a - 0.012 for a, b in placed[0]) else 0
+        placed[tier].append((x0, x0 + w))
+        fig.text(x0, 0.465 + 0.05 * tier, s, color=LV_TXT[d["level"]], fontsize=fs, fontweight="bold")
+    # 건수 한 줄 — 「● 경보 1  ● 주의 3  ● 안내 4」
+    counts = strip.get("counts") or {}
+    items = [(lv, f"{LEVEL_KO[lv]} {counts.get(lv, 0)}") for lv in LV_ORDER]
+    fc, dot_w, gap = dc._fs(19, True), 0.026, 0.045
+    total = sum(dot_w + dc._text_w(fig, s, fc, "bold") for _, s in items) + gap * (len(items) - 1)
+    x = 0.5 - total / 2
+    for lv, s in items:
+        fig.add_artist(plt.Line2D([x + 0.007], [0.2925], transform=fig.transFigure, marker="o", markersize=10,
+                                  color=LV_DOT[lv][0], linestyle="none"))
+        fig.text(x + dot_w, 0.285, s, color=dc.INK, fontsize=fc, fontweight="bold")
+        x += dot_w + dc._text_w(fig, s, fc, "bold") + gap
 
 
 def _draw_brief(plt, fig, spec: dict) -> None:
-    """spec = {title, meta, tiles:[dc._cell], rows:[quote], chart:{ys, xs, prev, up, label, right},
-    bars:[(이름, 억)], info:[(이름표, 글)], foot}. 위에서 아래로 쌓고 빠진 칸은 자리를 안 차지한다."""
-    dc._head(fig, spec["title"], spec.get("meta", ""), fs_t=FS_TITLE)
-    y = 0.915
-    tiles = spec.get("tiles") or []
+    """spec = {title, meta, tiles:[{label, big, chg, sub}], strip:{caption, dots:[{x, level, label}], ticks:[(x, 글)],
+    counts:{등급: 건수}, empty}, next, foot}. 세 구역 — ① 칸 3 ② 시간띠 ③ 다음 일정 칩. 빈 구역은 짧은 회색 글로 대신한다."""
+    from matplotlib.patches import FancyBboxPatch
+    dc._head(fig, spec["title"], spec.get("meta", ""), fs_t=24, y=0.935)
+    tiles = (spec.get("tiles") or [])[:3]
     if tiles:
-        grid = [tiles[i:i + 2] for i in range(0, len(tiles), 2)] if len(tiles) == 4 else [tiles]
-        h = (0.19 if len(grid) > 1 else 0.15) * len(grid)
-        dc._draw_cells(fig, grid, (0.03, y - h, 0.94, h), (18, 30, 20), square=True, note_inline=True)
-        y -= h + 0.015
-    if spec.get("rows"):
-        y = _rows(fig, plt, spec["rows"], y)
-    bars = [(n, float(v)) for n, v in spec.get("bars") or [] if v is not None]
-    ch = spec.get("chart") or {}
-    if len([v for v in ch.get("ys") or [] if v is not None]) >= 3:
-        h = 0.22 if bars else 0.33                                   # 수급이 없는 날은 차트가 그 자리를 쓴다
-        y -= h + 0.05
-        dc._sq_panel(fig, [0.03, y, 0.94, h], ch["ys"], xs=ch.get("xs"), prev=ch.get("prev"), up=ch.get("up", True),
-                     label=ch.get("label", ""), right=ch.get("right", ""))
-        y -= 0.06                                                    # x 눈금 자리
-    if bars:
-        y = _bars(fig, plt, bars, y - 0.01)
-    if spec.get("info"):
-        _info(fig, spec["info"], y - 0.01)
+        _tiles(fig, tiles, 0.895, 0.25)
+    else:
+        fig.text(0.5, 0.77, "시세 집계 중", color=dc.MUT, fontsize=dc._fs(24, True), ha="center")
+    _strip(fig, plt, spec.get("strip") or {})
+    fig.text(0.03, 0.215, "다음 주요 일정", color=dc.MUT, fontsize=dc._fs(18, True), fontweight="bold")
+    fig.patches.append(FancyBboxPatch((0.03, 0.09), 0.94, 0.095, boxstyle="round,pad=0,rounding_size=0.015",
+                                      transform=fig.transFigure, fc=dc.TILE, ec="none"))
+    nxt = spec.get("next") or "예정된 주요 일정 없음"
+    fs = _fit_fs(fig, nxt, 0.88, 28, "bold")
+    fig.text(0.5, 0.118, nxt, color=dc.INK if spec.get("next") else dc.MUT, fontsize=fs, fontweight="bold", ha="center")
     fig.text(0.03, 0.022, spec.get("foot") or "ecom", color=dc.FAINT, fontsize=dc._fs(13, True))
 
 
 def brief_card_png(spec: dict) -> bytes:
-    """브리핑 카드 1080² PNG — 제목줄 · (칸) · (목록) · (하루 흐름) · (수급 막대) · 정보 행 · 꼬리."""
+    """브리핑 카드 1080² PNG — 제목줄 · ① 칸 3 · ② 알림 시간띠 · ③ 다음 일정 칩 · 꼬리."""
     return _png(_guarded(_draw_brief, spec))
 
 

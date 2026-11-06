@@ -122,7 +122,8 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     led.append(_row("A1:sp500:up:2026-10-06", ts="2026-10-06T01:00:00+09:00", held=True))
     led.append(_row("C7:us10y:up:2026-10-06", level="notice", ts="2026-10-06T02:00:00+09:00"))   # 보류 아님
     out = briefing.build("morning", ctx, led, ALL_ON)
-    assert out["items"][0][0] == "밤사이 알림" and out["items"][0][1].startswith("2건 · "), out["items"]
+    # 피드 = 시간띠 구간(전날 23:00~07:00)의 알림 행 — 주의 둘(시각순) 다음 안내, 한 이야기 한 줄
+    assert [lab.split(" ")[0] for lab, _ in out["items"][:3]] == ["23:30", "01:00", "02:00"], out["items"]
     assert [r["key"] for r in out["held_rows"]] == ["A2:usdkrw:down:2026-10-05", "A1:sp500:up:2026-10-06"]
     assert out["lines"][0] == "엔화 동반 약세"               # AI 실패 → 원장 첫 행 「왜」
     monkeypatch.setattr(k, "slot_ai_line", lambda *a, **kw: "내일 발표가 남아 있다")   # 상대 시점어 → 사전 문장
@@ -206,8 +207,7 @@ def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeyp
     out = briefing.build("close", ctx, led, ALL_ON)
     assert len(out["changed_rows"]) == 5 and all(r["level"] == "notice" for r in out["changed_rows"])
     # 「오늘 바뀐 것」은 마감 카드 칸(기획서 5장)이 한 줄씩 맡고, 카톡 행 · 설명엔 다시 안 쓴다(그림 · 글 중복 제거)
-    info = [t for _lab, t in out["card_info"]]
-    assert out["card_info"][0][0] == "바뀐 것 5" and info == ["제목 B2:k0:up:2026-10-06", "제목 B2:k1:up:2026-10-06", "외 3건"], info
+    assert out["card_info"] == []                     # 새 카드는 글 줄이 없다 — 시간띠 점이 맡는다
     assert "오늘 바뀐 것" not in dict(out["items"]) and out["caption"] == out["lines"][0]
     assert briefing.changed_lines(out["changed_rows"][:4]) == [r["title"] for r in out["changed_rows"][:4]]
     assert not _no_relative(out)
