@@ -267,3 +267,51 @@ def test_watchdog_can_cancel_runs():
     """취소는 actions: write 가 있어야 한다 — read 면 403 으로 조용히 실패해 자가 치유가 없는 것과 같다."""
     assert re.search(r"^\s*actions:\s*write", WATCHDOG_YML, re.M), "watchdog.yml 에 actions: write 가 없다"
 
+
+
+def _cause_api(notes):
+    jobs = {"jobs": [{"id": 7, "conclusion": "failure", "steps": [{"name": "Run actions/deploy-pages@x", "conclusion": "failure"}]}]}
+    return lambda p: notes if "annotations" in p else jobs
+
+
+def test_failure_cause_marks_github_side(monkeypatch):
+    # 2026-11-04 사이트 배포 멈춤의 실제 주석 — GitHub 쪽 장애로 읽고 커밋 해시는 7자로 줄인다.
+    notes = [{"annotation_level": "failure", "message": "Error: Failed to create deployment (status: 400) with build version 2a69791d56e6c7febfd953c54c8c3cb8b4013fc9."},
+             {"annotation_level": "failure", "message": "HttpError: Deployment request failed for 2a69791d56e6c7febfd953c54c8c3cb8b4013fc9 due to in progress deployment. Please cancel 68ecb5d2cbd6c6e18bb0e8f44eea9ee90180505c first or wait for it to complete."},
+             {"annotation_level": "notice", "message": "The ubuntu-latest label will migrate to Ubuntu 26"}]
+    monkeypatch.setattr(W, "_api", _cause_api(notes))
+    gh, note = W._failure_cause("1")
+    assert gh is True
+    assert "in progress deployment" in note and "68ecb5d " in note and "68ecb5d2c" not in note
+    assert len(note) <= W.CAUSE_MAX
+    for msg in ("Error: Failed to create deployment (status: 504) with build version abc",
+                "Timeout reached, aborting!",
+                "Fetching artifact metadata failed. Is githubstatus.com reporting issues"):
+        monkeypatch.setattr(W, "_api", _cause_api([{"annotation_level": "failure", "message": msg}]))
+        assert W._failure_cause("1")[0] is True, msg
+
+
+def test_failure_cause_code_error_is_not_github(monkeypatch):
+    # 우리 스텝 실패(시험·빌드)는 GitHub 탓으로 적지 않는다 — 오류 문구만 그대로 붙인다.
+    monkeypatch.setattr(W, "_api", _cause_api([{"annotation_level": "failure", "message": "Process completed with exit code 1."}]))
+    assert W._failure_cause("1") == (False, "Process completed with exit code 1.")
+    monkeypatch.setattr(W, "_api", _cause_api([{"annotation_level": "notice", "message": "x"}]))
+    assert W._failure_cause("1") is None           # 오류 주석이 없으면 덧붙이지 않는다
+    assert W._failure_cause("") is None
+
+
+def test_silence_streak_shows_cause(monkeypatch):
+    runs = [dict(r, id=i) for i, r in enumerate(FRESH_STREAK)]
+    monkeypatch.setattr(W, "_failure_cause", lambda rid: (True, "due to in progress deployment") if rid == 0 else None)
+    (name, why), = _silence(monkeypatch, runs)
+    assert "GitHub 쪽 장애로 보임" in why and "in progress deployment" in why
+    monkeypatch.setattr(W, "_failure_cause", lambda rid: None)
+    (name, why), = _silence(monkeypatch, runs)
+    assert "└" not in why                          # 원인을 모르면 종전 문장 그대로
+
+
+def test_pages_keeps_id_token_permission():
+    """「id-token: write」 주석을 GitHub 쪽 장애(OIDC 시간 초과)로 읽는 근거 — 권한이 빠지면 그 판정이 거짓이 된다."""
+    yml = open(os.path.join(WFDIR, "pages.yml"), encoding="utf-8").read()
+    assert re.search(r"^permissions:(?:\n  .*)*\n  id-token: write", yml, re.M)
+    assert W.GITHUB_SIDE.search('Ensure GITHUB_TOKEN has permission "id-token: write".')
