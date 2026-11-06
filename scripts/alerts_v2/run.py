@@ -385,6 +385,12 @@ def main(argv=None) -> int:
     if not args.dry_run:
         ledger.save()
         Ledger.rebuild_latest()
+        if args.mode == "daily":                     # 설정 화면 숫자(지난 4주에 지금 규칙을 대 본 하루 통수) — 실패해도 런은 그대로
+            try:
+                from alerts_v2 import stats
+                print(f"[v2] 설정 화면 숫자 → {stats.write(end=ledger.day)}")
+            except Exception as e:                   # noqa: BLE001
+                print(f"[v2] 설정 화면 숫자 실패: {type(e).__name__} {str(e)[:120]}")
         if state is not None:                        # 쪽 · 울림 기록은 원장을 저장한 뒤에만(발송 중 예외면 둘 다 그대로)
             save_state(os.path.join(ctx.root, "alerts_state.json"), state)
     return 0

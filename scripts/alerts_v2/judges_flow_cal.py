@@ -426,7 +426,9 @@ def release_result(ctx: Context, ev: dict) -> list[Hit]:
         # 「컨센서스 …」 조각은 컨센서스가 있을 때만 — 나스닥에 없는 일정(한국 고용 · 산업활동)은 fore 가 빈다. 틀에
         # 「컨센서스」를 글자로 두면 fore 가 빌 때 「… · 컨센서스」만 남는다. 판정어는 사실(높음 · 낮음 · 같음)만 — 호재 · 악재로 읽지 않는다.
         fields = {"event_name": e.get("name"), "act": e.get("act"), "fore": e.get("fore") or "",
-                  "vs_fore": (("예상과 같음" if verdict == "같음" else f"예상보다 {verdict}") if verdict else ""),   # 제목 한 줄 — 컨센서스 값은 본문(2026-11-06)
+                  # 제목 한 줄 — 컨센서스 값은 본문. 판정어는 한 벌(웃돎 · 밑돎 · 예상대로) — 「예상보다 낮음」은 미국 소매판매 같은
+                  # 일정에서 18칸을 넘어 이름이 「미국 소매…」로 잘렸다(P5 글자 수 검사, 2026-11-06)
+                  "vs_fore": {"높음": "예상 웃돎", "낮음": "예상 밑돎", "같음": "예상대로"}.get(verdict, ""),
                   "prev": e.get("prev") or "", "verdict_ko": verdict, "stars": stars, "next_event": nxt}
         if lvl := _escalate(ev, stars):
             fields["level"] = lvl
@@ -463,6 +465,7 @@ def surprise(ctx: Context, ev: dict) -> list[Hit]:
         hits.append(Hit(target=_target(ev, "calendar"), dir="new", value=e.get("act"), unit="",
                         asOf=f"{e['iso']}:{e.get('name')}", fresh="live", fields={
                             "event_name": e.get("name"), "act": e.get("act"), "fore": e.get("fore"),
+                            "vs_big": "예상과 큰 차이",      # 제목이 넘치면 compose 가 「큰 차이」로 줄인다
                             "gap": f"{gap:+.{min(dec, 2)}f}{suffix}", "why_line": why,
                             "stars": stars, "next_event": _next_star3(ctx)}))
     return _unseen(ctx, ev, hits)

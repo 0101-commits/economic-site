@@ -224,3 +224,13 @@ export function yearCounts(series: [string, number][], sigmas: { id: string; sig
   }
   return out
 }
+
+/** 설정 화면 숫자(알림 개편 P5) — events/stats.json(scripts/alerts_v2/stats.py)의 「꾸러미:하루 최대:조용한 시간」 칸.
+ *  「최근 28일 기록으로는 하루 평균 2.6통, 많은 날 7통입니다.」 칸이 없거나 기록이 비면 빈 글(문장을 지어내지 않는다). */
+export function statsLine(stats: unknown, pkg: string, cap: number, quiet: boolean): string {
+  const s = stats as { days?: unknown; sim?: Record<string, unknown> } | null
+  const days = typeof s?.days === 'number' ? s.days : 0
+  const v = s?.sim?.[`${pkg}:${Math.min(50, Math.max(1, Math.round(cap)))}:${quiet ? 'q' : 'n'}`]
+  if (!days || !Array.isArray(v) || typeof v[0] !== 'number' || typeof v[1] !== 'number') return ''
+  return `최근 ${days}일 기록으로는 하루 평균 ${v[0].toFixed(1)}통, 많은 날 ${v[1]}통입니다.`
+}
