@@ -163,3 +163,14 @@ def test_history_harvest_stats_and_backfill_cursor():
     calls.clear()
     update_history(done, {}, full=True, now=now, fetch=lambda q: calls.append(q) or [], pause=0)
     assert calls == []
+
+
+def test_kostat_filled_act_keeps_asking_nasdaq_on_light_runs():
+    """보도자료 빠른 채움(P4)으로 받은 회차는 일반 런에서도 나스닥을 계속 묻는다 — 나스닥 값이 오면 같은 자료원 값으로 바뀐다."""
+    now = datetime(2026, 10, 2, 9, 7, tzinfo=KST)         # 08:00 한국 CPI 한 시간 뒤의 일반 런
+    prev = [dict(_ev("한국 소비자물가동향", "2026-10-02", "08:00"), fore="+2.9%", act="+2.9%",
+                 consSrc="나스닥 경제 일정", actSrc="국가데이터처 보도자료")]
+    evs = [_ev("한국 소비자물가동향", "2026-10-02", "08:00")]
+    calls = []
+    apply_consensus(evs, prev, full=False, now=now, fetch=lambda q: calls.append(q) or _fetch(q), pause=0)
+    assert calls == ["2026-10-02"] and evs[0]["actSrc"] == "나스닥 경제 일정" and evs[0]["act"] == "+2.9%"

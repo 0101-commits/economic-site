@@ -185,8 +185,9 @@ def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_
             continue
         due = lo <= k <= hi if full else (now - timedelta(hours=_RECENT_H)) <= k <= now + timedelta(minutes=10)
         old = carry.get((ev.get("iso"), ev.get("name"))) or {}
-        if due and not full and old.get("actSrc") and old.get("act"):
-            due = False      # 공식 발표값까지 받은 회차 — 10분마다 다시 물을 까닭이 없다(이어받기로 채운다)
+        if due and not full and old.get("actSrc") == SOURCE and old.get("act"):
+            due = False      # 나스닥 발표값까지 받은 회차 — 10분마다 다시 물을 까닭이 없다(이어받기로 채운다).
+            # 다른 자료원(국가데이터처 보도자료 빠른 채움)으로 채운 회차는 계속 묻는다 — 나스닥 값 · 컨센서스로 바꿔 끼워야 한다
         if due:
             want.setdefault(query_date(ev), []).append(ev)
     st = {"requests": 0, "failed": 0, "filled": 0, "carried": 0, "full": bool(full)}
