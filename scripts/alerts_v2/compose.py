@@ -264,6 +264,8 @@ def fit_title(templates, data: dict, w: float = TITLE_W) -> str:
     값의 날짜 꼬리 빼기 → 뒤 「 · 」 조각 빼기. 그래도 넘치면(드묾) 폭으로 자른다. 틀 목록이면 앞 틀부터."""
     if isinstance(templates, str):
         templates = [templates]
+    if not templates:
+        return ""
     steps = (
         lambda x: dict(x, name=x.get("name_m") or x.get("name")),
         lambda x: dict(x, name=_BRAND_RE.sub("", str(x.get("name") or ""))),

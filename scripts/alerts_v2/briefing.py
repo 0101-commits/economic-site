@@ -75,7 +75,8 @@ def push_text(title: str, lines: list, slot: str) -> tuple[str, str]:
     head = f"{name} · {facts[0]}" if facts else name
     p_title = head if compose.width(head) <= compose.TITLE_W else name
     rest = facts[1:] if p_title != name else facts
-    cands = [" · ".join(x for x in (ratios[:1] + rest[:1]) if x), " · ".join(rest[:2]), *(rest[:1]), *(ratios[:1]),
+    lead = [compose.cut_w(facts[0], compose.BODY_W)] if facts and p_title == name else []   # 제목에 못 든 첫 사실은 본문 맨 앞
+    cands = [*lead, " · ".join(x for x in (ratios[:1] + rest[:1]) if x), " · ".join(rest[:2]), *(rest[:1]), *(ratios[:1]),
              *[norm(str(x)) for x in (lines or []) if x]]
     body = next((c for c in cands if c and compose.width(c) <= compose.BODY_W), "")
     return p_title, body or compose.cut_w(next((c for c in cands if c), ""), compose.BODY_W)

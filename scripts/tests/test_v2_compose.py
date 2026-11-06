@@ -91,3 +91,11 @@ def test_brief_level_allows_48():
     ev = dict(EV["A1"], level="brief", title="{name} " + "가" * 44)
     h = Hit(target="kospi", dir="up", value=1, unit="", asOf="2026-10-02", fresh="live", fields={"name": "코스피"})
     assert len(compose.render(ev, h, None, today=TODAY)["title"]) == 48
+
+
+def test_brief_push_keeps_wide_first_fact_in_body():
+    """제목에 못 든 아침 브리핑 첫 사실은 본문 맨 앞에 남는다(P2 검토 지적)."""
+    from alerts_v2 import briefing
+    t, b = briefing.push_text("11/6 아침 · 매우매우긴이름의지표가여기에들어갑니다 -4.4%", ["z"], "morning")
+    assert t == "아침 브리핑" and b.startswith("매우매우긴") and compose.width(b) <= compose.BODY_W
+    assert compose.fit_title([], {}) == ""
