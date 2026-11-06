@@ -44,7 +44,7 @@ def test_daily_cap_bundles_overflow(tmp_path):
     kinds = [s.kind for s in sends]
     assert kinds.count("bundle") == 1 and kinds.count("event") == 1          # 경보는 상한 밖
     b = next(s for s in sends if s.kind == "bundle")
-    assert len(b.bundle) == 3 and b.row["title"].startswith("알림 3건 더")
+    assert len(b.bundle) == 3 and b.row["title"] == "하루 최대를 넘은 알림 3건"
     assert b.push and not b.kakao                                            # 묶음도 폰 알림만
     assert all(led.get(r["key"])["sent"]["bundled"] for r in b.bundle)
 

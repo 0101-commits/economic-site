@@ -70,7 +70,7 @@ export const useSyncStatus = () => useSyncExternalStore(subscribe, () => st)
 /** 입장 관문(App.tsx)용: 이 탭에 앱키 해시가 있나 — 들어옴 · 끊김(401 포함) 때 바로 다시 그린다(값이 같으면 그리지 않는다). */
 export const useHasKey = () => useSyncExternalStore(subscribe, () => getKeyHash() != null)
 /** 알림 화면의 범위 문구 — on = 조건을 서버가 봄, push = 이 기기 폰 알림 구독. */
-export const scopeText = (on: boolean, push: boolean) => (on ? (push ? '폰 알림 켜짐' : '이 기기 폰 알림 꺼짐') : '이 기기만 — 울리지 않음')
+export const scopeText = (on: boolean, push: boolean) => (on ? (push ? '폰 알림 켜짐' : '이 기기 폰 알림 꺼짐') : '이 기기만 — 폰 알림 없음')
 
 // ── 이 기기 저장소 세 곳 ─────────────────────────────────
 function readJson(k: string): unknown { try { return JSON.parse(localStorage.getItem(k) || 'null') } catch { return null } }

@@ -255,7 +255,7 @@ function AlertsTab() {
             </li>
           ))}
         </ul>
-      ) : <Empty>{rows ? '최근 7일 받은 알림이 없습니다.' : '받은 알림을 불러오지 못했습니다.'}</Empty>}
+      ) : <Empty>{rows ? '최근 7일 알림 기록이 없습니다.' : '알림 기록을 불러오지 못했습니다.'}</Empty>}
       <MoreLink to="/alerts">알림 화면</MoreLink>
     </>
   )

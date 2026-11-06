@@ -32,9 +32,9 @@ import dictJson from '../lib/alerts/dict.json'
 
 const dict = dictJson as unknown as Dict
 const EV = new Map(dict.events.map(e => [e.id, e]))
-const TABS = [{ key: 'inbox', label: '받은 알림' }, { key: 'cond', label: '사건' }, { key: 'chan', label: '받는 곳' }] as const
+const TABS = [{ key: 'inbox', label: '알림 기록' }, { key: 'cond', label: '알림 종류' }, { key: 'chan', label: '받는 곳' }] as const
 type Tab = typeof TABS[number]['key']
-const FILTER_LABEL: Record<Filter, string> = { all: '전체', alarm: LV.alarm, alert: LV.alert, notice: LV.notice, brief: '시황', mine: '내 조건' }
+const FILTER_LABEL: Record<Filter, string> = { all: '전체', alarm: LV.alarm, alert: LV.alert, notice: LV.notice, brief: '브리핑', mine: '내 조건' }
 const FILTER_OPTS = FILTERS.map(k => ({ key: k, label: FILTER_LABEL[k] }))
 const PKG_OPTS = dict.packages.map(p => ({ key: p.id as Pkg, label: p.name }))
 // 알림 양 = 어느 등급까지 폰 알림으로 받나 + 하루 최대(경보 · 아침 브리핑 제외). 받는 곳 나누기(2026-11-06) 뒤 안내는
@@ -185,11 +185,11 @@ export default function Alerts() {
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h1 className="m-0 inline-flex items-center gap-1.5 text-18 font-bold text-ink-1"><Bell size={18} aria-hidden />알림</h1>
         <span className="text-12 text-ink-2">
-          오늘 울림 <span className="num">{todays.filter(x => x.level !== 'notice' && x.level !== 'brief').length}</span> · 안내 <span className="num">{todays.filter(x => x.level === 'notice').length}</span>
-          {' · '}알림 단계 {PKG_OPTS.find(o => o.key === prefs.settings.package)?.label} · {scopeText(sync.on, pushOn)}
+          오늘 폰 알림 <span className="num">{todays.filter(x => x.level !== 'notice' && x.level !== 'brief').length}</span> · 안내 <span className="num">{todays.filter(x => x.level === 'notice').length}</span>
+          {' · '}알림 양 {PKG_OPTS.find(o => o.key === prefs.settings.package)?.label} · {scopeText(sync.on, pushOn)}
         </span>
       </header>
-      {demoted > 0 && <p role="status" className="m-0 text-13 text-ink-1">90일 동안 알림 화면을 열지 않아 알림 단계를 「{PKG_OPTS[0].label}」로 내렸습니다({mdHm(new Date(demoted))}). 사건 탭에서 바꿀 수 있고, 저절로 내리지 않게 하려면 설정 › 고급에서 끕니다.</p>}
+      {demoted > 0 && <p role="status" className="m-0 text-13 text-ink-1">90일 동안 알림 화면을 열지 않아 알림 양을 「{PKG_OPTS[0].label}」로 내렸습니다({mdHm(new Date(demoted))}). 알림 종류 탭에서 바꿀 수 있고, 저절로 내리지 않게 하려면 설정 › 고급에서 끕니다.</p>}
 
       <SegBar label="알림 보기" options={TABS} value={tab} onChange={setTab} />
       {msg && <p role="alert" className="m-0 text-12 text-warn">{msg}</p>}
@@ -216,7 +216,7 @@ function Inbox({ feed, ledger, state, today, yesterday }: { feed: FeedRow[]; led
       {ledger === null && state === null && <p className="m-0 mb-2 text-12 text-warn">발송 이력도 불러오지 못했습니다.</p>}
       <div className="mb-3"><SegBar label="알림 거르기" options={FILTER_OPTS} value={f} onChange={setF} /></div>
       {ledger === undefined ? <p className="m-0 text-13 text-ink-3">불러오는 중</p> : !any ? (
-        <p className="m-0 text-13 text-ink-3">{f === 'all' ? '지난 7일 사이 받은 알림이 없습니다.' : `이 기간에 받은 ${FILTER_LABEL[f]} 알림이 없습니다.`}</p>
+        <p className="m-0 text-13 text-ink-3">{f === 'all' ? '지난 7일 사이 알림 기록이 없습니다.' : `이 기간에 받은 ${FILTER_LABEL[f]} 알림이 없습니다.`}</p>
       ) : (
         <div className="flex flex-col gap-4">
           <DayGroup head={`오늘 ${dayHead(today)}`} items={g.today} f={f} />
@@ -241,7 +241,7 @@ function DayGroup({ head, items, f, showDay }: { head: string; items: FeedRow[];
   return (
     <section>
       <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">
-        {head}{!showDay && <span className="font-normal text-ink-3"> · 울림 <span className="num">{rang}</span> · 안내 <span className="num">{items.length - rang}</span></span>}
+        {head}{!showDay && <span className="font-normal text-ink-3"> · 폰 알림 <span className="num">{rang}</span> · 안내 <span className="num">{items.length - rang}</span></span>}
       </h3>
       <FeedList items={open ? [...main, ...notes].sort((a, b) => b.at - a.at) : main} showDay={showDay} />
       {notes.length > 0 && (
@@ -320,8 +320,8 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
   const next = want ? PACKAGE_PRESET[want] : null
   return (
     <>
-      <Panel title="알림 단계">
-        <SegBar label="알림 단계" options={PKG_OPTS} value={want ?? pkg} onChange={k => setWant(k === pkg ? null : k)} />
+      <Panel title="알림 양">
+        <SegBar label="알림 양" options={PKG_OPTS} value={want ?? pkg} onChange={k => setWant(k === pkg ? null : k)} />
         <p className="mt-2 mb-0 text-12 text-ink-2">{PKG_NOTE[want ?? pkg]}</p>
         {want && next ? (
           <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -332,7 +332,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
         ) : <p className="mt-1 mb-0 text-12 text-ink-3">바꾸면 하루 최대와 브리핑 시각이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>}
       </Panel>
 
-      <Panel title="사건 갈래" source="갈래를 누르면 사건마다 세기 · 등급">
+      <Panel title="알림 분류" source="갈래를 누르면 사건마다 세기 · 등급">
         <ul className="m-0 p-0 list-none">
           {dict.families.map(f => <FamilyRow key={f.id} fam={f} prefs={prefs} save={save} adjust={adjust} />)}
         </ul>
@@ -351,7 +351,7 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
                   <span className="min-w-0 flex-1">
                     <span className="block text-13 text-ink-1 line-clamp-2 [overflow-wrap:anywhere]">{name}</span>
                     <span className="block text-12 text-ink-3 [overflow-wrap:anywhere]">
-                      {EV.get(a.event)?.name ?? a.event} · {a.repeat === 'once' ? '한 번' : '매번'}{a.ring === false ? ' · 울림 꺼짐' : ''}
+                      {EV.get(a.event)?.name ?? a.event} · {a.repeat === 'once' ? '한 번' : '매번'}{a.ring === false ? ' · 폰 알림 끔' : ''}
                       {show && <> · <span className={`num ${st.kind === 'rang' || st.kind === 'stopped' ? 'text-ink-1' : ''}`}>{st.text}</span></>}
                     </span>
                     {/* 다시 켠 것은 /prefs 로 올라가야 서버가 본다 — 들어와 있지 않으면 눌러도 소용없다 */}
@@ -368,13 +368,13 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
             })}
           </ul>
         ) : <p className="m-0 text-13 text-ink-3">아직 만든 조건이 없습니다. 지표 · 종목 상세의 벨이나 아래 「새 조건」에서 만듭니다.</p>}
-        <p className="mt-2 mb-0 text-12 text-ink-3">같은 앱키로 들어온 기기끼리 조건이 저절로 같아지고, ecom이 이 조건을 보고 알림을 보냅니다. 「한 번」 조건은 울리면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 울립니다. 180일 동안 울리지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
+        <p className="mt-2 mb-0 text-12 text-ink-3">같은 앱키로 들어온 기기끼리 조건이 저절로 같아지고, ecom이 이 조건을 보고 알림을 보냅니다. 「한 번」 조건은 보내면 멈추고, 「다시 켜기」를 누르면 새 값이 들어온 뒤 다시 보냅니다. 180일 동안 보내지 않은 「한 번」 조건은 저절로 꺼집니다(지우지는 않음).</p>
         <LegacyImport alerts={prefs.alerts} sync={sync} onAdd={add => put([...prefs.alerts, ...add.map(a => armU1(a, cur(a.target)))])} />
       </Panel>
 
       <NewCondition rows={rows} labelOf={labelOf} sync={sync} full={prefs.alerts.length >= ALERT_CAP} onAdd={a => put([...prefs.alerts, armU1(a, cur(a.target))])} />
       <p className="m-0 text-12 text-ink-3">
-        옛 화면(<a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">보기</a>)에서 만든 조건은 알림 v2 로 바뀐 뒤 더 이상 울리지 않습니다. 위 「옛 화면 조건 가져오기」로 옮기면 여기서 울립니다.
+        옛 화면(<a href={new URL('legacy.html?p=portfolio', ROOT).href} className="text-ink-2">보기</a>)에서 만든 조건은 알림 v2 로 바뀐 뒤 더 이상 폰 알림이 가지 않습니다. 위 「옛 화면 조건 가져오기」로 옮기면 여기서 보냅니다.
       </p>
     </>
   )
@@ -580,7 +580,7 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
         </Row>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-end">
           <Field label="이름(비우면 「대상 조건」)"><input className={INPUT} value={name} maxLength={40} onChange={e => setName(e.target.value)} autoComplete="off" /></Field>
-          <Switch on={ring} onChange={setRing} label="울림(끄면 받은 알림에만 남음)" />
+          <Switch on={ring} onChange={setRing} label="폰 알림으로 받기(끄면 알림 기록에만 남음)" />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button type="submit" className={BTN}>조건 저장</button>

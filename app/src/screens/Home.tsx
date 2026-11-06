@@ -253,7 +253,7 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link to="/alerts" className="inline-flex items-center mt-1 text-12 text-ink-2 no-underline hover:text-ink-1">받은 알림 <span className="num ml-1">{changed.total}</span><ChevronRight size={14} aria-hidden /></Link>
+              <Link to="/alerts" className="inline-flex items-center mt-1 text-12 text-ink-2 no-underline hover:text-ink-1">알림 기록 <span className="num ml-1">{changed.total}</span><ChevronRight size={14} aria-hidden /></Link>
             </section>
           )}
           {changed.rows.length > 0 && <h3 className="m-0 mb-1 text-12 font-bold text-ink-2">다가오는 일정</h3>}

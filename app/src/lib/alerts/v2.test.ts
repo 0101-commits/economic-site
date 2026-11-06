@@ -120,7 +120,7 @@ test('홈 오늘 바뀐 것: 오늘 행만 새것 순 5건 · 전체 건수 · �
 test('저장 직후 한 줄: 동기화가 꺼져 있으면 이 기기에만, 켜져 있으면 올라가는 중 → 올라감', () => {
   const at = Date.parse('2026-10-05T09:05:00+09:00')
   assert.equal(savedNote({ on: true, at: null }, 0), '')
-  assert.match(savedNote({ on: false, at: null }, at), /^저장했습니다 · 이 기기만 — 울리지 않음/)
+  assert.match(savedNote({ on: false, at: null }, at), /^저장했습니다 · 이 기기만 — 폰 알림 없음/)
   assert.equal(savedNote({ on: true, at: null }, at), '저장했습니다 · 저장하는 중')
   assert.equal(savedNote({ on: true, at: at - 1000 }, at), '저장했습니다 · 저장하는 중')
   assert.equal(savedNote({ on: true, at: at + 3000 }, at), '저장했습니다 · 자동 저장됨 09:05')
@@ -154,7 +154,7 @@ test('memberView: 공개 원장의 사람 행(cond · U* · BUNDLE)은 빼고, �
   const once = { id: 'm1', event: 'U1', target: 'usdkrw', value: 1400, dir: 'up' as const, repeat: 'once' as const, enabled: true, armedAt: '2026-09-30T00:00:00Z' }
   assert.equal(condStatus(once, v.mine, v.fired.m1).kind, 'stopped')
   const again = rearm(once, v.mine, v.fired.m1, Date.parse('2026-10-02T12:00:00+09:00'))
-  assert.equal(condStatus(again, v.mine, v.fired.m1).text, '울림 10/2 11:00')
+  assert.equal(condStatus(again, v.mine, v.fired.m1).text, '폰 알림 10/2 11:00')
   assert.equal(condStatus({ ...once, id: 'm9' }, v.mine, undefined).kind, 'wait', '울린 적 없는 내 조건 = 대기')
   // /fired 를 못 읽었으면 공개 원장의 시장 사건만, 원장이 없으면 빈 목록
   assert.deepEqual(memberView(ledger, null).rows.map(r => r.key), ['A1:kospi:up:x'])

@@ -156,7 +156,7 @@ export function sheetEvents(d: Dict, target: string, stock: boolean, lens: Reado
 /** 조건을 저장한 직후의 한 줄(head = 첫머리 말): 들어와 있지 않으면 「이 기기에만」, 들어와 있으면 서버에 올라갔는지. savedAt 0 = 아직 저장하지 않음(빈 글). */
 export function savedNote(sync: { on: boolean; at: number | null }, savedAt: number, head = '저장했습니다'): string {
   if (!savedAt) return ''
-  if (!sync.on) return `${head} · 이 기기만 — 울리지 않음(앱키로 다시 들어와야 ecom이 봅니다)`
+  if (!sync.on) return `${head} · 이 기기만 — 폰 알림 없음(앱키로 다시 들어와야 ecom이 봅니다)`
   return sync.at && sync.at >= savedAt ? `${head} · 자동 저장됨 ${hhmm(sync.at)}` : `${head} · 저장하는 중`
 }
 

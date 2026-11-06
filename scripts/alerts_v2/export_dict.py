@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 OUT = os.path.join(ROOT, "app", "src", "lib", "alerts", "dict.json")
 FAMILY_KO = {"A": "급변", "B": "기록 · 마디", "C": "임계 · 단계", "D": "수급", "E": "일정 · 발표",
              "F": "공시 · 종목", "G": "렌즈 · 메르", "H": "실물 · 월간"}
-LEVEL_KO = {"alarm": "경보", "alert": "알림", "notice": "안내", "record": "기록"}
+LEVEL_KO = {"alarm": "경보", "alert": "주의", "notice": "안내", "record": "기록"}
 PACKAGE_KO = {"quiet": "조용히", "normal": "보통", "many": "많이"}
 STRENGTH_KO = {"normal": "보통", "big": "크게", "huge": "아주 크게", "value": "값 직접"}
 

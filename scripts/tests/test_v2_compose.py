@@ -17,10 +17,10 @@ def test_flow_streak_title_and_body():
             fields={"streak": 5, "cum5": "−7.9조", "supporter": "기관", "support_ko": "기관 순매수가 받침",
                     "dir_ko": "순매도", "dir_rev_ko": "순매수"})
     r = compose.render(EV["D1"], h, None, today=dt.date(2026, 10, 1))
-    assert r["title"] == "외국인 5일째 순매도 · 오늘 −2,040억"
+    assert r["title"] == "외국인 5일째 순매도 · −2,040억"   # 제목 한 줄(폭 18) — 「오늘」은 알림 시각이 말한다
     assert r["why"] == "5일 누적 −7.9조 · 기관 순매수가 받침"
-    assert r["next"] == "확정 18:00 · 순매수로 돌아서면 알림"
-    assert r["body_push"] == r["why"] + "\n" + r["next"] and len(r["body_push"]) <= 80
+    assert r["next"] == ""   # 「…면 알림」 같은 설명 줄은 쓰지 않는다(2026-11-06)
+    assert r["body_push"] == r["why"] and compose.width(r["body_push"]) <= compose.BODY_W   # 폰 알림 본문 = 한 줄 · 사실 하나
     assert r["url"] == "#/market?a=flow" and r["level"] == "alert"
 
 
@@ -51,7 +51,7 @@ def test_title_cut_and_relative_time_removed():
     h = Hit(target="kospi", dir="up", value=7003, unit="", asOf="2026-10-02", fresh="live", chg=0.46,
             fields={"name": "코스피", "x": "GDP"})
     r = compose.render(ev, h, None, today=TODAY)
-    assert len(r["title"]) == 30 and r["title"].endswith("…")
+    assert compose.width(r["title"]) <= compose.TITLE_W and r["title"].endswith("…")
     assert r["next"] == ""   # 「내일」 상대 시점어 금지
 
 
@@ -61,12 +61,12 @@ def test_long_name_shrinks_before_tail():
     h = Hit(target="0177X0", dir="down", value=8970, unit="", asOf="2026-10-12", fresh="live",
             fields={"name": "ACE K휴머노이드로봇산업TOP2+", "dir_ko": "아래로"})
     r = compose.render(ev, h, None, today=dt.date(2026, 10, 12))
-    assert r["title"].endswith("… 8,970 · 내 조건 아래로") and r["title"].startswith("ACE K휴머노이드")
-    assert len(r["title"]) == 30
+    assert r["title"].endswith("… 8,970 · 내 조건 아래로") and r["title"].startswith("K휴머노")   # 운용사 이름 뺀 뒤 이름만 줄인다(꼬리 보존)
+    assert compose.width(r["title"]) <= compose.TITLE_W
     stale = Hit(target="0177X0", dir="down", value=8970, unit="", asOf="2026-10-10", fresh="prev",
                 fields={"name": "ACE K휴머노이드로봇산업TOP2+", "dir_ko": "아래로"})
     t = compose.render(ev, stale, None, today=dt.date(2026, 10, 12))["title"]
-    assert t.startswith("ACE K…") and len(t) == 30, t                  # 이름은 6자까지 줄이고 남는 만큼은 꼬리를 자른다
+    assert t.startswith("K휴머노") and t.endswith("내 조건 아래로") and compose.width(t) <= compose.TITLE_W, t   # 운용사 이름을 빼고 이름만 줄인다
 
 
 def test_long_title_shortens_name_first():
@@ -77,14 +77,14 @@ def test_long_title_shortens_name_first():
     h = Hit(target="0177X0", dir="down", value=8970.0, unit="", asOf="2026-10-12", fresh="live",
             fields={"name": "ACE K휴머노이드로봇산업TOP2+", "dir_ko": "아래로"})
     r = compose.render(ev, h, None, today=dt.date(2026, 10, 12))
-    assert r["title"] == "ACE K휴머노이드로봇… 8,970 · 내 조건 아래로" and len(r["title"]) == 30
+    assert r["title"] == "K휴머노… 8,970 · 내 조건 아래로" and compose.width(r["title"]) <= compose.TITLE_W
     assert r["name"] == "ACE K휴머노이드로봇산업TOP2+"                      # 줄인 이름은 제목에만
     h.fields["name"] = "코스피"
     assert compose.render(ev, h, None, today=dt.date(2026, 10, 12))["title"] == "코스피 8,970 · 내 조건 아래로"
     # 이름을 두 글자까지 줄여도 넘치면 종전처럼 끝을 자른다
     ev2 = dict(ev, title="{name} " + "가" * 40)
     r = compose.render(ev2, h, None, today=dt.date(2026, 10, 12))
-    assert len(r["title"]) == 30 and r["title"].startswith("코스피 ") and r["title"].endswith("…")
+    assert compose.width(r["title"]) <= compose.TITLE_W and r["title"].startswith("코스피 ") and r["title"].endswith("…")
 
 
 def test_brief_level_allows_48():

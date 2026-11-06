@@ -106,7 +106,7 @@ function BellForm({ id, cur, unit }: { id: string; cur?: number | null; unit?: s
         <SegBar label="반복" options={REPEAT_OPTS} value={repeat} onChange={setRepeat} />
         <p className="m-0 mt-1 text-12 text-ink-3">{repeatNote(ev.id, repeat)}{repeat === 'once' ? ' 알림 화면에서 「다시 켜기」로 다시 켭니다.' : ''}</p>
       </Row>
-      <Switch on={ring} onChange={setRing} label="울림(끄면 받은 알림에만 남음)" />
+      <Switch on={ring} onChange={setRing} label="폰 알림으로 받기(끄면 알림 기록에만 남음)" />
       {had && <p className="m-0 text-12 text-ink-3">이 사건의 조건이 이미 있어 저장하면 그것을 바꿉니다.</p>}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <button type="submit" className={BTN}>조건 저장</button>

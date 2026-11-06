@@ -19,7 +19,7 @@ if SCRIPTS not in sys.path:
     sys.path.insert(0, SCRIPTS)
 import discord_card as dc  # noqa: E402
 
-LEVEL_KO = {"alarm": "경보", "alert": "알림", "notice": "안내", "record": "기록"}
+LEVEL_KO = {"alarm": "경보", "alert": "주의", "notice": "안내", "record": "기록"}
 FRESH_KO = {"live": "지금", "prev": "전일", "stale": "묵음", "kept": "이전 값", "missing": "없음"}
 UP_DIRS, DOWN_DIRS = ("up", "buy"), ("down", "sell")
 FS_TITLE, FS_PILL = 22, 15
@@ -295,7 +295,7 @@ def _draw_event(plt, fig, row: dict, ctx) -> None:
 def _draw_bundle(plt, fig, rows: list[dict], ctx) -> None:
     if not rows:
         raise ValueError("묶음 카드: 행이 없다")
-    dc._head(fig, f"알림 {len(rows)}건 더", _hhmm(max(str(r.get("ts") or "") for r in rows)), fs_t=FS_TITLE)
+    dc._head(fig, f"하루 최대를 넘은 알림 {len(rows)}건", _hhmm(max(str(r.get("ts") or "") for r in rows)), fs_t=FS_TITLE)
     fs, fl = dc._fs(24, True), dc._fs(FS_LABEL, True)
     for i, r in enumerate(rows[:BUNDLE_MAX]):
         y = 0.84 - i * 0.125

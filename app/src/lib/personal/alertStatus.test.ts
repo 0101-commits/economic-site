@@ -29,12 +29,12 @@ test('condId: Worker 가 받는 모양이고 겹치지 않는다', () => {
 
 test('상태 7: 대기 · 울림 · 멈춤 · 묶임 · 보류 · 꺼짐 · 이 기기에만', () => {
   assert.deepEqual(condStatus(A(), [], undefined, true, false, NOW), { kind: 'wait', text: '대기' })
-  assert.deepEqual(condStatus(A(), [row()], undefined, true, false, NOW), { kind: 'rang', text: '울림 10/2 09:05' })
+  assert.deepEqual(condStatus(A(), [row()], undefined, true, false, NOW), { kind: 'rang', text: '폰 알림 10/2 09:05' })
   assert.deepEqual(condStatus(A({ repeat: 'once' }), [row()], undefined, true, false, NOW), { kind: 'stopped', text: '멈춤' })
   assert.deepEqual(condStatus(A(), [row({ sent: { bundled: true } })], undefined, true, false, NOW), { kind: 'bundled', text: '묶임' })
   assert.deepEqual(condStatus(A(), [row({ sent: { held: true } })], undefined, true, false, NOW), { kind: 'held', text: '보류 → 07:30' })
   assert.deepEqual(condStatus(A({ enabled: false }), [row()], undefined, true, false, NOW), { kind: 'off', text: '꺼짐' })
-  assert.deepEqual(condStatus(A(), [], undefined, false, false, NOW), { kind: 'local', text: '이 기기만 — 울리지 않음' })
+  assert.deepEqual(condStatus(A(), [], undefined, false, false, NOW), { kind: 'local', text: '이 기기만 — 폰 알림 없음' })
 })
 
 test('상태: 다른 조건의 행은 안 본다 · 가장 늦은 행이 기준 · 보류는 12시간 뒤 울림 · 자동 정리 꺼짐', () => {
@@ -47,7 +47,7 @@ test('상태: 다른 조건의 행은 안 본다 · 가장 늦은 행이 기준 
 
 test('상태: 현행 서버 공개 기록(alerts_state._prefs)도 읽는다 — 동기화가 꺼져도 지난 울림은 그대로', () => {
   assert.equal(condStatus(A({ repeat: 'once' }), [], { fired: true, ts: TS }, true, false, NOW).kind, 'stopped')
-  assert.deepEqual(condStatus(A(), [], { date: '20261002', ts: TS }, false, false, NOW), { kind: 'rang', text: '울림 10/2 09:05' })
+  assert.deepEqual(condStatus(A(), [], { date: '20261002', ts: TS }, false, false, NOW), { kind: 'rang', text: '폰 알림 10/2 09:05' })
   assert.equal(condStatus(A({ repeat: 'once' }), [], { fired: true, ts: TS }, false, false, NOW).kind, 'stopped')
 })
 
@@ -87,7 +87,7 @@ test('condName: 사용자 이름 · 수준 · 급변 값 · 사전 사건', () =
   assert.equal(condName(A(), '달러원'), '달러원 1,400 위로')
   assert.equal(condName(A({ dir: 'down', value: 2500.5 }), '코스피'), '코스피 2,500.50 아래로')
   assert.equal(condName(A({ event: 'U2', value: 3 }), 'KODEX 200'), 'KODEX 200 등락 ±3%')
-  assert.equal(condName(A({ event: 'B1', value: undefined }), '금', '52주 신고저'), '금 52주 신고저')
+  assert.equal(condName(A({ event: 'B1', value: undefined }), '금', '52주 신고가·신저가'), '금 52주 신고가·신저가')
   assert.equal(condName(A({ name: '  내 선 ' }), '달러원'), '내 선')
 })
 
@@ -105,7 +105,7 @@ test('U1 은 넘는 순간 — 반복 설명과 쪽 기록(side)만 있는 공�
   assert.match(repeatNote('U1', 'each'), /넘는 순간.*다시 넘으면 또/)
   assert.match(repeatNote('U1', 'once'), /처음 넘는 순간 한 번/)
   assert.match(repeatNote('U1', 'each'), /이미 넘어 있으면/)
-  assert.equal(repeatNote('U2', 'each'), '방향마다 하루 한 번까지 울립니다.')
-  assert.equal(repeatNote('U2', 'once'), '한 번 울리면 멈춥니다.')
+  assert.equal(repeatNote('U2', 'each'), '방향마다 하루 한 번까지 보냅니다.')
+  assert.equal(repeatNote('U2', 'once'), '한 번 보내면 멈춥니다.')
   assert.deepEqual(condStatus(A(), [], { side: 'u' }, true, false, NOW), { kind: 'wait', text: '대기' })
 })
