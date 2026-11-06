@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { eventsFor, familyCount, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, memberView, passes, personalRow, publicLedger, railFeed, savedNote, sheetEvents, todayRows, yearCounts, type Dict } from './v2.ts'
+import { eventsFor, familyCount, fromLedger, groupDays, hhmm, kakaoToday, levelChoices, listEvents, memberView, passes, personalRow, publicLedger, railFeed, savedNote, sheetEvents, storyCards, todayRows, yearCounts, type Dict, type StoryCard } from './v2.ts'
 import { condStatus, rearm } from '../personal/alertStatus.ts'
 
 const dict: Dict = JSON.parse(readFileSync(new URL('./dict.json', import.meta.url), 'utf8'))
@@ -186,4 +186,25 @@ test('publicLedger · personalRow: 사람 행만 뺀다 · 배열이 아니면 �
   assert.equal(publicLedger(null), null)
   assert.deepEqual(publicLedger([{ event: 'A1' }, { event: 'U1' }]), [{ event: 'A1' }])
   assert.equal(todayRows(publicLedger([row('U1:x', '2026-10-02T10:00:00+09:00', { event: 'U1', cond: 'c' })]), '2026-10-02').total, 0)
+})
+
+test('이어진 알림: 같은 이야기(2건 이상)는 카드 한 장, 채운 점 = 폰 알림으로 보낸 줄', () => {
+  const rows = [
+    { key: 'a', event: 'A5', target: 'kosdaq', level: 'alarm', title: '코스닥 −2.9% 사이드카', ts: '2026-11-06T09:21:00+09:00', sent: { push: 1, story: '2026-11-06:kr' } },
+    { key: 'b', event: 'A5', target: 'kospi', level: 'alarm', title: '코스피 −7.8% 서킷브레이커 1단계', ts: '2026-11-06T09:26:00+09:00', sent: { push: 1, story: '2026-11-06:kr' } },
+    { key: 'c', event: 'A5', target: 'kospi', level: 'alarm', title: '코스피 −7.8% 사이드카', ts: '2026-11-06T09:37:00+09:00', sent: { push: 0, story: '2026-11-06:kr', folded: true } },
+    { key: 'd', event: 'A3', target: 'wti', level: 'alert', title: 'WTI 원유 +5.4% · $91.32', ts: '2026-11-06T09:01:00+09:00', sent: { push: 1, story: '2026-11-06:wti' } },
+  ]
+  const out = storyCards(fromLedger(rows, new Map()))
+  assert.equal(out.length, 2)
+  const card = out[0] as StoryCard
+  assert.equal(card.kind, 'story'); assert.equal(card.label, '국내 증시'); assert.deepEqual(card.rows.map(r => r.key), ['a', 'b', 'c'])
+  assert.deepEqual(card.rows.map(r => r.rung), [true, true, false])
+  assert.equal((out[1] as { key: string }).key, 'd')                   // 혼자인 이야기는 줄 그대로
+})
+
+test('이어진 알림 카드 이름: 국내 · 미국 증시는 시장 이름, 그 밖은 제목의 숫자 앞 이름', () => {
+  const mk = (key: string, title: string, ts: string) => ({ key, event: 'A4', target: 'btc', level: 'alert', title, ts, sent: { push: 1, story: '2026-11-06:btc' } })
+  const out = storyCards(fromLedger([mk('x', '비트코인 −4.3% · $76,981', '2026-11-06T00:12:00+09:00'), mk('y', '비트코인 −5.3% · $76,157', '2026-11-06T00:49:00+09:00')], new Map()))
+  assert.equal((out[0] as StoryCard).label, '비트코인')
 })

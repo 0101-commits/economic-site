@@ -34,7 +34,7 @@ export type FiredRec = { date?: string; ts?: number; fired?: boolean; side?: 'u'
 export type LedgerRow = {
   key: string; event: string; target: string; dir?: string; level: string; value?: number | string | null; unit?: string
   asOf?: string; title: string; why?: string; next?: string; url?: string; ts: string; cond?: string
-  sent?: { push?: number; kakao?: boolean; discord?: boolean; bundled?: boolean; held?: boolean }
+  sent?: { push?: number; kakao?: boolean; discord?: boolean; bundled?: boolean; held?: boolean; story?: string; folded?: boolean; joined?: boolean }
 }
 export type CondKind = 'off' | 'local' | 'wait' | 'rang' | 'stopped' | 'bundled' | 'held'
 export type CondStatus = { kind: CondKind; text: string }

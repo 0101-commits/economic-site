@@ -15,7 +15,36 @@ export type Dict = { families: { id: string; name: string }[]; levels: { id: str
 // ── 받은 알림 ─────────────────────────────────────────
 export type FeedLevel = Level | 'brief'
 /** 화면 한 줄. 원장 행 · 현행 발송 이력(alerts_state.json) 둘 다 이 모양으로 바꿔 그린다. */
-export type FeedRow = { key: string; level: FeedLevel; title: string; why?: string; next?: string; at: number; timed: boolean; day: string; to?: string; mine: boolean }
+export type FeedRow = {
+  key: string; level: FeedLevel; title: string; why?: string; next?: string; at: number; timed: boolean; day: string; to?: string; mine: boolean
+  story?: string; rung?: boolean                                  // 이어진 알림 이름표(원장 sent.story) · 폰 알림으로 나갔나
+}
+/** 이어진 알림 카드 — 같은 날 같은 시장의 급변 · 사이드카 · 서킷 · 선 돌파(서버 schedule.story_key). rows 는 이른 것부터. */
+export type StoryCard = { kind: 'story'; key: string; label: string; rows: FeedRow[]; at: number; level: FeedLevel; to?: string }
+const STORY_LABEL: Record<string, string> = { kr: '국내 증시', us: '미국 증시' }
+const LEVEL_RANK: Record<string, number> = { alarm: 3, alert: 2, notice: 1 }
+
+/** 줄 목록 → 이야기가 같은 줄(2건 이상)은 카드 한 장으로. 새것이 위인 차례는 그대로(카드 자리 = 그 이야기의 마지막 줄). */
+export function storyCards(items: FeedRow[]): (FeedRow | StoryCard)[] {
+  const by = new Map<string, FeedRow[]>()
+  for (const x of items) if (x.story) by.set(x.story, [...(by.get(x.story) ?? []), x])
+  const out: (FeedRow | StoryCard)[] = []
+  const done = new Set<string>()
+  for (const x of items) {
+    const g = x.story ? by.get(x.story) ?? [] : []
+    if (!x.story || g.length < 2) { out.push(x); continue }
+    if (done.has(x.story)) continue
+    done.add(x.story)
+    const rows = [...g].sort((a, b) => a.at - b.at)
+    const tail = x.story.split(':').pop() ?? ''
+    const top = rows.reduce((m, r) => ((LEVEL_RANK[r.level] ?? 0) > (LEVEL_RANK[m.level] ?? 0) ? r : m), rows[0])
+    const head = rows[0].title.split(' · ')[0]
+    const name = head.match(/^(.*?)\s+[+\-−$]?\d/)?.[1] ?? head            // 「비트코인 −4.3%」 → 「비트코인」(숫자 앞 이름만)
+    out.push({ kind: 'story', key: `story:${x.story}`, label: STORY_LABEL[tail] ?? name, rows,
+               at: rows[rows.length - 1].at, level: top.level, to: top.to })
+  }
+  return out
+}
 export const FILTERS = ['all', 'alarm', 'alert', 'notice', 'brief', 'mine'] as const
 export type Filter = typeof FILTERS[number]
 
@@ -31,6 +60,7 @@ export function fromLedger(rows: unknown, names: Map<string, string>): FeedRow[]
       key: r.key, level: (r.level as FeedLevel) ?? 'notice', title: (r.cond && names.get(r.cond)) || r.title,
       why: r.why || undefined, next: r.next || undefined, at, timed: true, day: kstDay(at),
       to: r.url?.startsWith('#/') ? r.url.slice(1) : undefined, mine,
+      story: r.sent?.story || undefined, rung: !!r.sent?.push && !r.sent?.joined,
     })
   }
   return out.sort((a, b) => b.at - a.at)

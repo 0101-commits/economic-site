@@ -139,7 +139,7 @@ _clock = time.monotonic        # 시험이 바꿔 낀다
 
 
 def _members_eval(ctx, members, market, sides, events_by_id, cd_history, render, dry_run: bool, light: bool,
-                  deliver, schedule, subscribe):
+                  deliver, schedule, subscribe, story_rows: list | None = None):
     """멤버 판정 단계 — 마스터 발송 **전**에 돈다. 네트워크(멤버 종목 시세)는 전부 여기서 끝낸다.
 
     마스터 카톡이 나간 뒤 · 원장 저장 전에 멤버 시세 조회가 잡 시한을 넘기면 원장이 커밋되지 않아 다음 런이 마스터에게
@@ -156,7 +156,8 @@ def _members_eval(ctx, members, market, sides, events_by_id, cd_history, render,
         dry_run=dry_run, light=light, deliver=deliver, schedule=schedule, subscribe=subscribe,
         book=sides if sides is not None else _read_book(os.path.join(ctx.root, "alerts_state.json")),
         mem_hist=[dict(r, sent={"push": 1}) for r in cd_history if not r.get("cond")],
-        write=light and sides is not None and not dry_run, n=len(members), n_err=0, n_late=0, n_muted=0)
+        write=light and sides is not None and not dry_run, n=len(members), n_err=0, n_late=0, n_muted=0,
+        story_rows=list(story_rows or []))           # 이어진 알림 단계 = 마스터 원장(공개 시장 사건)에서 읽기만
     plans = []
     start = _clock()
     prev = getattr(ctx, "redact_codes", False)
@@ -198,7 +199,7 @@ def _member_plan(ctx, uid: str, prefs: dict | None, env) -> SimpleNamespace:
     rec = env.book.get(day_k) if day_k else None
     n0 = int(rec.get("n") or 0) if isinstance(rec, dict) and rec.get("d") == env.today else 0
     sends = env.schedule.plan(decisions, _MemberBook(n0), ctx, settings, env.events_by_id, env.mem_hist,
-                              kakao_rings=False)
+                              kakao_rings=False, story_rows=getattr(env, "story_rows", []))
     for s in sends:
         s.uid = uid
     return SimpleNamespace(uid=uid, prefs=prefs, key=key, urows=urows, n_dec=len(decisions), sends=sends,
@@ -292,7 +293,7 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | 
     print(f"[v2] 구독 {len(decisions)} → 발송 {len(sends)}" + (" (dry-run)" if dry_run else ""))
     # 멤버 판정(네트워크 포함)은 마스터 발송 전에 끝낸다 — 카톡이 나간 뒤 · 원장 저장 전에 오래 걸리면 다음 런이 또 보낸다
     mem = _members_eval(ctx, members, market, sides, events_by_id, cd_history, render, dry_run, light,
-                        deliver, schedule, subscribe) if members else None
+                        deliver, schedule, subscribe, story_rows=ledger.rows) if members else None
     for s in sends:
         s.uid = owner_uid                          # 푸시 큐 항목에 마스터 uid(모르면 없음 = 마스터에게만)
         if dry_run:
