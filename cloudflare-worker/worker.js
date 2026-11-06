@@ -1901,6 +1901,42 @@ export const v2Ticks = (d) => {
 };
 const _v2Done = new Set();
 
+// 🔔 발표 직후 풀 런 깨움(알림 개편 P4, 2026-11-06) — 발표 결과(E2) · 큰 차이(E3)는 풀 런만 판정하는데 풀 런은 매시 :07 이라
+//   21:30 발표가 37분 뒤에 왔다. fetch-data 가 data_meta.json 에 실어 두는 releaseAt(★★ 이상 · 실제 값을 채울 길이 있는 일정의
+//   발표 시각, UTC 「YYYY-MM-DDTHH:MMZ」)을 읽어 발표 +2 · +9 · +29분에 풀 런을 깨운다(+1분은 틱 드롭 보강, 키 = 깨우는 분).
+//   +9 · +29 는 나스닥이 발표값을 늦게 올리는 날 몫이다. 같은 분의 두 발표는 한 번만 깨운다.
+//   자가 점검: node cloudflare-worker/test_offhours_tick.mjs
+export const RELEASE_WAKE_MIN = [2, 9, 29];
+export const releaseWakeTicks = (d, list) => {
+  const now = Math.floor(d.getTime() / 60000);
+  const out = new Set();
+  for (const iso of Array.isArray(list) ? list : []) {
+    const r = typeof iso === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/.test(iso) ? Date.parse(iso.replace('Z', ':00Z')) : NaN;
+    if (!Number.isFinite(r)) continue;
+    for (const off of RELEASE_WAKE_MIN) {
+      const w = Math.floor(r / 60000) + off;
+      if (now === w || now === w + 1) out.add(new Date(w * 60000).toISOString().slice(0, 16));
+    }
+  }
+  return [...out];
+};
+let _relCache = { at: 0, list: [] };
+const _relDone = new Set();
+async function _releaseList() {
+  if (Date.now() - _relCache.at < 10 * 60000) return _relCache.list;
+  _relCache.at = Date.now() - 8 * 60000;        // 실패하면 2분 뒤 다시(성공하면 아래서 10분으로)
+  try {
+    const r = await fetch(new URL('data_meta.json', APP_URL).toString(), { cf: { cacheTtl: 120 } });
+    if (r.ok) {
+      const j = await r.json();
+      if (j && Array.isArray(j.releaseAt)) _relCache = { at: Date.now(), list: j.releaseAt.filter((x) => typeof x === 'string').slice(0, 24) };
+    }
+  } catch (e) {
+    console.log(`[release-wake] 발표 시각 목록 실패: ${e && e.name}`);
+  }
+  return _relCache.list;
+}
+
 // 📲 카카오 발송 슬롯 판정(KST) — kakao-daily.yml 의 '발송 창 게이트'와 동일 규칙.
 //   • 평일(월~금) 07~22시 매시간 / 주말(토·일) 11·17시.
 // */5 cron 재시도 dispatch 의 게이트로만 쓴다(실제 발송 여부의 단일 진실원은 워크플로 게이트).
@@ -2258,6 +2294,18 @@ export default {
         _v2Done.add(t.key);
         ctx.waitUntil((async () => {
           if (await ghDispatch(env, t.event, t.payload, 'ecom-v2-cron') === false) _v2Done.delete(t.key);
+        })());
+      }
+      // 🔔 발표 직후 풀 런(releaseWakeTicks) — 실패하면 마커를 지워 다음 분(+1 보강)이 재시도한다.
+      if (env && env.GH_DISPATCH_TOKEN) {
+        ctx.waitUntil((async () => {
+          for (const k of releaseWakeTicks(now, await _releaseList())) {
+            if (_relDone.has(k)) continue;
+            if (_relDone.size > 64) _relDone.clear();
+            _relDone.add(k);
+            if (await ghDispatch(env, 'fetch-data', { mode: 'full' }, 'ecom-fetch-release') === false) _relDone.delete(k);
+            else console.log(`[release-wake] ${k} 풀 런 깨움`);
+          }
         })());
       }
     } else {
