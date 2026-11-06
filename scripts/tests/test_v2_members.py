@@ -225,7 +225,7 @@ def test_member_daily_cap_counter_bundles_without_touching_ledger(env):
     day = _mk(MEMBER, "@day")
     people = [(OWNER, "owner", _prefs(families={"A": False})), (MEMBER, "member", _prefs())]
     sides = env(people, at, rows=[_mrow(at)], sides={day: {"d": "2026-10-02", "n": 10}})   # 기본 상한 10 — 꽉 참
-    assert len(env.rec.pushes) == 1 and env.rec.pushes[0]["title"].startswith("알림 1건 더")
+    assert len(env.rec.pushes) == 1 and env.rec.pushes[0]["title"] == "하루 최대를 넘은 알림 1건"
     assert env.rec.pushes[0]["uid"] == MEMBER
     assert sides[day] == {"d": "2026-10-02", "n": 11}       # 마스터 원장 셈과 같게 — 묶음은 한 통(안의 행은 안 셈, 2026-11-06)
     assert env.ledger.get(_mrow(at)["key"])["sent"]["bundled"] is False      # 공개 원장은 멤버 편성이 안 건드린다
@@ -430,7 +430,7 @@ def test_member_briefing_has_no_owner_personal_rows(monkeypatch, tmp_path):
     led, run_slot = _brief_env(monkeypatch, tmp_path, now)
     led.append(_row("U1:005930:up:abc123", "U1", "2026-10-06T01:00:00+09:00", SECRET, held=True, cond="c1"))
     items = run_slot("morning")
-    assert "삼성전자" in items[OWNER]["body"]                                 # 마스터 본문엔 그대로(재료가 실제로 샌다는 확인)
+    assert items[OWNER]["title"].startswith("아침 브리핑")                    # 폰 알림 = 제목 사실 조각 한 줄(2026-11-06) — 재료는 카톡 · 원장에
     assert _no_secret(items[MEMBER])
 
 

@@ -72,7 +72,7 @@ def test_u2_stock_both_directions(monkeypatch):
                           {"id": "b", "event": "U2", "target": "005930", "value": 5},
                           {"id": "c", "event": "U2", "target": "0051G0", "value": 3}])
     assert [(r["cond"], r["dir"]) for r in rows] == [("a", "down"), ("c", "up")]
-    assert rows[1]["title"].startswith("SOL 미국원자력SMR +5.0%")
+    assert rows[1]["title"].startswith("미국원자력SMR +5.0%")   # 제목이 넘치면 운용사 이름(SOL)을 뺀다
 
 
 def test_b1_stock_new_high_first_day_only(monkeypatch):

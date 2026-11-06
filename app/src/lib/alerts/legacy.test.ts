@@ -31,7 +31,7 @@ test('변환 6종: 가격 위 · 아래 → U1, 등락률 → U2(절댓값), 52�
   ])
   assert.ok(r.add.every(a => a.repeat === 'each' && a.ring === true && a.enabled === true))
   // 종목 이름이 조건 이름에 든다 — 값 · 방향까지 읽힌다
-  assert.deepEqual(r.add.map(a => a.name), ['AAA 90,000 위로', 'BBB 70,000.50 아래로', 'CCC 등락 ±10%', 'DDD 52주 신고저', 'EEE 52주 신고저'])
+  assert.deepEqual(r.add.map(a => a.name), ['AAA 90,000 위로', 'BBB 70,000.50 아래로', 'CCC 등락 ±10%', 'DDD 52주 신고가·신저가', 'EEE 52주 신고가·신저가'])
   assert.deepEqual(r.add.map(a => a.id), ['p1', 'p2', 'p3', 'p4', 'p5'])
 })
 

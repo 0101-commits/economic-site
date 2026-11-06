@@ -426,7 +426,7 @@ def release_result(ctx: Context, ev: dict) -> list[Hit]:
         # 「컨센서스 …」 조각은 컨센서스가 있을 때만 — 나스닥에 없는 일정(한국 고용 · 산업활동)은 fore 가 빈다. 틀에
         # 「컨센서스」를 글자로 두면 fore 가 빌 때 「… · 컨센서스」만 남는다. 판정어는 사실(높음 · 낮음 · 같음)만 — 호재 · 악재로 읽지 않는다.
         fields = {"event_name": e.get("name"), "act": e.get("act"), "fore": e.get("fore") or "",
-                  "vs_fore": f"컨센서스 {e.get('fore')} {verdict}" if fore is not None else "",
+                  "vs_fore": (("예상과 같음" if verdict == "같음" else f"예상보다 {verdict}") if verdict else ""),   # 제목 한 줄 — 컨센서스 값은 본문(2026-11-06)
                   "prev": e.get("prev") or "", "verdict_ko": verdict, "stars": stars, "next_event": nxt}
         if lvl := _escalate(ev, stars):
             fields["level"] = lvl

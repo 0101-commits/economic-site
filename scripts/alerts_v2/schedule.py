@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 
 from . import LEVELS
+from . import compose
 from .model import DEFAULT_SETTINGS, PACKAGE_CAP, Decision, Send
 
 RING_LEVELS = ("alarm", "alert")
@@ -148,17 +149,14 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
             rung += 1
 
     if bundle:
-        first = bundle[0]
-        title = f"알림 {len(bundle)}건 더 · {first.get('title', '')}"
-        if len(title) > 30:
-            title = title[:29] + "…"
+        title = f"하루 최대를 넘은 알림 {len(bundle)}건"          # 폭 18 안(용어 정제 2차 B) — 「알림 N건 더 · …」 대신
         brow = {
             "key": f"BUNDLE:{now.date().isoformat()}:{now.strftime('%H%M')}",
             "event": "BUNDLE", "target": "bundle", "dir": "new", "level": "alert",
             "value": len(bundle), "unit": "건", "asOf": now.date().isoformat(), "fresh": "live",
             "title": title,
-            "why": " · ".join((r.get("title") or "")[:14] for r in bundle[:3]),
-            "next": "상한 넘어 묶음 — 보관함에서 펼침", "url": "#/alerts",
+            "why": compose.cut_w(" · ".join(str(r.get("title") or "").split(" · ")[0] for r in bundle[:2]), compose.BODY_W),
+            "next": "", "url": "#/alerts",
             "ts": now.isoformat(timespec="seconds"),
         }
         out.append(Send(row=brow, level="alert", push=True, kakao=False,

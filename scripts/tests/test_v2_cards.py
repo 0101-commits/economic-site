@@ -220,7 +220,7 @@ def test_brief_quote_from_strip():
     ctx = SimpleNamespace(strip=strips.get)
     assert cards.quote(ctx, "us10y") == ("미국 국채 10Y", "5.28%", "−3bp", -0.03, dt.date(2026, 10, 7))
     assert cards.quote(ctx, "sp500")[1:3] == ("7,765.36", "▼0.47%")
-    assert cards.quote(ctx, "wti")[1:3] == ("90.90$", "▲1.15%")
+    assert cards.quote(ctx, "wti")[1:3] == ("$90.90", "▲1.15%")   # 달러는 앞(용어 정제 2차 D7)
     assert cards.quote(ctx, "kospi") is None
 
 

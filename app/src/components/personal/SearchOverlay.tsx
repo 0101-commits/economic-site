@@ -30,7 +30,7 @@ const SCREENS: Fixed[] = [
   ...([['whatif', '만약에', '시나리오 whatif what-if'], ['chain', '사슬', '연결 고리'], ['flow', '흐름', '흐름']] as const)
     .map(([k, l, keys]): Fixed => ({ kind: '화면', label: `렌즈 · ${l}`, to: `/lens?m=${k}`, keys: `렌즈 메르 위험 ${l} ${keys}` })),
   { kind: '화면', label: '내 자산', to: '/my', keys: '내 자산 보유 포트폴리오 평가액 손익' },
-  { kind: '화면', label: '알림', to: '/alerts', keys: '알림 조건 받은 알림 푸시' },
+  { kind: '화면', label: '알림', to: '/alerts', keys: '알림 조건 알림 기록 푸시' },
 ]
 const TOOLS: Fixed[] = [
   { kind: '도구', label: '환율 만약에', sub:'내 자산 · 달러원이 움직이면 총평가는', to: '/my', keys: '환율 달러원 whatif 만약 시나리오 fx' },

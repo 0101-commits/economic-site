@@ -1,5 +1,5 @@
 # 사건 사전 — 알림 v2 의 단일 원천(기획서 3장). 최소 YAML 부분집합(schema.py 머리말)으로만 적는다.
-# level: alarm(경보) alert(알림) notice(안내) record(기록) · run: light full settle daily eve
+# level: alarm(경보) alert(주의) notice(안내) record(기록) · run: light full settle daily eve
 # targets 는 bundles/registry.json 의 id(없으면 context.ALIASES). default_on 이 비면 별표(관심)만.
 # 급변(A1~A4)의 sigma 2.0 = 「보통」 세기로 넓게 잡아 원장에 두고, 울림은 구독 단계가 사용자 세기(기본 big 2.5σ)로 거른다(subscribe.strength_ok).
 # 템플릿 변수: {name} 대상 이름 · {value} 표시 값 · {chg} 등락% · {dir_ko} 방향 말 · 그 밖은 Hit.fields.
@@ -18,7 +18,7 @@
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
   why: ["{peer} 동반", "{news}"]
-  next: ["{next_event}", "다음 마디 {next_round}"]
+  next: ["{next_event}", "다음 {next_round}선"]
   url: "#/i/{target}"
 - id: A2
   name: 환율 급변
@@ -33,7 +33,7 @@
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
   why: ["{peer} 동반", "{news}"]
-  next: ["{lens_line}", "{next_event}", "다음 마디 {next_round}"]
+  next: ["{lens_line}", "{next_event}", "다음 {next_round}선"]
   url: "#/i/{target}"
 - id: A3
   name: 원자재 급변
@@ -48,7 +48,7 @@
   cooldown: {per: [target, dir], days: 1}
   title: "{name} {chg:+.1f}% · {value}"
   why: ["{peer} 동반", "{news}"]
-  next: ["{next_event}", "다음 마디 {next_round}"]
+  next: ["{next_event}", "다음 {next_round}선"]
   url: "#/i/{target}"
 - id: A4
   name: 비트코인 급변
@@ -62,7 +62,7 @@
   cooldown: {per: [target], days: 1}
   title: "비트코인 {chg:+.1f}% · {value}"
   why: ["{news}"]
-  next: ["다음 마디 {next_round}"]
+  next: ["다음 {next_round}선"]
   url: "#/i/btc"
 - id: A5
   name: 서킷브레이커
@@ -74,13 +74,13 @@
   params: {stages_pct: [-8, -15, -20], sidecar_pct: 2.5}
   run: light
   cooldown: {per: [target, stage], days: 1}
-  title: "{name} {chg:+.1f}% · {halt_kind} {stage_label}{approx}"
-  why: ["{peer} 동시 · {source}"]
-  next: ["해제되면 알림 · 다음 단계 {next_stage}%"]
+  title: "{name} {chg:+.1f}% {halt_kind} {stage_label}"
+  why: ["{peer} 동반 · {source}", "{source}"]
+  next: ["다음 단계 {next_stage}%"]
   url: "#/market?a=kr"
 # ---- B 기록 · 마디 ----
 - id: B1
-  name: 52주 신고저
+  name: 52주 신고가·신저가
   family: B
   level: alert
   targets: [kospi, kosdaq, sp500, nasdaq, nikkei, sox, gold, silver, copper, wti, btc, usdkrw]
@@ -89,12 +89,12 @@
   params: {window: 250, min_points: 60}
   run: settle                     # 마감 종가로(기획서 3장 「마감 풀 런」) — 매시 장중 값이라 떨렸다
   cooldown: {per: [target, dir], days: 7}
-  title: "{name} {value} · 52주 {hl_ko}"
-  why: ["직전 {hl_ko} {prev_extreme} ({prev_md})"]
-  next: ["다음 마디 {next_round}"]
+  title: "{name} 52주 {hl_ko}"
+  why: ["{value} · 직전 {prev_extreme}({prev_md})", "{value} · 직전 {prev_extreme}", "{value}"]
+  next: ["다음 {next_round}선"]
   url: "#/i/{target}"
 - id: B2
-  name: 마디 돌파
+  name: 선 돌파
   family: B
   level: notice
   targets: [kospi, usdkrw, gold, btc, wti, sp500]
@@ -103,13 +103,13 @@
   params: {step: {kospi: 1000, usdkrw: 50, gold: 250, btc: 10000, wti: 10, sp500: 250}}
   run: light
   cooldown: {per: [target], days: 1}
-  title: "{name} {level_value} 선 {dir_ko} · {value}"
-  why: ["52주 고점 대비 {from_high}%"]
-  next: ["다음 마디 {next_level}"]
+  title: "{name} {level_value}선 {dir_line}"
+  why: ["{value} · 52주 고점보다 {from_high}%", "{value}"]
+  next: ["다음 {next_level}선"]
   url: "#/i/{target}"
 # ---- C 임계 · 단계 ----
 - id: C1
-  name: 렌즈 새 돌파
+  name: 렌즈 선 돌파
   family: C
   level: alert
   escalate: {cond: "default_target", to: alarm}
@@ -119,12 +119,12 @@
   params: {persist_days: 2, first_in_days: 365, near_pct: 2.0}
   run: full
   cooldown: {per: [target, line], days: 365}
-  title: "{name} {value} · {line} 선 {dir_ko}"
-  why: ["메르 「{chain}」 사슬 {step} 단계 ({post_date} 글)"]
-  next: ["다음 선 {next_line} 까지 {dist}"]
+  title: "{name} {line}선 {dir_line}"
+  why: ["{value} · 메르 「{chain}」 {step}단계", "{value} · 메르 「{chain}」", "{value}"]
+  next: ["다음 {next_line}선까지 {dist}%"]
   url: "#/lens?m=chain&s={chain_id}"
 - id: C2
-  name: 렌즈 주시
+  name: 렌즈 선 주시
   family: C
   level: notice
   targets: [lens]
@@ -133,12 +133,12 @@
   params: {near_pct: 2.0}
   run: full
   cooldown: {per: [target, line], days: 7}
-  title: "{name} {value} · {line} 선까지 {dist}"
-  why: ["메르 「{chain}」 사슬 {step} 단계"]
-  next: ["7일간 다시 알리지 않음"]
+  title: "{name} {line}선까지 {dist}%"
+  why: ["{value} · 메르 「{chain}」 {step}단계", "{value} · 메르 「{chain}」", "{value}"]
+  next: []
   url: "#/lens?m=whatif&s={node}"
 - id: C3
-  name: VIX 단계
+  name: VIX 선 돌파
   family: C
   level: alert
   escalate: {cond: "stage>=40", to: alarm}
@@ -148,12 +148,12 @@
   params: {stages: [25, 30, 40]}
   run: full
   cooldown: {per: [target, stage], days: 7}
-  title: "VIX {value} · {stage} 선 돌파"
-  why: ["S&P500 {peer_chg}"]
-  next: ["다음 단계 {next_stage}"]
+  title: "VIX {value} · {stage}선 돌파"
+  why: ["S&P 500 {peer_chg}"]
+  next: ["다음 {next_stage}선"]
   url: "#/i/vix"
 - id: C4
-  name: MOVE 단계
+  name: MOVE 선 돌파
   family: C
   level: notice
   targets: [move]
@@ -162,12 +162,12 @@
   params: {stages: [100, 120]}
   run: full
   cooldown: {per: [target, stage], days: 7}
-  title: "MOVE {value} · {stage} 선 돌파"
-  why: ["미 10년 {peer_chg}"]
-  next: ["다음 단계 {next_stage}"]
+  title: "MOVE {value} · {stage}선 돌파"
+  why: ["미 국채 10년 {peer_chg}"]
+  next: ["다음 {next_stage}선"]
   url: "#/i/move"
 - id: C5
-  name: 공포탐욕 극단
+  name: 공포·탐욕 극단
   family: C
   level: notice
   targets: [fear_greed]
@@ -176,12 +176,12 @@
   params: {low: 25, high: 75}
   run: full
   cooldown: {per: [target, dir], days: 7}
-  title: "공포탐욕 {value} · {band_ko} 진입"
+  title: "공포·탐욕 {value} · {band_ko} 진입"
   why: ["전일 {prev}"]
   next: ["{exit_rule}"]
   url: "#/i/fear_greed"
 - id: C6
-  name: VKOSPI 이상
+  name: V-KOSPI 급등
   family: C
   level: notice
   targets: [vkospi]
@@ -190,7 +190,7 @@
   params: {ratio: 1.5, day_pct: 10, min_history: 90}
   run: full
   cooldown: {per: [target], days: 1}
-  title: "VKOSPI {value} · {reason}"
+  title: "V-KOSPI {value} · {reason}"
   why: ["20일 실현변동성 {realized}"]
   next: ["{next_event}"]
   url: "#/i/vkospi"
@@ -204,7 +204,7 @@
   params: {bp: 10}
   run: full
   cooldown: {per: [target, dir], days: 1}
-  title: "{name} {value} · {chg_bp:+d}bp ({asof_md})"
+  title: "{name} {value} · {chg_bp:+d}bp"
   why: ["{peer} {peer_chg}"]
   next: ["{lens_line}"]
   url: "#/i/{target}"
@@ -218,13 +218,13 @@
   params: {}
   run: full
   cooldown: {per: [target, dir], days: 30}
-  title: "미 10년−2년 {value} · {flip_ko}"
+  title: "미 장단기 금리차 {value} · {flip_ko}"
   why: ["직전 {prev}"]
   next: ["{next_event}"]
   url: "#/i/t10y2y"
 # ---- D 수급(코스피 확정치) ----
 - id: D1
-  name: 외국인 연속 시작
+  name: 외국인 연속 매매
   family: D
   level: alert
   targets: [kospi]
@@ -233,12 +233,12 @@
   params: {who: foreign, days: 5, remind_days: 10}
   run: settle
   cooldown: {per: [target, dir, streak], days: 1}
-  title: "외국인 {streak}일째 {dir_ko} · 오늘 {value}"
+  title: "외국인 {streak}일째 {dir_ko} · {value}"
   why: ["5일 누적 {cum5} · {support_ko}", "5일 누적 {cum5}"]
-  next: ["확정 18:00 · {dir_rev_ko}로 돌아서면 알림"]
+  next: []
   url: "#/market?a=flow"
 - id: D2
-  name: 외국인 전환
+  name: 외국인 방향 바뀜
   family: D
   level: alert
   targets: [kospi]
@@ -247,12 +247,12 @@
   params: {who: foreign, min_streak: 5}
   run: settle
   cooldown: {per: [target], days: 1}
-  title: "외국인 {streak}일 {prev_dir_ko} 끝 · 오늘 {value}"
-  why: ["{streak}일 누적 {cum}"]
-  next: ["다시 {streak_min}일 이어지면 알림"]
+  title: "외국인 {dir_ko}로 전환 · {value}"
+  why: ["직전 {streak}일 {prev_dir_ko} · 누적 {cum}", "직전 {streak}일 {prev_dir_ko}"]
+  next: []
   url: "#/market?a=flow"
 - id: D3
-  name: 외국인 누적 진입
+  name: 외국인 5일 누적
   family: D
   level: alert
   targets: [kospi]
@@ -289,8 +289,8 @@
   params: {who: foreign, cooldown_h: 24}
   run: daily
   cooldown: {per: [target], days: 1}
-  title: "{name} 외국인 {dir_ko} 전환 · {value}주"
-  why: ["직전 {prev_days}일 {prev_dir_ko}"]
+  title: "{name} 외국인 {dir_ko} 전환"
+  why: ["{value} · 직전 {prev_days}일 {prev_dir_ko}", "{value}"]
   next: ["{next_event}"]
   url: "#/i/{target}"
 # ---- E 일정 · 발표 ----
@@ -320,11 +320,11 @@
   run: full
   cooldown: {per: [target, date], days: 1}
   title: "{event_name} {act} · {vs_fore}"
-  why: ["직전 {prev}"]
-  next: ["다음 ★★★ {next_event}"]
+  why: ["컨센서스 {fore} · 직전 {prev}", "직전 {prev}"]
+  next: ["다음 주요 일정 {next_event}"]
   url: "#/market?a=macro&v=calendar"
 - id: E3
-  name: 서프라이즈
+  name: 컨센서스와 큰 차이
   family: E
   level: alert
   targets: [calendar]
@@ -333,7 +333,7 @@
   params: {min_stars: 2, ratio: 2.5, min_n: 6}   # 컨센서스 대비 차이가 평소 폭의 2.5배 이상(「매우 큼」 · 2026-10-30 D4)
   run: full
   cooldown: {per: [target, date], days: 1}
-  title: "{event_name} {act} · 컨센서스와 {gap} 차이"
+  title: "{event_name} {act} · 예상과 큰 차이"
   why: ["{why_line}"]
   next: ["{next_event}"]
   url: "#/market?a=macro&v=calendar"
@@ -364,7 +364,7 @@
   cooldown: {per: [target, date], days: 1}
   title: "{from_md}~{to_md} 휴장 · 다음 개장 {next_md}"
   why: ["미국은 {us_status}"]
-  next: ["연휴 중 알림은 미국 · 환율만"]
+  next: []
   url: "#/"
 # ---- F 공시 · 종목 ----
 - id: F1
@@ -381,7 +381,7 @@
   why: ["{doc_title}"]
   url: "#/i/{target}"
 - id: F2
-  name: 거래소 경보 변경
+  name: 거래소 지정 변경
   family: F
   level: notice
   targets: [watch_stocks]
@@ -422,7 +422,7 @@
   next: ["{next_event}"]
   url: "#/lens?m=flow"
 - id: G2
-  name: 입장 반전
+  name: 메르 입장 바뀜
   family: G
   level: notice
   targets: [stance]
@@ -465,7 +465,7 @@
   next: ["{next_event}"]
   url: "#/lens"
 - id: G5
-  name: 사슬 활성
+  name: 사슬 발동
   family: G
   level: notice
   targets: [chains]
@@ -474,13 +474,13 @@
   params: {}
   run: full
   cooldown: {per: [target], days: 7}
-  title: "사슬 「{name}」 활성 · {step} 단계"
-  why: ["{trigger}"]
+  title: "{name} 사슬 발동"
+  why: ["메르 렌즈 · {trigger}", "{trigger}"]
   next: ["{next_step}"]
   url: "#/lens?m=chain&s={target}"
 # ---- H 실물 · 월간 ----
 - id: H1
-  name: 금 김치프리미엄
+  name: 금 국내외 가격차
   family: H
   level: notice
   targets: [gold_premium]
@@ -489,7 +489,7 @@
   params: {abs_pct: 1.0, min_history: 30}
   run: daily
   cooldown: {per: [target, dir], days: 1}
-  title: "금 김치프리미엄 {value} · {dir_ko}"
+  title: "금 국내외 가격차 {value} · {dir_ko}"
   why: ["국내 {krw_g} · 국제 {usd_oz}"]
   next: ["{next_event}"]
   url: "#/market?a=commod"
@@ -503,7 +503,7 @@
   params: {}
   run: daily
   cooldown: {per: [target, period], days: 1}
-  title: "{name} {value} ({period})"
+  title: "{name} {value_plain} ({period})"
   url: "#/i/{target}"
 - id: H3
   name: 부동산 월간
@@ -533,7 +533,7 @@
   url: "#/market?a=commod"
 # ---- U 사용자 조건(구독 단계에서 판정, 사전엔 틀만) ----
 - id: U1
-  name: 수준 도달
+  name: 내 가격 조건
   family: A
   level: alert
   targets: [any]
@@ -547,7 +547,7 @@
   next: ["{next_event}"]
   url: "#/i/{target}"
 - id: U2
-  name: 급변 값 지정
+  name: 내 등락률 조건
   family: A
   level: alert
   targets: [any]

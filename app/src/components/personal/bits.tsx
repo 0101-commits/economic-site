@@ -48,7 +48,7 @@ export const LV = Object.fromEntries(dictJson.levels.map(l => [l.id, l.name])) a
 /** 등급 알약: 경보만 검정 채움, 알림은 진한 테두리, 안내 · 시황은 옅은 테두리. 글자는 사전 이름(시황 = 브리핑). */
 export function LevelPill({ level }: { level: Level | 'brief' }) {
   const tone = level === 'alarm' ? 'bg-accent text-on-accent border-accent' : level === 'alert' ? 'border-ink-1 text-ink-1' : 'border-line text-ink-3'
-  return <span className={`inline-flex shrink-0 items-center h-5 px-2 rounded-chip border text-11 whitespace-nowrap ${tone}`}>{level === 'brief' ? '시황' : LV[level]}</span>
+  return <span className={`inline-flex shrink-0 items-center h-5 px-2 rounded-chip border text-11 whitespace-nowrap ${tone}`}>{level === 'brief' ? '브리핑' : LV[level]}</span>
 }
 
 /** 이름표가 위에 붙은 한 묶음(고르기 줄 · 스위치 따위를 담는다). */

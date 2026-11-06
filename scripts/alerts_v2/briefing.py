@@ -55,6 +55,33 @@ def late_min(slot: str, now: dt.datetime) -> int | None:
     return max(0, int((k - due).total_seconds() // 60))
 
 
+_RATIO = re.compile(r"\((평소) ([\d.]+배)\)")
+
+
+def push_text(title: str, lines: list, slot: str) -> tuple[str, str]:
+    """폰 알림 한 통 — 제목 폭 18칸(「아침 브리핑 · S&P 500 −4.4%」) · 본문 폭 20칸 한 줄(「평소의 5.1배 · 외국인 5일째」).
+    카톡 제목(「11/6(금) 아침 · S&P500 -4.4%(평소 5.1배) · 외국인 5일째」)의 사실 조각을 다시 짠다 — 날짜는 알림 시각이 말한다."""
+    def norm(s: str) -> str:
+        s = s.replace("S&P500", "S&P 500").replace("미국채", "미 국채")
+        return re.sub(r"(?<![\w])-(?=\d)", compose.MINUS, s).strip()
+    facts, ratios = [], []
+    for f in str(title or "").split(" · ")[1:]:
+        if m := _RATIO.search(f):
+            ratios.append(f"{m.group(1)}의 {m.group(2)}")
+            f = f.replace(m.group(0), "")
+        if f.strip():
+            facts.append(norm(f))
+    name = f"{SLOTS.get(slot, ('', slot))[1]} 브리핑"
+    head = f"{name} · {facts[0]}" if facts else name
+    p_title = head if compose.width(head) <= compose.TITLE_W else name
+    rest = facts[1:] if p_title != name else facts
+    lead = [compose.cut_w(facts[0], compose.BODY_W)] if facts and p_title == name else []   # 제목에 못 든 첫 사실은 본문 맨 앞
+    cands = [*lead, " · ".join(x for x in (ratios[:1] + rest[:1]) if x), " · ".join(rest[:2]), *(rest[:1]), *(ratios[:1]),
+             *[norm(str(x)) for x in (lines or []) if x]]
+    body = next((c for c in cands if c and compose.width(c) <= compose.BODY_W), "")
+    return p_title, body or compose.cut_w(next((c for c in cands if c), ""), compose.BODY_W)
+
+
 def enabled(slot: str, settings: dict | None) -> bool:
     b = {**DEFAULT_SETTINGS["briefings"], **((settings or {}).get("briefings") or {})}
     return bool(b.get(slot))
@@ -395,16 +422,15 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
             log(f"  {x}")
     if dry_run:
         return res
-    item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": out["title"],
-            "body": compose.cut("\n".join(x for x in out["lines"][:2] if x), compose.PUSH_BODY_MAX),
+    p_title, p_body = push_text(out["title"], out["lines"], slot)
+    item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": p_title, "body": p_body,
             "url": deliver.abs_url("#/"), "ts": ctx.now.isoformat(timespec="seconds"),
             "level": "brief", "requireInteraction": False}
     if owner_on:
         _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, queue_path)
     if mem:                                            # 멤버 — 푸시만, 사람마다 uid 를 단 항목 · 시장 내용만(public_*)
-        pub = {"title": out.get("public_title") or out["title"],
-               "body": compose.cut("\n".join(x for x in (out.get("public_lines") or out["lines"][:2]) if x),
-                                   compose.PUSH_BODY_MAX)}
+        m_title, m_body = push_text(out.get("public_title") or out["title"], out.get("public_lines") or out["lines"], slot)
+        pub = {"title": m_title, "body": m_body}
         if deliver.enqueue_push([dict(item, **pub, uid=u) for u in mem], queue_path):
             res["members"] = len(mem)
         log(f"[v2 brief] {slot} → 멤버 {res['members']}명 푸시")

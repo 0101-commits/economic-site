@@ -56,8 +56,8 @@ export function condStatus(a: AlertCond, rows: LedgerRow[], fired: FiredRec | un
     if (last.sent?.held && now - sec(last.ts) * 1000 < HELD_MS) return { kind: 'held', text: '보류 → 07:30' }
     if (last.sent?.bundled) return { kind: 'bundled', text: '묶임' }
   }
-  if (lastSec) return { kind: 'rang', text: `울림 ${mdHm(new Date(lastSec * 1000))}` }
-  return synced ? { kind: 'wait', text: '대기' } : { kind: 'local', text: '이 기기만 — 울리지 않음' }
+  if (lastSec) return { kind: 'rang', text: `폰 알림 ${mdHm(new Date(lastSec * 1000))}` }
+  return synced ? { kind: 'wait', text: '대기' } : { kind: 'local', text: '이 기기만 — 폰 알림 없음' }
 }
 
 /** U1 의 그 순간 쪽(u 임계 위 · d 아래) — 서버 user_hits 와 같은 규칙(임계와 같으면 넘은 쪽). cur 는 화면 단위(format.scaled 뒤). 값을 모르면 undefined. */
@@ -84,10 +84,10 @@ export function armU1(a: AlertCond, cur: number | null | undefined, rows: Ledger
 export function repeatNote(event: string, repeat: 'each' | 'once'): string {
   if (event === 'U1') {
     return (repeat === 'each'
-      ? '임계를 넘는 순간 울립니다 · 되돌아갔다 다시 넘으면 또(하루 한 번까지).'
-      : '처음 넘는 순간 한 번 울리고 멈춥니다.') + ' 저장할 때 이미 넘어 있으면 되돌아갔다 다시 넘을 때부터 봅니다.'
+      ? '임계를 넘는 순간 폰 알림을 보냅니다 · 되돌아갔다 다시 넘으면 또(하루 한 번까지).'
+      : '처음 넘는 순간 한 번 보내고 멈춥니다.') + ' 저장할 때 이미 넘어 있으면 되돌아갔다 다시 넘을 때부터 봅니다.'
   }
-  return repeat === 'each' ? '방향마다 하루 한 번까지 울립니다.' : '한 번 울리면 멈춥니다.'
+  return repeat === 'each' ? '방향마다 하루 한 번까지 보냅니다.' : '한 번 보내면 멈춥니다.'
 }
 
 /** 조건 이름: 사용자가 붙인 이름, 없으면 「대상 조건」(달러원 1,400 위로 · KODEX 200 등락 ±3% · 금 52주 신고저). */

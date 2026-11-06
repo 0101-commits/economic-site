@@ -335,8 +335,8 @@ function Advanced({ s, setS, member }: { s: S; setS: (k: Partial<S>) => void; me
     <div className="flex flex-col gap-4">
       {!member && <Kakao s={s} setS={setS} />}{/* 멤버는 카톡을 받지 않는다(카톡은 마스터 계정 「나에게 보내기」) — 칸 · 낱말을 두지 않는다 */}
       <div className="pt-3 border-t border-line">
-        <Switch on={s.autoQuiet} onChange={v => setS({ autoQuiet: v })} label={`90일 동안 알림 화면을 안 열면 알림 단계를 「${QUIET_PKG}」로 내리기`} />
-        <p className="mt-1 mb-0 text-12 text-ink-3">이 기기만. 내려가면 알림 화면 맨 위에 한 줄로 알립니다. 끄면 알림 단계를 그대로 둡니다.</p>
+        <Switch on={s.autoQuiet} onChange={v => setS({ autoQuiet: v })} label={`90일 동안 알림 화면을 안 열면 알림 양을 「${QUIET_PKG}」로 내리기`} />
+        <p className="mt-1 mb-0 text-12 text-ink-3">이 기기만. 내려가면 알림 화면 맨 위에 한 줄로 알립니다. 끄면 알림 양을 그대로 둡니다.</p>
       </div>
       <div className="pt-3 border-t border-line"><UsageTable /></div>
     </div>

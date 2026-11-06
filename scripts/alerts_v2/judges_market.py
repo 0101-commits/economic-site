@@ -52,7 +52,7 @@ SANE_PCT = 50.0                              # check_swings 와 같은 오염 �
 SANE_PCT_STOCK = 400.0                       # 종목 B1 — 옛 check_alerts(미국 무제한, 글리치만). 국내 50% 는 Context.stock 이 거른다
 ASIA = ("kr", "jp", "cn", "hk")              # 거래일 = KST 날짜. 그 밖(미국 지수 · 환율 · 원자재)은 UTC 날짜
 PEERS = {"vix": "sp500", "move": "us10y"}    # C3 · C4 「왜」 줄의 짝 — 사전 문구(S&P500 · 미 10년)와 같은 대상
-_HALT_SRC = {"index": "지수 등락", "news": "뉴스 대조", "krx": "거래소"}
+_HALT_SRC = {"index": "지수로 추정", "news": "뉴스로 확인", "krx": "거래소 발표"}   # 폰 알림 본문 한 줄(2026-11-06)
 _COND = re.compile(r"^\s*([A-Za-z_]\w*)\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?)\s*$")
 
 
