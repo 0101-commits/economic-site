@@ -147,6 +147,9 @@ def _merge_sent(a: dict, b: dict) -> dict:
     out = dict(SENT_DEFAULT)
     for k in set(a) | set(b):
         va, vb = a.get(k), b.get(k)
+        if k == "story":                               # 이야기 이름표는 글자 — bool 로 바꾸면 이야기 단계 · 화면 카드가 깨진다
+            out[k] = va or vb
+            continue
         out[k] = max(va or 0, vb or 0) if k == "push" else bool(va and vb) if k == "held" else bool(va or vb)
     return out
 

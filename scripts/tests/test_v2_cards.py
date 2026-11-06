@@ -158,28 +158,30 @@ def test_save_previews():
 
 
 # ---------- 브리핑 카드(기획서 5장 대화창 목업) ----------
-YS = [6800 + 30 * ((i * 7) % 11) - 2 * i for i in range(120)]
-INFO_LONG = [("휴장", "10/3~10/5 휴장 · 다음 개장 10/6 · 미국은 정상 개장"), ("밤사이 알림", "3건 · " + LONG_TITLE),
-             ("오늘 일정", "10/6 21:30 미국 CPI (전월비) ★★★ · 10/6 22:00 ISM 서비스 ★★"), ("외국인", "9일째 순매도 · 5일 누적 −7.1조")]
+def _strip_spec(n_dots=9, labels=("KOSPI −7.8%", "서킷브레이커 1단계(추정)")):
+    dots = [{"x": (i + 0.5) / n_dots, "level": ("alarm", "alert", "notice")[i % 3], "label": ""} for i in range(n_dots)]
+    for d, lab in zip(dots[:2], labels):
+        d["level"], d["label"] = "alarm", lab
+    dots[0]["x"], dots[1]["x"] = 0.02, 0.06                              # 이름표 둘이 가장자리 · 서로 붙은 최악
+    return {"caption": "밤사이 23:00~07:00", "empty": "밤사이 알림 없음", "dots": dots,
+            "ticks": [(i / 4, f"{h}시") for i, h in enumerate((23, 1, 3, 5, 7))],
+            "counts": {"alarm": 2, "alert": 3, "notice": 4}}
 
 
 def _brief_specs():
-    rows = [("S&P 500", "7,765.36", "▼0.47%", -0.47, ""), ("NASDAQ", "27,193.34", "▼1.25%", -1.25, ""),
-            ("USD/KRW", "1,341.75", "■0.00%", 0.0, ""), ("USD/JPY", "157.83", "▲0.03%", 0.03, ""),
-            ("미국 국채 10Y", "5.28%", "+1bp", 0.01, "10/7"), ("WTI 원유", "90.90$", "▲1.15%", 1.15, "")]
-    tiles3 = [dc._cell("KOSPI", "6,625.93", "▼2.62%", -2.62), dc._cell("KOSDAQ", "892.27", "▼0.69%", -0.69),
-              dc._cell("USD/KRW", "1,341.75", "■0.00%", 0.0)]
-    tiles4 = [dc._cell(f"{n} 주간", v, t, c) for n, v, t, c, _ in rows[:4]]
-    yield "아침 목록(최장)", {"title": "휴장일 아침 · 10/9(금) 07:30", "meta": "미국 10/8 마감", "rows": rows, "info": INFO_LONG,
-                         "foot": "10/09 07:30 기준 · ecom"}
-    yield "마감 칸+흐름+수급(최장)", {"title": "마감 · 10/8(목) 16:30", "meta": "수급 잠정", "tiles": tiles3,
-                                "chart": {"ys": YS, "prev": 6804, "up": False, "label": "KOSPI 하루 흐름", "right": "6,625.93"},
-                                "bars": [("외국인", -20240), ("기관", 4155), ("개인", 17897)],
-                                "info": [("바뀐 것 12", LONG_TITLE), ("", WHY), ("", NEXT), ("휴장", INFO_LONG[0][1])]}
-    yield "마감 수급 없음", {"title": "마감 · 10/8(목) 16:30", "meta": "수급 집계 중", "tiles": tiles3,
-                         "chart": {"ys": YS, "prev": 6804, "label": "KOSPI 하루 흐름"}, "info": INFO_LONG}
-    yield "주간 칸 4 + 행(최장)", {"title": "주간 · 10/4~10/10", "meta": "09:00", "tiles": tiles4,
-                              "info": INFO_LONG + [("알림", LONG_TITLE), ("", WHY), ("", NEXT)]}
+    t = lambda lab, big, chg, sub: {"label": lab, "big": big, "chg": chg, "sub": sub}      # noqa: E731
+    morning = [t("S&P 500", "−10.26%", -10.26, "7,484.93"), t("NASDAQ", "−3.57%", -3.57, "24,821.17"),
+               t("USD/KRW", "+0.78%", 0.78, "1,351.35")]
+    close = [t("KOSPI", "−5.30%", -5.3, "5,364.04"), t("KOSDAQ", "−5.05%", -5.05, "677.06"),
+             t("외국인", "−34.00조", -34009, "잠정")]
+    nxt = "11/9(월) 22:30 미국 비농업고용(NFP) · 실업률 발표 최장문구"
+    yield "아침(최장)", {"title": "아침 브리핑", "meta": "11/6(금) · 미국 11/5 마감", "tiles": morning,
+                                 "strip": _strip_spec(), "next": nxt, "foot": "11/06 07:30 기준 · ecom"}
+    yield "마감", {"title": "마감 브리핑", "meta": "11/5(목) 15:30 마감", "tiles": close,
+                      "strip": _strip_spec(3, ("사이드카 추정", "")), "next": "내일 22:30 미국 실업급여"}
+    yield "빈 구역", {"title": "주간 브리핑", "meta": "11/2~11/6", "tiles": [],
+                          "strip": {"caption": "이번 주 월~금", "empty": "이번 주 알림 없음", "dots": []},
+                          "next": ""}
 
 
 def test_brief_cards_layout_and_size():

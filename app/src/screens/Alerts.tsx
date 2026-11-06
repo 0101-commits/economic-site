@@ -25,7 +25,7 @@ import { getKeyHash, scopeText, useSyncStatus, type SyncStatus } from '../lib/pe
 import { useMe } from '../lib/personal/account'
 import { pushSubscribed } from '../lib/push'
 import { CAP_MSG } from '../components/personal/BellSheet'
-import { adjustOf, ALERT_CAP, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, memberView, passes, savedNote, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter } from '../lib/alerts/v2'
+import { adjustOf, ALERT_CAP, eventsFor, familyCount, FILTERS, fromLedger, groupDays, hhmm, levelChoices, listEvents, memberView, passes, savedNote, storyCards, yearCounts, type Dict, type DictEvent, type FeedRow, type Filter, type StoryCard } from '../lib/alerts/v2'
 import { loadDaily } from '../lib/alerts/daily'
 import { convertLegacy, type Imported } from '../lib/alerts/legacy'
 import dictJson from '../lib/alerts/dict.json'
@@ -258,7 +258,8 @@ function FeedList({ items, showDay }: { items: FeedRow[]; showDay?: boolean }) {
   if (!items.length) return null
   return (
     <ul className="m-0 p-0 list-none">
-      {items.map(x => {
+      {storyCards(items).map(x => {
+        if ('kind' in x) return <StoryItem key={x.key} card={x} />
         // 시각: 현행 발송 이력은 마지막 발동 시각만 남긴다 — 그 앞 날짜들은 날짜만 안다(「—」)
         const when = x.timed ? (showDay ? mdHm(new Date(x.at)) : hm(x.at)) : showDay ? shortDate(x.day) : '—'
         const sub = [x.why, x.next].filter(Boolean).join(' · ')
@@ -283,6 +284,37 @@ function FeedList({ items, showDay }: { items: FeedRow[]; showDay?: boolean }) {
         )
       })}
     </ul>
+  )
+}
+
+/** 이어진 알림 카드: 머리(시장 · 시각 범위 · 건수) + 단계 점(채운 점 = 폰 알림으로 보냄, 빈 점 = 알림 기록에만). */
+function StoryItem({ card }: { card: StoryCard }) {
+  const first = card.rows[0], last = card.rows[card.rows.length - 1]
+  const body = (
+    <span className="flex-1 min-w-0">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-13 font-bold text-ink-1">{card.label}</span>
+        <span className="num text-12 text-ink-3">{hm(first.at)}~{hm(last.at)} · {card.rows.length}건</span>
+      </span>
+      <ol tabIndex={0} className="m-0 mt-2 p-0 list-none flex gap-0 overflow-x-auto" aria-label={`${card.label} 이어진 알림 ${card.rows.length}건`}>
+        {card.rows.map(r => (
+          <li key={r.key} className="relative flex-1 min-w-[4.5rem] text-center">
+            <span aria-hidden className="absolute top-[5px] left-0 right-0 h-px bg-line" />
+            <span aria-hidden className={`relative mx-auto block size-3 rounded-full border ${r.rung ? 'bg-accent border-accent' : 'bg-card border-ink-3'}`} />
+            <span className="block mt-1 num text-11 text-ink-3">{hm(r.at)}</span>
+            <span className="block text-11 text-ink-2 line-clamp-2 [overflow-wrap:anywhere]">{r.title}</span>
+            <span className="sr-only">{r.rung ? '폰 알림으로 보냄' : '알림 기록에만'}</span>
+          </li>
+        ))}
+      </ol>
+      <span className="mt-1 flex items-center gap-2"><LevelPill level={card.level} /><span className="text-11 text-ink-3">채운 점 = 폰 알림으로 보낸 때</span></span>
+    </span>
+  )
+  const row = 'flex items-start gap-3 py-2'
+  return (
+    <li className="border-b border-line last:border-b-0">
+      {card.to ? <Link to={card.to} className={`${row} no-underline`}>{body}</Link> : <div className={row}>{body}</div>}
+    </li>
   )
 }
 
