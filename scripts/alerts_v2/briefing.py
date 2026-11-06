@@ -19,7 +19,7 @@ import re
 from . import cards, compose, deliver                 # deliver 가 scripts/ 를 sys.path 에 올린다 — 아래 두 줄보다 먼저
 from .context import KST
 from .ledger import Ledger
-from .model import DEFAULT_SETTINGS
+from .model import BRIEF_PUSH_SLOTS, DEFAULT_SETTINGS
 
 import discord_card as dc                          # noqa: E402
 import send_kakao_digest as k                      # noqa: E402
@@ -370,16 +370,16 @@ def _kakao(out: dict, slot: str, log=print) -> bool:
 def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = False, log=print,
          queue_path: str = deliver.PUSH_QUEUE_PATH, uid: str | None = None,
          members: list[tuple[str, dict | None]] | None = None) -> dict:
-    """두 채널 독립 발송 → {push, kakao, memo}. 꺼진 슬롯 · 휴장일 한국 슬롯은 아무것도 안 보낸다.
-    켜진 슬롯은 전부 푸시(웹앱은 모든 알림을 울린다, 2026-10-13) + 카톡, 디스코드는 없다.
-    보낸 뒤 밤사이 보류 행을 「합류」(held=False)로 적고 그 원장을 저장한다(드라이런은 쓰지 않음).
-    uid = 마스터 uid(푸시 항목에 실음). members = [(멤버 uid, 그 사람 설정)] — 그 슬롯을 켠 멤버에게 같은 브리핑을
-    푸시로만(카톡 · 원장 없음, 브리핑은 시장 자료라 모두 같다). members 를 주면 결과에 members(큐에 넣은 사람 수)."""
+    """카톡 + (아침만) 폰 알림 → {push, kakao, memo}. 꺼진 슬롯 · 휴장일 한국 슬롯은 아무것도 안 보낸다.
+    받는 곳 나누기(2026-11-06 P1): 카톡 = 켠 브리핑 시각 전부, 폰 알림 = 아침 브리핑만(BRIEF_PUSH_SLOTS · 기획 D2).
+    보낸 뒤 밤사이 보류 행을 「합류」(held=False · joined=True)로 적고 그 원장을 저장한다(드라이런은 쓰지 않음).
+    uid = 마스터 uid(푸시 항목에 실음). members = [(멤버 uid, 그 사람 설정)] — 아침 브리핑을 켠 멤버에게 같은 브리핑을
+    폰 알림으로만(카톡 · 원장 없음, 브리핑은 시장 자료라 모두 같다). members 를 주면 결과에 members(큐에 넣은 사람 수)."""
     res = {"push": 0, "kakao": False, "memo": False}
     if members is not None:
         res["members"] = 0
     owner_on = enabled(slot, settings)
-    mem = [u for u, s in members or [] if enabled(slot, s)]
+    mem = [u for u, s in members or [] if enabled(slot, s)] if slot in BRIEF_PUSH_SLOTS else []
     if not owner_on:
         log(f"[v2 brief] {slot} 꺼짐 — 보내지 않음" + (f"(마스터) · 멤버 {len(mem)}명은 보냄" if mem else ""))
         if not mem:
@@ -412,11 +412,8 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
 
 
 def _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, queue_path) -> None:
-    """마스터 몫(종전 send 본문 그대로) — 푸시(울림 채널이 카톡이 아니면) + 카톡 · 메모, 원장 BRIEF 행 · 밤사이 합류."""
-    ring = ((settings or {}).get("ringChannel") or DEFAULT_SETTINGS["ringChannel"])
-    if ring == "kakao" and not deliver.kakao_rings(log):
-        ring = "push"                                  # D11 — 메모 모드면 카톡은 안 울리므로 폰 푸시가 울린다
-    if ring != "kakao":
+    """마스터 몫 — 카톡 · 메모(켠 시각 전부) + 폰 알림(아침만), 원장 BRIEF 행 · 밤사이 합류."""
+    if slot in BRIEF_PUSH_SLOTS:
         res["push"] = 1 if deliver.enqueue_push([dict(item, uid=uid) if uid else item], queue_path) else 0
     res["memo" if deliver.memo_mode(log) else "kakao"] = _kakao(out, slot, log)
     went = any(res[k] for k in ("push", "kakao", "memo"))   # 마스터 몫만(멤버 수는 따로)
@@ -430,8 +427,8 @@ def _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, qu
                                    "bundled": False, "held": False, "memo": res["memo"]}}):
             ledger.save()
     if went and pairs:                                 # 합류 — 아침 카드가 실제로 나갔을 때만
-        for book, r in pairs:
-            book.update_sent(r["key"], held=False, push=res["push"], kakao=res["kakao"], memo=res["memo"])
+        for book, r in pairs:                          # joined = 아침 브리핑 한 통에 들어감(따로 울리지 않음 — 하루 최대에 안 셈)
+            book.update_sent(r["key"], held=False, joined=True)
         for book in {id(b): b for b, _ in pairs}.values():
             book.save()
     log(f"[v2 brief] {slot} → push {res['push']} · kakao {res['kakao']} · memo {res['memo']}")

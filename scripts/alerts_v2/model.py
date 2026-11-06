@@ -3,18 +3,29 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+# 받는 곳 나누기(2026-11-06 알림 개편 기획 LFW8GXax, P1): 폰 알림 = 경보 · 주의(+ 아침 브리핑), 카톡 = 브리핑만,
+# 알림 기록 = 전부. 하루 최대는 경보 · 아침 브리핑을 빼고 센다(사용자 결정 10통). 조용한 시간엔 경보만.
+SETTINGS_V = 3                      # 설정 판 — 3 미만 문서는 subscribe.upgrade_prefs 가 한 번 옮긴다(화면 prefsV2 와 같은 규칙)
 DEFAULT_SETTINGS = {
-    "package": "normal",            # quiet | normal | many
-    "ringChannel": "push",          # kakao | push | both  (카톡 친구 모드가 켜지면 kakao 가 기본)
-    "dailyCap": 6,                  # 하루 울림 상한(경보 제외), 넘으면 묶음
+    "package": "normal",            # quiet(경보만) | normal(경보 · 주의) | many(경보 · 주의 · 안내)
+    "ringChannel": "push",          # 옛 칸 — 읽지 않는다(카톡은 브리핑만, 2026-11-06)
+    "dailyCap": 10,                 # 하루 최대 폰 알림(경보 · 아침 브리핑 제외), 넘으면 한 통으로 묶음
     "quiet": {"from": "23:00", "to": "07:00"},
-    "quietAlarm": False,            # 경보가 조용한 시간을 뚫는가
-    "kakaoQuota": 20,               # 쌍당 일 20(공식), 18부터 묶음
+    "quietAlarm": True,             # 조용한 시간에도 경보는 보낸다(나머지는 아침 브리핑에 합류)
+    "kakaoQuota": 20,               # 쌍당 일 20(공식) — 브리핑만 보내니 닿지 않는다
     "kakaoBundleAt": 18,
-    "briefings": {"morning": True, "close": True, "noon": False, "evening": False, "us": False, "weekly": True},
+    "briefings": {"morning": True, "close": True, "noon": False, "evening": False, "us": False, "weekly": True},  # 카톡 브리핑 시각
     "families": {f: True for f in "ABCDEFGH"},
+    "sv": SETTINGS_V,
 }
-PACKAGE_CAP = {"quiet": 3, "normal": 6, "many": 12}
+PACKAGE_CAP = {"quiet": 5, "normal": 10, "many": 15}
+OLD_PACKAGE_CAP = {"quiet": 3, "normal": 6, "many": 12}   # 판 2 의 꾸러미 상한 — 그대로 둔 값은 새 상한으로 옮긴다
+PACKAGE_BRIEFINGS = {
+    "quiet": ("morning",),
+    "normal": ("morning", "close", "weekly"),
+    "many": ("morning", "close", "noon", "evening", "us", "weekly"),
+}
+BRIEF_PUSH_SLOTS = ("morning",)     # 폰 알림으로도 가는 브리핑(나머지는 카톡 · 알림 기록만)
 
 
 @dataclass

@@ -289,8 +289,7 @@ def _pipeline_b(ctx, new_rows, ledger, dry_run: bool, mode: str = "") -> dict | 
     rows += added
     decisions = subscribe.match(rows, ctx, prefs, events_by_id, uid=owner_uid, role="owner")
     settings = (prefs or {}).get("settings")
-    ring_kakao = dry_run or (settings or {}).get("ringChannel") != "kakao" or deliver.kakao_rings()   # 메모 모드면 카톡은 안 울린다
-    sends = schedule.plan(decisions, ledger, ctx, settings, events_by_id, cd_history, kakao_rings=ring_kakao)
+    sends = schedule.plan(decisions, ledger, ctx, settings, events_by_id, cd_history)   # 사건 = 폰 알림만(카톡은 브리핑만)
     print(f"[v2] 구독 {len(decisions)} → 발송 {len(sends)}" + (" (dry-run)" if dry_run else ""))
     # 멤버 판정(네트워크 포함)은 마스터 발송 전에 끝낸다 — 카톡이 나간 뒤 · 원장 저장 전에 오래 걸리면 다음 런이 또 보낸다
     mem = _members_eval(ctx, members, market, sides, events_by_id, cd_history, render, dry_run, light,

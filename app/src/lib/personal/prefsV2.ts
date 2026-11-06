@@ -16,20 +16,36 @@ const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/
 const V1_EVENT: Record<string, string> = { price: 'U1', pct: 'U2', high52: 'B1', event: 'E1', flow: 'D2', lens: 'C1' }
 
 const brief = (on: string[]) => Object.fromEntries(BRIEF_KEYS.map(k => [k, on.includes(k)])) as Settings['briefings']
-/** 꾸러미 = 하루 울림 상한 + 브리핑 묶음(기획서 7장 표). 바꾸면 이 둘을 같이 바꾸고, 사건별 조정은 그대로 둔다. */
+/** 알림 양 = 하루 최대 폰 알림 + 카톡 브리핑 묶음. 바꾸면 이 둘을 같이 바꾸고, 사건별 조정은 그대로 둔다.
+ *  하루 최대는 경보 · 아침 브리핑을 빼고 센다(2026-11-06 사용자 결정 보통 10). 서버 model.PACKAGE_CAP · PACKAGE_BRIEFINGS 와 짝. */
 export const PACKAGE_PRESET: Record<Pkg, { cap: number; briefings: Settings['briefings'] }> = {
-  quiet: { cap: 3, briefings: brief(['morning']) },
-  normal: { cap: 6, briefings: brief(['morning', 'close', 'weekly']) },
-  many: { cap: 12, briefings: brief([...BRIEF_KEYS]) },
+  quiet: { cap: 5, briefings: brief(['morning']) },
+  normal: { cap: 10, briefings: brief(['morning', 'close', 'weekly']) },
+  many: { cap: 15, briefings: brief([...BRIEF_KEYS]) },
 }
+export const SETTINGS_V = 3
+const OLD_CAPS = [3, 6, 12]                      // 판 2 꾸러미 상한 — 그대로 둔 값은 새 상한으로 옮긴다
 
 export function defaultSettings(): Settings {
   return {
     updown: 'kr', unit: 'man', quiet: { from: '23:00', to: '07:00' },
-    package: 'normal', ringChannel: 'push', dailyCap: 6, quietAlarm: false,
+    package: 'normal', ringChannel: 'push', dailyCap: PACKAGE_PRESET.normal.cap, quietAlarm: true,
     briefings: { ...PACKAGE_PRESET.normal.briefings },
     families: Object.fromEntries(FAMILIES.map(f => [f, true])) as Settings['families'],
-    rememberKey: false, kakaoFriends: false, kakaoRecipients: [], autoQuiet: true,
+    rememberKey: false, kakaoFriends: false, kakaoRecipients: [], autoQuiet: true, sv: SETTINGS_V,
+  }
+}
+
+/** 설정 판 3(2026-11-06 받는 곳 나누기) — 판 3 미만 문서를 한 번 옮긴다. 서버 subscribe.migrate_v3 와 같은 규칙:
+ *  많이 → 보통(안내는 폰 알림으로 안 보냄) · 판 2 상한 그대로면 새 상한 · 조용한 시간 끔 → 23:00~07:00 · 경보는 조용한 시간에도 ·
+ *  카톡 브리핑 = 꾸러미 묶음 · 울림 채널 = push. 사용자가 직접 정한 상한(3 · 6 · 12 밖)은 둔다. */
+export function migrateV3(s: Settings): Settings {
+  const pkg: Pkg = s.package === 'many' ? 'normal' : s.package
+  return {
+    ...s, package: pkg,
+    dailyCap: OLD_CAPS.includes(s.dailyCap) || s.dailyCap === PACKAGE_PRESET[s.package].cap ? PACKAGE_PRESET[pkg].cap : s.dailyCap,
+    quiet: s.quiet ?? { from: '23:00', to: '07:00' },
+    quietAlarm: true, briefings: { ...PACKAGE_PRESET[pkg].briefings }, ringChannel: 'push', sv: SETTINGS_V,
   }
 }
 
@@ -42,13 +58,14 @@ export function normSettings(raw: unknown): Settings {
   const s = isObj(raw) ? raw : {}
   const q = s.quiet
   const v2 = 'package' in s
-  return {
+  const out: Settings = {
     updown: s.updown === 'us' ? 'us' : 'kr',
     unit: s.unit === 'won' ? 'won' : 'man',
     quiet: isObj(q) && HHMM.test(q.from) && HHMM.test(q.to) ? { from: q.from, to: q.to } : q === null && v2 ? null : d.quiet,
     package: PKGS.includes(s.package) ? s.package : 'normal',
     ringChannel: s.ringChannel === 'kakao' || s.ringChannel === 'both' ? s.ringChannel : 'push',
-    dailyCap: Number.isInteger(s.dailyCap) && s.dailyCap > 0 && s.dailyCap <= 50 ? s.dailyCap : d.dailyCap,
+    dailyCap: Number.isInteger(s.dailyCap) && s.dailyCap > 0 && s.dailyCap <= 50 ? s.dailyCap
+      : PACKAGE_PRESET[PKGS.includes(s.package) ? (s.package as Pkg) : 'normal'].cap,   // 상한이 없으면 그 꾸러미 상한(서버와 같다)
     quietAlarm: s.quietAlarm === true,
     briefings: brief(BRIEF_KEYS.filter(k => (isObj(s.briefings) && typeof s.briefings[k] === 'boolean' ? s.briefings[k] : d.briefings[k]))),
     families: Object.fromEntries(FAMILIES.map(f => [f, !(isObj(s.families) && s.families[f] === false)])) as Settings['families'],
@@ -57,7 +74,9 @@ export function normSettings(raw: unknown): Settings {
     kakaoRecipients: arr(s.kakaoRecipients).filter(r => isObj(r) && typeof r.name === 'string').slice(0, 5)
       .map(r => ({ uuid: typeof r.uuid === 'string' ? r.uuid : '', name: r.name.slice(0, 20), briefOnly: r.briefOnly === true })),
     autoQuiet: s.autoQuiet !== false,
+    sv: Number.isInteger(s.sv) ? s.sv : 0,
   }
+  return out.sv < SETTINGS_V ? migrateV3(out) : out
 }
 
 /** 조건 한 건: v2(event 있음)는 그대로, v1(type)은 사전 사건으로. 바꿀 수 없으면 null. */

@@ -1,13 +1,10 @@
-"""발송 — Send 하나를 푸시 · 카톡으로 보내고 원장 행 `sent` 를 갱신한다(기획서 8장 ⑤).
+"""발송 — Send 하나를 폰 알림(웹앱 푸시)으로 보내고 원장 행 `sent` 를 갱신한다(기획서 8장 ⑤).
 
-폰 알림 경로 고정(2026-10-13 사용자 지시): 경제 알림 = 웹앱 푸시(울림) + 카톡. **디스코드에는 보내지 않는다**
-(운영 경고 #시스템만 notify_discord.system 으로 무음).
+받는 곳 나누기(2026-11-06 알림 개편 기획 LFW8GXax P1): 사건 알림 = 폰 알림만, 카톡 = 브리핑만(briefing.send),
+알림 기록 = 원장 전부. **디스코드에는 보내지 않는다**(운영 경고 #시스템만 notify_discord.system 으로 무음).
 푸시: scripts/push_queue.json 에 덧붙임(같은 잡의 send_push.py 가 보내고 지운다 — 현행 경로).
-카톡: send_kakao_digest.send_card 단일 진입점. 친구 모드면 편성(schedule)이 고른 것만 친구에게(울림), 아니면
-      (KAKAO_FRIENDS=0 · 친구 0명) **메모(나에게 보내기)로 전부 보낸다** — 조용한 시간 보류분까지. 카카오 정책상
-      소리는 안 나고 「나와의 채팅」에 쌓인다(울림은 푸시가 맡는다).
-      카드 PNG 는 cards.event_card_png(물결 B3) — 없으면 send_card 가 텍스트로 내려가며 경고를 남긴다.
-두 채널은 서로 독립 — 하나가 실패해도 나머지는 보내고, 결과는 각각 sent 에 적는다.
+카톡: send_kakao_digest.send_card 단일 진입점 — 이 모듈의 send_kakao · kakao_parts 는 브리핑 · 시험 발송이 쓴다.
+      「나와의 채팅」(메모)은 소리가 안 나서 실시간 알림은 폰 알림이 맡는다.
 멤버(2026-10-27): send_member = 푸시만(큐 항목에 uid), 공개 원장 손대지 않음. 멤버 사용자 조건의 발송 기록은
       post_fired(Worker POST /fired) — 공개 원장(events/)에 멤버 행을 쓰지 않는다.
 """
@@ -185,17 +182,14 @@ def send(s: Send, ledger, ctx, log=print, queue_path: str = PUSH_QUEUE_PATH) -> 
     푸시(울리는 채널)가 먼저, 카톡(느릴 수 있는 채널)은 마지막. 메모로 나간 것은 kakao 가 아니라 memo 로 적는다 —
     하루 상한 · 카톡 쿼터(schedule._ring_count_today · _kakao_count_today)와 앱 「오늘 N/20통」은 kakao 만 센다."""
     res = {"push": 0, "kakao": False, "memo": False}
-    memo = memo_mode(log)
+    # 사건 알림은 폰 알림으로만 — 카톡은 브리핑만 받는다(2026-11-06 알림 개편 P1, 기획 D3). 종전엔 폰 알림 280통이
+    # 모두 카톡 메모로도 같은 글로 갔다(10/6~11/5).
     if s.held:
-        if memo:                                                         # 조용한 시간 — 무음 메모로만 남긴다
-            res["memo"] = send_kakao(s, ctx, log)
-        ledger.update_sent(s.row["key"], held=True, memo=res["memo"])
-        log(f"[v2 send] {s} → 보류(조용한 시간 · 푸시는 아침 브리핑 합류) · memo {res['memo']}")
+        ledger.update_sent(s.row["key"], held=True)
+        log(f"[v2 send] {s} → 보류(조용한 시간 · 아침 브리핑에 합류)")
         return res
     if s.push:
         res["push"] = 1 if enqueue_push([push_item(s)], queue_path) else 0
-    if s.kakao or memo:
-        res["memo" if memo else "kakao"] = send_kakao(s, ctx, log)
     if s.kind == "bundle":
         for b in s.bundle:
             ledger.update_sent(b["key"], bundled=True, **res)

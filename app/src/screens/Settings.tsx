@@ -51,7 +51,7 @@ export default function Settings() {
         </Card>
         <MyData onRestored={() => setPrefs(readPrefs())} />
         <Fold title="자료 상태"><DataStatus /></Fold>
-        <Fold title="고급"><Advanced s={prefs.settings} setS={setS} /></Fold>
+        <Fold title="고급"><Advanced s={prefs.settings} setS={setS} member={me?.role === 'member'} /></Fold>
       </div>
       {/* 전환 단계 A(공존): 현행 화면으로 가는 길 하나. 같은 origin 이라 PIN·보유·관심이 그대로다. */}
       <p className="m-0 text-12 text-ink-3">{me?.role === 'owner' && <><a href={new URL('legacy.html', ROOT).href} className="text-ink-3 hover:text-ink-1">옛 화면으로</a> · </>}폰 알림은 이 화면을 홈 화면에 추가한 기기로만 옵니다.</p>
@@ -330,10 +330,10 @@ function DataStatus() {
 }
 
 /** 고급: 카톡(명세 S7 — 알림 › 채널에서 옮김) · 90일 자동 강등 끄기(S10). 사용 기록 「내 사용」 표(I8)도 이 칸 끝에 들어온다. */
-function Advanced({ s, setS }: { s: S; setS: (k: Partial<S>) => void }) {
+function Advanced({ s, setS, member }: { s: S; setS: (k: Partial<S>) => void; member: boolean }) {
   return (
     <div className="flex flex-col gap-4">
-      <Kakao s={s} setS={setS} />
+      {!member && <Kakao s={s} setS={setS} />}{/* 멤버는 카톡을 받지 않는다(카톡은 마스터 계정 「나에게 보내기」) — 칸 · 낱말을 두지 않는다 */}
       <div className="pt-3 border-t border-line">
         <Switch on={s.autoQuiet} onChange={v => setS({ autoQuiet: v })} label={`90일 동안 알림 화면을 안 열면 알림 단계를 「${QUIET_PKG}」로 내리기`} />
         <p className="mt-1 mb-0 text-12 text-ink-3">이 기기만. 내려가면 알림 화면 맨 위에 한 줄로 알립니다. 끄면 알림 단계를 그대로 둡니다.</p>

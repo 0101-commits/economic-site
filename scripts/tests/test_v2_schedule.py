@@ -1,4 +1,4 @@
-"""편성 — 조용한 시간 · 상한 묶음 · 쿨다운 · 안내는 디스코드만 · 카톡 쿼터."""
+"""편성 — 조용한 시간 · 하루 최대(주의만 셈) 묶음 · 쿨다운 · 안내는 폰 알림 없음 · 사건은 카톡 없음."""
 import datetime as dt
 import os
 import sys
@@ -35,7 +35,7 @@ def test_quiet_hours_hold_alerts_but_alarm_with_setting_passes(tmp_path):
 
 def test_daily_cap_bundles_overflow(tmp_path):
     led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
-    for i in range(6):                           # 이미 6건 울림
+    for i in range(10):                          # 이미 10건 울림(기본 하루 최대)
         r = _row(i); r["sent"]["push"] = 1; led.append(r)
     decs = [Decision(_row(10 + i), "alert", True) for i in range(3)] + [Decision(_row(30, level="alarm"), "alarm", True)]
     for d in decs:                               # 실제 흐름: 추출기가 원장에 넣은 뒤 편성
@@ -45,15 +45,43 @@ def test_daily_cap_bundles_overflow(tmp_path):
     assert kinds.count("bundle") == 1 and kinds.count("event") == 1          # 경보는 상한 밖
     b = next(s for s in sends if s.kind == "bundle")
     assert len(b.bundle) == 3 and b.row["title"].startswith("알림 3건 더")
+    assert b.push and not b.kakao                                            # 묶음도 폰 알림만
     assert all(led.get(r["key"])["sent"]["bundled"] for r in b.bundle)
 
 
-def test_notice_pushes_and_record_dropped(tmp_path):
-    """안내도 웹앱이 울린다(2026-10-13 폰 알림 경로 고정) — 카톡 친구 모드 몫은 없고, 디스코드는 없다."""
+def test_cap_counts_only_alerts_not_alarms_joined_or_bundled(tmp_path):
+    """하루 최대는 주의(alert) 폰 알림만 센다 — 경보 · 아침 합류(joined) · 묶음에 든 행 · 안내는 안 센다."""
+    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
+    for i in range(10):                          # 경보 10통 — 안 센다
+        r = _row(i, level="alarm"); r["sent"]["push"] = 1; led.append(r)
+    for i in range(10, 20):                      # 합류한 보류분 10건 · 묶인 10건 — 안 센다
+        r = _row(i); r["sent"].update(push=1, joined=True); led.append(r)
+    for i in range(20, 30):
+        r = _row(i); r["sent"].update(push=1, bundled=True); led.append(r)
+    assert schedule._ring_count_today(led) == 0
+    r = _row(40); r["sent"]["push"] = 1; led.append(r)                      # 주의 한 통만 센다
+    assert schedule._ring_count_today(led) == 1
+    sends = schedule.plan([Decision(_row(50), "alert", True)], led, _ctx(14), settings={"dailyCap": 2}, events_by_id=EV)
+    assert len(sends) == 1 and sends[0].kind != "bundle" and sends[0].push
+
+
+def test_notice_not_pushed_and_record_dropped(tmp_path):
+    """안내(notice)는 폰 알림 없음(원장에만) · 기록은 발송 없음 — 「많이」의 안내→주의 격상은 subscribe 몫(2026-11-06 P1)."""
     led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
     decs = [Decision(_row(1, level="notice", event="B2"), "notice", True), Decision(_row(2, level="record", event="H2"), "record", True)]
-    sends = schedule.plan(decs, led, _ctx(15), events_by_id=EV)
-    assert len(sends) == 1 and sends[0].push and not sends[0].kakao and sends[0].level == "notice"
+    assert schedule.plan(decs, led, _ctx(15), events_by_id=EV) == []
+
+
+def test_event_sends_are_push_only_even_with_old_kakao_settings(tmp_path):
+    """ringChannel · 카톡 쿼터 칸은 읽지 않는다 — 사건은 어떤 설정이든 폰 알림만, 카톡 없음."""
+    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
+    for i in range(20):                          # 옛 쿼터 20 소진 모양 — 영향 없음
+        r = _row(i, level="notice"); r["sent"]["kakao"] = True; led.append(r)
+    decs = [Decision(_row(50), "alert", True), Decision(_row(51, level="alarm"), "alarm", True)]
+    for ring in ("kakao", "both", "push"):
+        sends = schedule.plan(decs, led, _ctx(15), settings={"ringChannel": ring, "kakaoBundleAt": 1, "kakaoQuota": 1},
+                              events_by_id=EV)
+        assert len(sends) == 2 and all(s.push and not s.kakao and s.kind != "bundle" for s in sends)
 
 
 def test_cooldown_same_target_dir_within_day_skipped(tmp_path):
@@ -64,20 +92,6 @@ def test_cooldown_same_target_dir_within_day_skipped(tmp_path):
     assert sends == []
     other = dict(again, dir="down", key="A1:kospi1:down:2026-10-02")
     assert len(schedule.plan([Decision(other, "alert", True)], led, _ctx(13), events_by_id=EV, history=[prev])) == 1
-
-
-def test_kakao_quota_bundles_at_18_and_stops_at_20(tmp_path):
-    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
-    for i in range(18):
-        r = _row(i, level="notice"); r["sent"]["kakao"] = True; led.append(r)
-    decs = [Decision(_row(50), "alert", True), Decision(_row(51, level="alarm"), "alarm", True)]
-    sends = schedule.plan(decs, led, _ctx(15), settings={"ringChannel": "kakao", "dailyCap": 12}, events_by_id=EV)
-    assert any(s.kind == "bundle" and s.kakao for s in sends)          # 18 → 알림은 묶음으로
-    assert any(s.level == "alarm" and s.kakao is False for s in sends)  # 경보는 즉시, 카톡 자리 없음
-    for i in range(18, 20):
-        r = _row(i, level="notice"); r["sent"]["kakao"] = True; led.append(r)
-    sends = schedule.plan([Decision(_row(60), "alert", True)], led, _ctx(15), settings={"ringChannel": "kakao"}, events_by_id=EV)
-    assert all(not s.kakao for s in sends)                               # 20 → 카톡 멈춤
 
 
 def test_memo_sends_do_not_count_toward_cap_or_quota(tmp_path):

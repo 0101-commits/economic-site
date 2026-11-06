@@ -23,7 +23,7 @@ from . import LEVELS, PACKAGES, SIGMA
 from .context import is_stock
 from .events import Hit
 from .ledger import Ledger, Row
-from .model import DEFAULT_SETTINGS, Decision
+from .model import DEFAULT_SETTINGS, OLD_PACKAGE_CAP, PACKAGE_BRIEFINGS, PACKAGE_CAP, SETTINGS_V, Decision
 
 # Worker 바탕 주소 — prefs_client.fetch 가 /prefs 를 붙인다(/prefs 까지 적으면 /prefs/prefs 로 가서 상태 JSON 을 받고 「모양이 다름」이 된다, 2026-10-06 실측)
 PREFS_URL = os.environ.get("PREFS_URL", "https://ecom-dashboard-proxy.e-hcg.workers.dev").rstrip("/").removesuffix("/prefs")
@@ -125,9 +125,31 @@ def upgrade_prefs(doc: dict) -> dict:
     s.update({k: v for k, v in raw.items() if v is not None or (is_v2 and k == "quiet")})
     if s.get("package") not in PACKAGES:
         s["package"] = "normal"
+    if not isinstance(raw.get("dailyCap"), int):
+        s["dailyCap"] = PACKAGE_CAP[s["package"]]      # 상한이 없는 문서 = 그 꾸러미 상한(화면 normSettings 와 같다)
+    if int(raw.get("sv") or 0) < SETTINGS_V:
+        s = migrate_v3(s)
     out["settings"] = s
     out["v"] = 2
     return out
+
+
+def migrate_v3(s: dict) -> dict:
+    """설정 판 3(2026-11-06 알림 개편 P1) — 한 번만. 화면 prefsV2.migrateV3 와 같은 규칙.
+    「많이」 → 「보통」(안내는 폰 알림으로 보내지 않는다), 판 2 꾸러미 상한 그대로면 새 상한(10), 조용한 시간 끔 → 23:00~07:00,
+    경보는 조용한 시간에도, 카톡 브리핑 = 꾸러미 묶음, 울림 채널 = push. 사용자가 고친 상한(직접 값)은 둔다."""
+    s = dict(s)
+    old_pkg = s.get("package") if s.get("package") in PACKAGES else "normal"
+    s["package"] = "normal" if old_pkg == "many" else old_pkg
+    if s.get("dailyCap") is None or s.get("dailyCap") in OLD_PACKAGE_CAP.values() or s.get("dailyCap") == PACKAGE_CAP[old_pkg]:
+        s["dailyCap"] = PACKAGE_CAP[s["package"]]     # 꾸러미가 정한 상한(옛 판 · 새 판) = 옮긴 꾸러미 상한, 직접 정한 값은 둔다
+    if not s.get("quiet"):
+        s["quiet"] = dict(DEFAULT_SETTINGS["quiet"])
+    s["quietAlarm"] = True
+    s["briefings"] = {k: k in PACKAGE_BRIEFINGS[s["package"]] for k in DEFAULT_SETTINGS["briefings"]}
+    s["ringChannel"] = "push"
+    s["sv"] = SETTINGS_V
+    return s
 
 
 # ---------- 사용자 조건 ----------

@@ -4,6 +4,7 @@
 """
 import copy
 import datetime as dt
+import json
 import os
 import sys
 
@@ -133,11 +134,40 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     q = str(tmp_path / "push_queue.json")
     res = briefing.send("morning", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)
     assert res == {"push": 1, "kakao": False, "memo": False}
-    assert briefing.send("us", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)["push"] == 1   # 켜진 슬롯은 전부 푸시(종전 아침 · 마감만)
-    assert deliver.held_rows(led) == [] and led.get("A1:sp500:up:2026-10-06")["sent"]["push"] == 1
+    assert briefing.send("us", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)["push"] == 0   # 폰 알림은 아침 브리핑만(2026-11-06 P1)
+    assert deliver.held_rows(led) == []
+    sent = led.get("A1:sp500:up:2026-10-06")["sent"]
+    assert sent["held"] is False and sent["joined"] is True and not sent.get("push")   # 합류 = 따로 울리지 않음
     on_disk = Ledger(day=now.date() - dt.timedelta(days=1), root=str(tmp_path))
-    assert on_disk.get("A2:usdkrw:down:2026-10-05")["sent"]["held"] is False      # 전날 원장도 합류 표시 · 저장
+    d = on_disk.get("A2:usdkrw:down:2026-10-05")["sent"]
+    assert d["held"] is False and d["joined"] is True                             # 전날 원장도 합류 표시 · 저장
     assert briefing.build("morning", ctx, led, ALL_ON)["held_rows"] == []          # 다음 아침엔 다시 안 실린다
+
+
+def test_non_morning_slot_no_push_but_kakao_for_owner_and_members_get_nothing(real_ctx, tmp_path, monkeypatch):
+    """폰 알림은 아침 브리핑만 — 마감 등은 카톡(마스터)만 나가고 큐는 비며, 멤버는 아침 아니면 아무것도 못 받는다."""
+    _no_cards(monkeypatch)
+    now = dt.datetime(2026, 10, 6, 15, 40, tzinfo=KST)
+    ctx = copy.copy(real_ctx)
+    ctx.now = now
+    led = Ledger(day=now.date(), root=str(tmp_path))
+    calls = []
+    monkeypatch.setattr(briefing, "_kakao", lambda *a, **kw: calls.append(a[1]) or True)
+    monkeypatch.setattr(deliver, "memo_mode", lambda log=print: False)
+    q = str(tmp_path / "push_queue.json")
+    res = briefing.send("close", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q, uid="own",
+                        members=[("mem", ALL_ON)])
+    assert res["push"] == 0 and res["kakao"] is True and res["members"] == 0 and calls == ["close"]
+    assert not os.path.exists(q)                                     # 큐에 마스터 · 멤버 몫 모두 없음
+    # 메모 모드면 kakao 가 아니라 memo 로 나간다(그래도 푸시는 없음)
+    monkeypatch.setattr(deliver, "memo_mode", lambda log=print: True)
+    res = briefing.send("us", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)
+    assert res["push"] == 0 and res["memo"] is True and res["kakao"] is False
+    # 아침은 마스터 · 멤버 모두 폰 알림
+    res = briefing.send("morning", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q, uid="own",
+                        members=[("mem", ALL_ON)])
+    assert res["push"] == 1 and res["members"] == 1
+    assert sorted(i["uid"] for i in json.load(open(q, encoding="utf-8"))) == ["mem", "own"]
 
 
 def test_ai_fallback_skips_user_condition_why(real_ctx, tmp_path, monkeypatch):

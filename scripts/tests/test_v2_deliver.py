@@ -75,44 +75,36 @@ def test_kakao_memo_when_friends_off_or_empty(monkeypatch):
         assert sent == [None] and deliver.memo_mode(lambda *a: None) is True
 
 
-def test_memo_mode_records_everything(tmp_path, monkeypatch):
-    """메모 모드: 편성이 카톡을 안 골라도(안내) 메모로 남긴다 — 원장엔 kakao 가 아니라 memo 로(하루 상한 · 카톡 쿼터는
-    kakao 만 센다). 푸시가 먼저, 카톡은 마지막. 친구 모드는 편성대로(안내는 카톡 없음)."""
+def test_event_send_is_push_only_never_kakao(tmp_path, monkeypatch):
+    """사건 알림은 폰 알림으로만 — 메모 모드든 친구 모드든 카톡은 부르지 않는다(2026-11-06 P1)."""
     monkeypatch.setitem(sys.modules, "notify_discord", _NoDiscord())
-    for on, friends, want in ((False, [], [None]), (True, [{"uuid": "u"}], [])):
-        order, sent = [], []
-        card = lambda tok, title, cap, **k: order.append("kakao") or sent.append(k.get("uuids")) or True  # noqa: E731
-        _kakao_env(monkeypatch, _fake_kakao(on, friends, sent, send_card=card))
-        monkeypatch.setattr(deliver, "enqueue_push", lambda items, path: order.append("push") or True)
+    for on, friends in ((False, []), (True, [{"uuid": "u"}])):
+        sent = []
+        _kakao_env(monkeypatch, _fake_kakao(on, friends, sent))
         led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path / str(on))); led.append(_row(level="notice"))
-        res = deliver.send(Send(row=_row(level="notice"), level="notice", push=True), led, _ctx(), log=lambda *a: None,
-                           queue_path=str(tmp_path / "q.json"))
-        assert sent == want and res["memo"] is bool(want) and res["kakao"] is False and res["push"] == 1
-        assert order == ["push"] + ["kakao"] * len(want)
+        res = deliver.send(Send(row=_row(level="notice"), level="notice", push=True, kakao=True), led, _ctx(),
+                           log=lambda *a: None, queue_path=str(tmp_path / "q.json"))
+        assert sent == [] and res == {"push": 1, "kakao": False, "memo": False}
         got = led.get("A1:kospi:up:2026-10-02")["sent"]
-        assert got["kakao"] is False and got.get("memo", False) is bool(want)
+        assert got["push"] == 1 and got["kakao"] is False and not got.get("memo", False)
 
 
-def test_held_goes_to_memo_only_in_memo_mode(tmp_path, monkeypatch):
-    """조용한 시간 보류분은 무음 메모로만 남는다 — 푸시는 아침 브리핑에 합류(held_rows)."""
+def test_held_is_marked_without_memo_or_push(tmp_path, monkeypatch):
+    """조용한 시간 보류분은 held=True 표시만 — 메모도 푸시도 없다(아침 브리핑에 합류)."""
     monkeypatch.setitem(sys.modules, "notify_discord", _NoDiscord())
     sent = []
     _kakao_env(monkeypatch, _fake_kakao(False, [], sent))
     led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path)); led.append(_row())
     q = str(tmp_path / "q.json")
     res = deliver.send(Send(row=_row(), level="alert", push=True, held=True), led, _ctx(), log=lambda *a: None, queue_path=q)
-    assert sent == [None] and res == {"push": 0, "kakao": False, "memo": True} and not os.path.exists(q)
+    assert sent == [] and res == {"push": 0, "kakao": False, "memo": False} and not os.path.exists(q)
     assert deliver.held_rows(led)[0]["key"] == "A1:kospi:up:2026-10-02"
-    # 친구 모드(울리는 카톡)면 밤에는 카톡도 안 보낸다
-    sent.clear()
-    _kakao_env(monkeypatch, _fake_kakao(True, [{"uuid": "u"}], sent))
-    deliver.send(Send(row=_row(), level="alert", kakao=True, held=True), led, _ctx(), log=lambda *a: None, queue_path=q)
-    assert sent == []
+    assert not led.get("A1:kospi:up:2026-10-02")["sent"].get("memo")
 
 
 def test_kakao_token_once_per_run_and_down_after_failure(tmp_path, monkeypatch):
-    """토큰은 런당 한 번. 한 통이 실패(SystemExit 포함)하면 그 런의 나머지 카톡은 건너뛰고 푸시는 계속 나간다
-    — 카카오가 시간을 끌면 한 통에 수 분이라 잡 시한을 넘긴다."""
+    """토큰은 런당 한 번. 한 통이 실패(SystemExit 포함)하면 그 런의 나머지 카톡은 건너뛴다 — 브리핑 · 시험 발송이
+    쓰는 send_kakao 로 확인(사건 알림은 카톡을 안 보낸다)."""
     monkeypatch.setitem(sys.modules, "notify_discord", _NoDiscord())
     calls, sent = [], []
 
@@ -122,14 +114,10 @@ def test_kakao_token_once_per_run_and_down_after_failure(tmp_path, monkeypatch):
             raise SystemExit("메모 발송 실패")
         return True
     _kakao_env(monkeypatch, _fake_kakao(False, [], sent, send_card=card, calls=calls))
-    led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
-    out = []
-    for i in range(3):
-        r = _row(f"A1:k{i}:up:2026-10-02"); led.append(r)
-        out.append(deliver.send(Send(row=r, level="alert", push=True), led, _ctx(), log=lambda *a: None,
-                                queue_path=str(tmp_path / "q.json")))
+    out = [deliver.send_kakao(Send(row=_row(f"A1:k{i}:up:2026-10-02"), level="alert", kakao=True), _ctx(), log=lambda *a: None)
+           for i in range(3)]
     assert calls == ["refresh"] and len(sent) == 2                      # 셋째 통은 카톡을 부르지 않는다
-    assert [o["memo"] for o in out] == [True, False, False] and all(o["push"] == 1 for o in out)
+    assert out == [True, False, False]
 
 
 def test_kakao_token_death_does_not_kill_push(tmp_path, monkeypatch):
