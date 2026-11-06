@@ -1,11 +1,10 @@
-"""편성 — 조용한 시간 · 하루 상한 · 쿨다운 · 묶음 · 카톡 쿼터(기획서 2장 · 5장 · 6장).
+"""편성 — 조용한 시간 · 하루 최대 · 쿨다운 · 묶음(받는 곳 나누기, 2026-11-06 알림 개편 P1).
 
-plan(decisions, ledger, ctx, settings) -> list[Send]
-  경보: 상한 밖, 조용한 시간은 quietAlarm 설정에 따라.
-  알림: 쿨다운(사전 cooldown) → 조용한 시간이면 보류(held, 카톡 메모만) → 하루 상한 넘으면 묶음.
-  안내: 푸시(하루 상한 밖) — 카톡 메모 모드면 deliver 가 메모도 남긴다. 기록: 발송 없음.
-  디스코드는 없다(2026-10-13 폰 알림 경로 고정: 경제 알림 = 웹앱 푸시 + 카톡).
-  카톡: 쌍당 하루 kakaoBundleAt(18) 부터 묶음, kakaoQuota(20) 에서 멈춤.
+plan(decisions, ledger, ctx, settings) -> list[Send]   — 사건 알림은 폰 알림(웹앱 푸시)으로만 간다.
+  경보: 하루 최대에 세지 않는다. 조용한 시간에도 보낸다(quietAlarm, 기본 켬).
+  주의(alert): 쿨다운(사전 cooldown) → 조용한 시간이면 보류(held = 아침 브리핑에 합류) → 하루 최대 넘으면 한 통으로 묶음.
+  안내 · 기록: 폰 알림 없음 — 원장(알림 기록)에 남고 카톡 브리핑이 모아 보여 준다. 「많이」는 subscribe 가 안내를 주의로 올린다.
+  카톡은 브리핑만 받는다(briefing.send). 디스코드는 없다(운영 경고 #시스템만).
 """
 from __future__ import annotations
 
@@ -15,6 +14,7 @@ from . import LEVELS
 from .model import DEFAULT_SETTINGS, PACKAGE_CAP, Decision, Send
 
 RING_LEVELS = ("alarm", "alert")
+CAP_LEVELS = ("alert",)             # 하루 최대가 세는 등급 — 경보 · 브리핑은 세지 않는다(2026-11-06 사용자 결정)
 
 
 def _hm(s: str) -> dt.time:
@@ -40,12 +40,13 @@ def _settings(user: dict | None) -> dict:
 
 
 def _ring_count_today(ledger, exclude_key: str | None = None) -> int:
+    """오늘 하루 최대에 들어간 폰 알림 수 — 주의 등급 · 묶음 한 통. 아침 브리핑에 합류한 보류분(joined)은 따로 울리지 않았다."""
     n = 0
     for r in ledger.rows:
-        if r.get("key") == exclude_key or r.get("level") not in RING_LEVELS:
+        if r.get("key") == exclude_key or r.get("level") not in CAP_LEVELS:
             continue
         s = r.get("sent") or {}
-        if s.get("push") or s.get("kakao"):
+        if (s.get("push") or s.get("kakao")) and not s.get("joined") and not s.get("bundled"):
             n += 1
     return n
 
@@ -117,13 +118,7 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
     s = _settings(settings)
     now = ctx.now
     quiet = in_quiet(now, s.get("quiet"))
-    ring_ch = s.get("ringChannel", "push")
-    if ring_ch == "kakao" and not kakao_rings:
-        ring_ch = "push"                               # D11 — 카톡이 울리지 않으면(메모 모드) 폰 푸시로. 둘 다 안 울리던 것
-    push_on = ring_ch in ("push", "both")
-    kakao_on = ring_ch in ("kakao", "both")
     rung = _ring_count_today(ledger)
-    kakao_n = _kakao_count_today(ledger)
     cap = s["dailyCap"]
     history = history if history is not None else []
     out: list[Send] = []
@@ -137,13 +132,8 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
         if ev.get("merge") == "close" and close_brief_ahead(ctx, s):
             continue                                   # 오늘 16:30 마감 브리핑 「오늘 바뀐 것」에 합침(G3 메르 새 글 · E5 휴장 — 기획서 3장)
         if not d.ring or level == "notice":
-            # 안내 · 보관 — 켜진 것만, 쿨다운 · 조용한 시간을 거친다. 종전엔 둘 다 없이 곧장 디스코드(+ 카톡 메모)로
-            # 나가 52주 신저가 사흘 연속 · 마디 하루 상승 · 하락 두 번 · 메르 새 글 새벽 4시가 울렸다(2026-10-11 점검).
-            if level != "notice" or not getattr(d, "on", True):
-                continue                               # 울림 밖 알림(관심 아님 · 세기 미달 · 울림 끔) = 원장 · 받은 알림에만
-            if ev and in_cooldown(row, ev, history):
-                continue
-            out.append(Send(row=row, level=level, push=True, kakao=False, held=quiet))   # 웹앱은 안내도 울린다(2026-10-13)
+            # 안내 · 울림 밖(관심 아님 · 세기 미달 · 울림 끔) — 폰 알림 없음. 원장(알림 기록)에 이미 있고 카톡 브리핑이 모아 보여 준다.
+            # 종전(2026-10-13~11-05)엔 안내도 폰 알림으로 보냈다 — 하루 평균 9.1통 중 안내 1.4통(2026-11-06 기획 D1 로 뺌).
             continue
         if ev and in_cooldown(row, ev, history, rung_only=True):
             continue                                   # 같은 사건 반복 — 원장엔 남고 발송 없음
@@ -153,16 +143,9 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
         if level == "alert" and rung >= cap:
             bundle.append(row)
             continue
-        kakao = kakao_on and kakao_n < s["kakaoBundleAt"]
-        push = push_on or not kakao                    # 카톡 자리가 없으면 푸시로 — 어느 채널로도 안 나가는 통이 없게
-        if kakao_on and s["kakaoBundleAt"] <= kakao_n < s["kakaoQuota"] and level != "alarm":
-            bundle.append(row)
-            continue
-        out.append(Send(row=row, level=level, push=push, kakao=kakao))
+        out.append(Send(row=row, level=level, push=True, kakao=False))
         if level == "alert":
             rung += 1
-        if kakao:
-            kakao_n += 1
 
     if bundle:
         first = bundle[0]
@@ -178,8 +161,7 @@ def plan(decisions: list[Decision], ledger, ctx, settings: dict | None = None,
             "next": "상한 넘어 묶음 — 보관함에서 펼침", "url": "#/alerts",
             "ts": now.isoformat(timespec="seconds"),
         }
-        kakao_b = kakao_on and kakao_n < s["kakaoQuota"]
-        out.append(Send(row=brow, level="alert", push=push_on or not kakao_b, kakao=kakao_b,
+        out.append(Send(row=brow, level="alert", push=True, kakao=False,
                         bundled=True, bundle=bundle, kind="bundle"))
         for r in bundle:
             ledger.update_sent(r["key"], bundled=True)

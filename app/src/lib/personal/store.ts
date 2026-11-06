@@ -74,6 +74,7 @@ export type Settings = {
   kakaoFriends: boolean                                           // 카톡 친구 모드로 받기(운영 변수 KAKAO_FRIENDS 와 짝)
   kakaoRecipients: { uuid: string; name: string; briefOnly: boolean }[]   // ≤5. uuid 는 서버가 친구 목록 이름으로 채운다
   autoQuiet: boolean                                              // 90일 미열람 자동 강등(housekeeping.ts). 이 기기만 — /prefs 에 싣지 않는다(remote.ts syncedOf)
+  sv: number                                                      // 설정 판(3 = 2026-11-06 받는 곳 나누기). 서버 model.SETTINGS_V 와 짝
 }
 export type Prefs = { v: 2; alerts: AlertCond[]; settings: Settings; scenarios: { name: string; inputs: Record<string, unknown> }[] }
 

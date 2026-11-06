@@ -224,10 +224,10 @@ def test_member_daily_cap_counter_bundles_without_touching_ledger(env):
     at = _at("2026-10-02", "10:00")
     day = _mk(MEMBER, "@day")
     people = [(OWNER, "owner", _prefs(families={"A": False})), (MEMBER, "member", _prefs())]
-    sides = env(people, at, rows=[_mrow(at)], sides={day: {"d": "2026-10-02", "n": 6}})   # 기본 상한 6 — 꽉 참
+    sides = env(people, at, rows=[_mrow(at)], sides={day: {"d": "2026-10-02", "n": 10}})   # 기본 상한 10 — 꽉 참
     assert len(env.rec.pushes) == 1 and env.rec.pushes[0]["title"].startswith("알림 1건 더")
     assert env.rec.pushes[0]["uid"] == MEMBER
-    assert sides[day] == {"d": "2026-10-02", "n": 8}       # 마스터 원장 셈과 같게 — 묶음 행 1 + 묶인 알림 행 1
+    assert sides[day] == {"d": "2026-10-02", "n": 11}       # 마스터 원장 셈과 같게 — 묶음은 한 통(안의 행은 안 셈, 2026-11-06)
     assert env.ledger.get(_mrow(at)["key"])["sent"]["bundled"] is False      # 공개 원장은 멤버 편성이 안 건드린다
     assert not any(r["key"].startswith("BUNDLE") for r in env.ledger.rows)
     at2 = _at("2026-10-03", "10:00")
@@ -403,6 +403,8 @@ def _brief_env(monkeypatch, tmp_path, now, ai=None):
         q = tmp_path / f"q-{slot}.json"
         briefing.send(slot, ctx, led, {"briefings": {slot: True}}, log=lambda *a: None, queue_path=str(q),
                       uid=OWNER, members=[(MEMBER, None)])
+        if not q.exists():                                                     # 아침 아니면 큐에 아무것도 안 들어간다
+            return {}
         return {i.get("uid"): i for i in json.loads(q.read_text(encoding="utf-8"))}
     return led, run_slot
 
@@ -439,32 +441,27 @@ def _owner_rows(led, day):
 
 
 @pytest.mark.parametrize("ai", ["echo", "fail"])
-def test_member_close_briefing_has_no_owner_personal_rows(monkeypatch, tmp_path, ai):
-    """마감 — AI 가 재료를 되풀이해도 · AI 가 실패해 원장 행에서 문장을 골라도(마스터 보류 행 포함) 멤버엔 공개 시장 행만."""
-    now = dt.datetime(2026, 10, 6, 15, 40, tzinfo=KST)
+def test_member_morning_briefing_has_no_owner_personal_rows_ai_fallback(monkeypatch, tmp_path, ai):
+    """아침 — AI 가 재료를 되풀이해도 · AI 가 실패해 원장 행에서 문장을 골라도(마스터 보류 행 포함) 멤버엔 공개 시장 행만."""
+    now = dt.datetime(2026, 10, 6, 7, 30, tzinfo=KST)
     fail = (lambda d, lslot, title, blocks: "") if ai == "fail" else None
     led, run_slot = _brief_env(monkeypatch, tmp_path, now, ai=fail)
-    led.append(_row("A1:kospi:up:held", "A1", "2026-10-06T09:05:00+09:00", "보류된 시장 사건", held=True))   # 마스터 조용한 시간 보류
+    led.append(_row("A1:kospi:up:held", "A1", "2026-10-06T01:05:00+09:00", "보류된 시장 사건", held=True))   # 마스터 조용한 시간 보류
     _owner_rows(led, "2026-10-06")
-    led.append(_row("A1:kospi:up:pub", "A1", "2026-10-06T11:00:00+09:00", "코스피 급등 공개 사건"))
-    items = run_slot("close")
+    led.append(_row("A1:kospi:up:pub", "A1", "2026-10-06T06:00:00+09:00", "코스피 급등 공개 사건"))
+    items = run_slot("morning")
     assert _no_secret(items[MEMBER]), items[MEMBER]
-    if ai == "fail":
-        assert "보류된 시장" in items[OWNER]["body"]                          # 마스터 사전 문장은 원장 첫 행(보류 포함) 그대로
-        assert "코스피 급등 공개 사건" in items[MEMBER]["body"]               # 멤버는 공개 행에서 다시 고른다
 
 
-def test_member_weekly_briefing_counts_and_lines_without_owner_rows(monkeypatch, tmp_path):
-    """주간 — 사건 수 · AI 재료(가운데 줄) · 큰 알림에 마스터 개인 행이 섞이면 멤버 몫은 공개 행 수 · 공개 문장으로."""
-    now = dt.datetime(2026, 10, 10, 18, 0, tzinfo=KST)
+@pytest.mark.parametrize("slot,hm", [("close", (15, 40)), ("weekly", (18, 0))])
+def test_member_gets_no_non_morning_briefing(monkeypatch, tmp_path, slot, hm):
+    """마감 · 주간 등 아침이 아닌 브리핑 — 폰 알림은 아침만이라 마스터 · 멤버 모두 큐에 아무것도 안 들어간다(카톡은 마스터만)."""
+    day = 10 if slot == "weekly" else 6
+    now = dt.datetime(2026, 10, day, *hm, tzinfo=KST)
     led, run_slot = _brief_env(monkeypatch, tmp_path, now)
-    _owner_rows(led, "2026-10-10")
-    led.append(_row("A1:kospi:up:pub", "A1", "2026-10-10T11:00:00+09:00", "코스피 급등 공개 사건"))
+    _owner_rows(led, f"2026-10-{day:02d}")
     led.save()
-    items = run_slot("weekly")
-    assert "사건 4건" in items[OWNER]["title"] + items[OWNER]["body"]          # 마스터 수엔 개인 행이 든다(재료가 섞인다는 확인)
-    assert _no_secret(items[MEMBER]), items[MEMBER]
-    assert "사건 1건" in items[MEMBER]["title"] + items[MEMBER]["body"] and "사건 4건" not in items[MEMBER]["body"]
+    assert run_slot(slot) == {}
 
 
 def test_member_stock_lookup_logs_no_code(monkeypatch, capsys):
@@ -575,3 +572,15 @@ def test_brief_marker_when_only_members_received(monkeypatch, tmp_path):
     assert uid == OWNER and settings["briefings"]["morning"] is False
     assert [m[0] for m in members] == [MEMBER]
     assert os.path.exists(tmp_path / run.BRIEF_SENT_MARKER)                  # 마스터 꺼짐 + 멤버가 받음 = 마커
+
+
+def test_member_rung_counts_only_alert_and_bundle_once():
+    """멤버 하루 최대 셈 = 마스터 schedule._ring_count_today 와 같은 규칙(2026-11-06): 경보는 안 세고, 묶음은 한 통."""
+    from types import SimpleNamespace
+    from alerts_v2 import run
+    alarm = SimpleNamespace(kind="event", row={"level": "alarm"}, bundle=[])
+    alert = SimpleNamespace(kind="event", row={"level": "alert"}, bundle=[])
+    bundle = SimpleNamespace(kind="bundle", row={"level": "alert"}, bundle=[{"level": "alert"}] * 4)
+    assert run._rung(alarm) == 0
+    assert run._rung(alert) == 1
+    assert run._rung(bundle) == 1

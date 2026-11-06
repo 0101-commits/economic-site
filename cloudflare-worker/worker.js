@@ -1224,7 +1224,9 @@ function _sanitizePrefs(raw) {
     // v2 — 꾸러미 · 울림 채널 · 상한 · 경보 돌파 · 브리핑 6 · 갈래 8 · 이 기기 기억 · 카톡 수신자(≤5, 이름 20자)
     package: PREFS_PACKAGES.includes(s.package) ? s.package : 'normal',
     ringChannel: PREFS_RING_CH.includes(s.ringChannel) ? s.ringChannel : 'push',
-    dailyCap: Number.isInteger(s.dailyCap) && s.dailyCap >= 1 && s.dailyCap <= 50 ? s.dailyCap : 6,
+    dailyCap: Number.isInteger(s.dailyCap) && s.dailyCap >= 1 && s.dailyCap <= 50 ? s.dailyCap : 10,
+    // 설정 판(2026-11-06 받는 곳 나누기 = 3). 빠지면 발송기(subscribe.migrate_v3)가 런마다 옛 판으로 보고 다시 옮긴다
+    sv: Number.isInteger(s.sv) && s.sv >= 0 && s.sv <= 99 ? s.sv : 0,
     quietAlarm: s.quietAlarm === true,
     briefings: Object.fromEntries(PREFS_BRIEFS.map(k => [k, _isObj(s.briefings) && typeof s.briefings[k] === 'boolean' ? s.briefings[k] : PREFS_BRIEF_ON.includes(k)])),
     families: Object.fromEntries([...'ABCDEFGH'].map(f => [f, !(_isObj(s.families) && s.families[f] === false)])),

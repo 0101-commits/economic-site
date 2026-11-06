@@ -65,9 +65,9 @@ test('upgradePrefs 6 · 문서 한 벌이 서버 upgrade_prefs 출력과 같다(
   assert.equal(p.v, 2)
   assert.deepEqual(p.alerts, server)
   const { kakaoBundleAt: _b, kakaoQuota: _q, ...srv } = {
-    briefings: { close: true, evening: false, morning: true, noon: false, us: false, weekly: true }, dailyCap: 6,
+    briefings: { close: true, evening: false, morning: true, noon: false, us: false, weekly: true }, dailyCap: 10,
     families: { A: true, B: true, C: true, D: true, E: true, F: true, G: true, H: true }, kakaoBundleAt: 18, kakaoQuota: 20,
-    package: 'normal', quiet: { from: '23:00', to: '07:00' }, quietAlarm: false, ringChannel: 'push', unit: 'won', updown: 'us',
+    package: 'normal', quiet: { from: '23:00', to: '07:00' }, quietAlarm: true, ringChannel: 'push', unit: 'won', updown: 'us', sv: 3,
   }
   assert.deepEqual(p.settings, { ...srv, rememberKey: false, kakaoFriends: false, kakaoRecipients: [], autoQuiet: true })   // v1 의 quiet:null → 서버처럼 기본값
   assert.deepEqual(upgradePrefs(p), p)                                                                    // 두 번 바꿔도 같다
@@ -79,14 +79,27 @@ test('꾸러미 전환: 상한 · 브리핑이 따라가고 다른 설정은 그
   const s = { ...defaultSettings(), ringChannel: 'kakao' as const, quietAlarm: true }
   const q = setPackage(s, 'quiet')
   assert.equal(q.package, 'quiet')
-  assert.equal(q.dailyCap, 3)
+  assert.equal(q.dailyCap, 5)
   assert.deepEqual(Object.entries(q.briefings).filter(([, v]) => v).map(([k]) => k), ['morning'])
   assert.equal(q.ringChannel, 'kakao')
   assert.equal(q.quietAlarm, true)
   const m = setPackage(q, 'many')
-  assert.equal(m.dailyCap, 12)
+  assert.equal(m.dailyCap, 15)
   assert.ok(Object.values(m.briefings).every(Boolean))
   assert.deepEqual(setPackage(m, 'normal').briefings, defaultSettings().briefings)
   m.briefings.noon = false
   assert.equal(PACKAGE_PRESET.many.briefings.noon, true)   // 바꾼 설정이 꾸러미 원본을 건드리지 않는다
+})
+
+test('설정 판 3 옮기기(2026-11-06 받는 곳 나누기) — 서버 subscribe.migrate_v3 와 같은 규칙', () => {
+  const s = normSettings({ package: 'many', dailyCap: 12, quiet: null, quietAlarm: false, ringChannel: 'kakao',
+    briefings: { morning: true, close: true, noon: true, evening: true, us: true, weekly: true } })
+  assert.equal(s.package, 'normal'); assert.equal(s.dailyCap, 10); assert.equal(s.sv, 3)
+  assert.deepEqual(s.quiet, { from: '23:00', to: '07:00' }); assert.equal(s.quietAlarm, true); assert.equal(s.ringChannel, 'push')
+  assert.deepEqual(Object.entries(s.briefings).filter(([, v]) => v).map(([k]) => k), ['morning', 'close', 'weekly'])
+  assert.equal(normSettings({ package: 'normal', dailyCap: 8 }).dailyCap, 8)
+  assert.equal(normSettings({ package: 'quiet' }).dailyCap, 5)
+  assert.equal(normSettings({ package: 'many' }).dailyCap, 10)
+  const v3 = normSettings({ package: 'many', dailyCap: 12, quiet: null, quietAlarm: false, sv: 3 })
+  assert.equal(v3.package, 'many'); assert.equal(v3.dailyCap, 12); assert.equal(v3.quiet, null); assert.equal(v3.quietAlarm, false)
 })

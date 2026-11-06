@@ -5,7 +5,7 @@
 // 사용자 조건 줄의 이름은 이 기기 econPrefsV1.alerts 와 지표 사전에서만 찾는다(원장에는 조건 id 만 있다).
 // 사건 이름 · 등급 · 갈래 · 꾸러미 · 세기 이름은 사전 lib/alerts/dict.json(scripts/alerts_v2/export_dict.py 산출)에서만 읽는다.
 // 조건 행의 상태 7과 다시 켜기 규칙은 lib/personal/alertStatus.ts, 자동 정리는 lib/personal/housekeeping.ts.
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, ChevronRight, Trash2 } from 'lucide-react'
 import { SegBar } from '../components/ui'
@@ -32,16 +32,17 @@ import dictJson from '../lib/alerts/dict.json'
 
 const dict = dictJson as unknown as Dict
 const EV = new Map(dict.events.map(e => [e.id, e]))
-const TABS = [{ key: 'inbox', label: '받은 알림' }, { key: 'cond', label: '사건' }, { key: 'chan', label: '채널' }] as const
+const TABS = [{ key: 'inbox', label: '받은 알림' }, { key: 'cond', label: '사건' }, { key: 'chan', label: '받는 곳' }] as const
 type Tab = typeof TABS[number]['key']
 const FILTER_LABEL: Record<Filter, string> = { all: '전체', alarm: LV.alarm, alert: LV.alert, notice: LV.notice, brief: '시황', mine: '내 조건' }
 const FILTER_OPTS = FILTERS.map(k => ({ key: k, label: FILTER_LABEL[k] }))
 const PKG_OPTS = dict.packages.map(p => ({ key: p.id as Pkg, label: p.name }))
-// 평일 몇 통 = 기획서 7장 꾸러미 표(400일 재생 docs/alerts_v2_replay.md 의 울림 하루 평균 + 브리핑 수)
+// 알림 양 = 어느 등급까지 폰 알림으로 받나 + 하루 최대(경보 · 아침 브리핑 제외). 받는 곳 나누기(2026-11-06) 뒤 안내는
+// 알림 기록 · 카톡 브리핑에만 남는다(「많이」만 폰 알림). 숫자는 prefsV2.PACKAGE_PRESET 한 곳.
 const PKG_NOTE: Record<Pkg, string> = {
-  quiet: '경보와 내 조건만 울립니다 · 아침 브리핑 · 하루 상한 3 · 평일 1~2통',
-  normal: '경보와 알림이 울리고 안내는 마감 브리핑에 모입니다 · 아침 · 마감 · 주간 브리핑 · 하루 상한 6 · 평일 3~4통',
-  many: '안내까지 울립니다 · 브리핑 6통 · 하루 상한 12 · 평일 8~10통',
+  quiet: `${LV.alarm} · 내 조건을 폰 알림으로 받습니다. 하루 최대 ${PACKAGE_PRESET.quiet.cap}통`,
+  normal: `${LV.alarm} · ${LV.alert} · 내 조건을 폰 알림으로 받습니다. 하루 최대 ${PACKAGE_PRESET.normal.cap}통`,
+  many: `${LV.notice}까지 폰 알림으로 받습니다. 하루 최대 ${PACKAGE_PRESET.many.cap}통`,
 }
 const STRENGTH_OPTS = dict.strengths.filter(s => s.sigma != null).map(s => ({ key: s.id as Strength, label: s.name }))
 const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '한 번' }] as const
@@ -198,7 +199,7 @@ export default function Alerts() {
         <EventsTab prefs={prefs} save={save} sync={sync} pushOn={pushOn} ledger={statusRows} known={mv ? Array.isArray(firedItems) : Array.isArray(ledger) || !!state} fired={fired} hk={hk} setHk={setHk}
           names={names} rows={reg} labelOf={labelOf} cur={id => curOf(md, id)} />
       )}
-      {tab === 'chan' && <Channels prefs={prefs} setS={setS} />}
+      {tab === 'chan' && <Channels prefs={prefs} setS={setS} member={member} />}
     </div>
   )
 }
@@ -324,11 +325,11 @@ function EventsTab({ prefs, save, sync, pushOn, ledger, known, fired, hk, setHk,
         <p className="mt-2 mb-0 text-12 text-ink-2">{PKG_NOTE[want ?? pkg]}</p>
         {want && next ? (
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="text-13 text-ink-1">하루 상한 <span className="num">{prefs.settings.dailyCap}→{next.cap}</span> · 브리핑 <span className="num">{briefN(prefs.settings.briefings)}→{briefN(next.briefings)}</span> 로 바뀝니다</span>
+            <span className="text-13 text-ink-1">하루 최대 <span className="num">{prefs.settings.dailyCap}→{next.cap}</span>통 · 브리핑 <span className="num">{briefN(prefs.settings.briefings)}→{briefN(next.briefings)}</span>개로 바뀝니다</span>
             <button type="button" className={BTN} onClick={() => { save({ ...prefs, settings: setPackage(prefs.settings, want) }); setWant(null) }}>바꾸기</button>
             <button type="button" className={BTN2} onClick={() => setWant(null)}>그만두기</button>
           </div>
-        ) : <p className="mt-1 mb-0 text-12 text-ink-3">알림 단계를 바꾸면 하루 상한과 브리핑이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>}
+        ) : <p className="mt-1 mb-0 text-12 text-ink-3">바꾸면 하루 최대와 브리핑 시각이 따라 바뀝니다. 아래 사건마다 고친 세기 · 등급은 그대로 둡니다.</p>}
       </Panel>
 
       <Panel title="사건 갈래" source="갈래를 누르면 사건마다 세기 · 등급">
@@ -594,54 +595,62 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
 // ── 채널 ───────────────────────────────────────────
 
 const BRIEFS: { key: keyof Settings['briefings']; label: string }[] = [
-  { key: 'morning', label: '아침 07:30' }, { key: 'close', label: '마감 16:30 · 안내 포함' }, { key: 'noon', label: '점심 12:00' },
+  { key: 'morning', label: '아침 07:30' }, { key: 'close', label: '마감 16:30' }, { key: 'noon', label: '점심 12:00' },
   { key: 'evening', label: '저녁 확정 18:30' }, { key: 'us', label: '미국 개장 22:40' }, { key: 'weekly', label: '주간 토 09:00' },
 ]
-const RING_OPTS = [{ key: 'kakao', label: '카톡' }, { key: 'push', label: '폰' }, { key: 'both', label: '둘 다' }] as const
-const CAP_OPTS = [{ key: '3', label: '3' }, { key: '6', label: '6' }, { key: '12', label: '12' }] as const
+const CAP_OPTS = [{ key: '5', label: '5' }, { key: '10', label: '10' }, { key: '15', label: '15' }] as const
 
-/** 채널: 울림 채널 · 하루 상한 · 조용한 시간 · 브리핑 · 카톡 기록. 폰 알림 · 앱키 · 받는 기기는 설정 「내 계정」, 카톡은 설정 「고급」. */
-function Channels({ prefs, setS }: { prefs: Prefs; setS: (k: Partial<Settings>) => void }) {
+/** 받는 곳: 받는 곳 표 · 하루 최대 · 조용한 시간 · 브리핑. 받는 곳 나누기(2026-11-06): 폰 알림 = 경보 · 주의 · 아침 브리핑,
+ *  알림 기록 = 전부, 카톡 = 브리핑만(마스터만 — 멤버 화면엔 카톡 칸 · 낱말이 없다). 앱키 · 받는 기기는 설정 「내 계정」. */
+function Channels({ prefs, setS, member }: { prefs: Prefs; setS: (k: Partial<Settings>) => void; member: boolean }) {
   const s = prefs.settings
   const quiet = s.quiet
   const setQuiet = (q: Settings['quiet']) => setS({ quiet: q })
+  const routes: [string, string][] = [
+    ['폰 알림', `${LV.alarm} · ${s.package === 'quiet' ? '' : `${LV.alert} · `}${s.package === 'many' ? `${LV.notice} · ` : ''}내 조건 · 아침 브리핑`],
+    ['알림 기록', '모든 알림'],
+    ...(member ? [] : [['카톡', '브리핑만. 「나와의 채팅」에 소리 없이'] as [string, string]]),
+  ]
   return (
     <>
-      <p className="m-0 text-12 text-ink-2">폰 알림 · 앱키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
+      <p className="m-0 text-12 text-ink-2">앱키 · 받는 기기는 <Link to="/settings" className="text-ink-1">설정 › 내 계정</Link>에서</p>
       <div className="grid grid-cols-1 pc:grid-cols-2 gap-4 items-start">
-        <Panel title="울림 채널 · 하루 상한">
-          <SegBar label="울림 채널" options={RING_OPTS} value={s.ringChannel} onChange={v => setS({ ringChannel: v })} />
-          <p className="mt-1 mb-3 text-12 text-ink-3">경보 · 알림 · 안내 · 내 조건 · 브리핑이 이 채널로 울립니다.</p>
+        <Panel title="받는 곳 · 하루 최대">
+          <dl className="m-0 mb-3 grid grid-cols-[5rem_1fr] gap-x-2 gap-y-1 text-13">
+            {routes.map(([k, v]) => <Fragment key={k}><dt className="font-bold text-ink-1">{k}</dt><dd className="m-0 text-ink-2">{v}</dd></Fragment>)}
+          </dl>
           <div className="flex flex-wrap items-end gap-2">
-            <SegBar label="하루 울림 상한" options={CAP_OPTS} value={String(s.dailyCap) as '3'} onChange={v => setS({ dailyCap: Number(v) })} />
+            <SegBar label="하루 최대 폰 알림" options={CAP_OPTS} value={String(s.dailyCap) as '10'} onChange={v => setS({ dailyCap: Number(v) })} />
             <Field label="직접" className="w-20"><input type="number" min={1} max={50} className={INPUT} value={s.dailyCap}
               onChange={e => { const n = Math.round(Number(e.target.value)); if (n >= 1 && n <= 50) setS({ dailyCap: n }) }} /></Field>
           </div>
-          <p className="mt-1 mb-0 text-12 text-ink-3">하루에 이만큼 울린 뒤의 알림은 「알림 N건 더」 한 통으로 묶습니다. 경보는 상한과 상관없이 울립니다.</p>
+          <p className="mt-1 mb-0 text-12 text-ink-3">{LV.alarm} · 아침 브리핑은 세지 않습니다. 넘으면 남은 알림을 한 통으로 묶습니다.</p>
         </Panel>
         <Panel title="조용한 시간">
-          <Switch on={!!quiet} onChange={on => setQuiet(on ? { from: '23:00', to: '07:00' } : null)} label="이 시간엔 울리지 않기" />
+          <Switch on={!!quiet} onChange={on => setQuiet(on ? { from: '23:00', to: '07:00' } : null)} label="조용한 시간 쓰기" />
           {quiet && (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Field label="부터"><input type="time" className={INPUT} value={quiet.from} onChange={e => e.target.value && setQuiet({ ...quiet, from: e.target.value })} /></Field>
               <Field label="까지"><input type="time" className={INPUT} value={quiet.to} onChange={e => e.target.value && setQuiet({ ...quiet, to: e.target.value })} /></Field>
             </div>
           )}
-          <div className="mt-3"><Switch on={s.quietAlarm} onChange={v => setS({ quietAlarm: v })} label="경보는 조용한 시간에도 울리기" /></div>
-          <p className="mt-2 mb-0 text-12 text-ink-3">한국 시각 기준입니다. 이 시간에 생긴 알림은 아침 07:30 브리핑에 모아 보냅니다. 경보 = 서킷브레이커 · 정책금리 변경 · 렌즈 새 돌파 같은 것.</p>
+          <div className="mt-3"><Switch on={s.quietAlarm} onChange={v => setS({ quietAlarm: v })} label={`${LV.alarm}는 조용한 시간에도 받기`} /></div>
+          <p className="mt-2 mb-0 text-12 text-ink-3">한국 시각 기준입니다. 이 시간에 생긴 알림은 아침 07:30 브리핑에 넣습니다.</p>
         </Panel>
-        <Panel title="브리핑">
-          <ul className="m-0 p-0 list-none flex flex-col gap-2">
-            {BRIEFS.map(b => (
-              <li key={b.key}><Switch on={s.briefings[b.key]} onChange={v => setS({ briefings: { ...s.briefings, [b.key]: v } })} label={b.label} /></li>
-            ))}
-          </ul>
-          <p className="mt-2 mb-0 text-12 text-ink-3">알림 단계를 바꾸면 이 브리핑도 그 단계 값으로 바뀝니다.</p>
-        </Panel>
-        <Panel title="카톡 기록">
-          <p className="m-0 text-13 text-ink-2">모든 알림이 카톡 「나와의 채팅」에도 쌓입니다. 이 화면에서 바꾸는 것은 없습니다.</p>
-          <p className="mt-2 mb-0 text-12 text-ink-3">카카오 정책상 소리는 나지 않습니다. 폰을 울리는 것은 이 앱의 알림입니다. 디스코드로는 보내지 않습니다.</p>
-        </Panel>
+        {member ? (
+          <Panel title="브리핑">
+            <Switch on={s.briefings.morning} onChange={v => setS({ briefings: { ...s.briefings, morning: v } })} label="아침 07:30 브리핑 받기" />
+          </Panel>
+        ) : (
+          <Panel title="카톡 브리핑">
+            <ul className="m-0 p-0 list-none flex flex-col gap-2">
+              {BRIEFS.map(b => (
+                <li key={b.key}><Switch on={s.briefings[b.key]} onChange={v => setS({ briefings: { ...s.briefings, [b.key]: v } })} label={b.label} /></li>
+              ))}
+            </ul>
+            <p className="mt-2 mb-0 text-12 text-ink-3">폰 알림으로는 아침 브리핑만 갑니다.</p>
+          </Panel>
+        )}
       </div>
     </>
   )

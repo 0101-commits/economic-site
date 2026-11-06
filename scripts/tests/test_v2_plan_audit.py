@@ -53,12 +53,15 @@ def test_notice_off_cooldown_quiet_merge(tmp_path):
     again = Decision(_row("B2", "notice"), "notice", False, "안내")
     assert schedule.plan([again], led, _ctx(), events_by_id=EV, history=[prev]) == []   # 마디 하루 1(방향 무관)
     night = schedule.plan([again], led, _ctx(3), events_by_id=EV, settings={"quiet": {"from": "23:00", "to": "07:00"}})
-    assert len(night) == 1 and night[0].held                                        # 조용한 시간 = 보류(아침 합류)
+    assert night == []                                                              # 안내는 폰 알림 없음(조용한 시간이든 아니든)
     merged = Decision(_row("G3", "notice", target="posts"), "notice", False, "안내")
-    assert schedule.plan([merged], led, _ctx(), events_by_id=EV) == []               # 오늘 16:30 마감 브리핑에 합침
-    assert len(schedule.plan([merged], led, _ctx(17), events_by_id=EV)) == 1         # 마감 뒤면 낱개로(안 그러면 어디에도 안 나감)
+    assert schedule.plan([merged], led, _ctx(17), events_by_id=EV) == []             # 마감 뒤여도 안내는 원장에만
     off = {"briefings": {"close": False}}
-    assert len(schedule.plan([merged], led, _ctx(), settings=off, events_by_id=EV)) == 1   # 마감 브리핑을 껐으면 낱개로
+    assert schedule.plan([merged], led, _ctx(), settings=off, events_by_id=EV) == []
+    mer_alert = Decision(_row("G3", "alert", target="posts"), "alert", True)         # 주의로 올라온(「많이」) 메르 새 글은 합침 규칙 그대로
+    assert schedule.plan([mer_alert], led, _ctx(), events_by_id=EV) == []            # 오늘 16:30 마감 브리핑에 합침
+    assert len(schedule.plan([mer_alert], led, _ctx(17), events_by_id=EV)) == 1      # 마감 뒤면 낱개로
+    assert len(schedule.plan([mer_alert], led, _ctx(), settings=off, events_by_id=EV)) == 1   # 마감 브리핑을 껐으면 낱개로
 
 
 def test_unrung_alert_not_posted_and_alarm_escalates_past_alert_cooldown(tmp_path):
@@ -73,13 +76,12 @@ def test_unrung_alert_not_posted_and_alarm_escalates_past_alert_cooldown(tmp_pat
     assert schedule.plan([alert2], led, _ctx(), events_by_id=EV, history=[rang]) == []       # 같은 등급은 하루 1
 
 
-def test_ring_channel_kakao_falls_back_to_push_without_kakao_ring(tmp_path):
+def test_ring_channel_is_ignored_events_never_kakao(tmp_path):
     led = Ledger(day=dt.date(2026, 10, 2), root=str(tmp_path))
     d = Decision(_row("A1"), "alert", True)
-    s = schedule.plan([d], led, _ctx(), settings={"ringChannel": "kakao"}, events_by_id=EV, kakao_rings=False)
-    assert s and s[0].push and not s[0].kakao                                     # D11 — 메모 모드면 폰 푸시가 울린다
-    s = schedule.plan([d], led, _ctx(), settings={"ringChannel": "kakao"}, events_by_id=EV, kakao_rings=True)
-    assert s and s[0].kakao and not s[0].push
+    for ring in ("kakao", "both", "push"):
+        s = schedule.plan([d], led, _ctx(), settings={"ringChannel": ring}, events_by_id=EV)
+        assert s and s[0].push and not s[0].kakao
 
 
 def test_every_unheld_send_has_a_channel(tmp_path):
