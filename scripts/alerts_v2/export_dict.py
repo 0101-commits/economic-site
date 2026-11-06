@@ -30,6 +30,7 @@ def build() -> dict:
             "enabled": ev.get("enabled", True), "cooldown": ev.get("cooldown"),
             "strength": ev["judge"] == "swing_sigma",      # 세기 3단을 고를 수 있는 사건
             "userValue": ev["id"].startswith("U"),
+            **({"tiers": (ev.get("params") or {}).get("tiers")} if (ev.get("params") or {}).get("tiers") else {}),   # 지수 급변 고정 단계(%)
         })
     return {
         "version": 2,

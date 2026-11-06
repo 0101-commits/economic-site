@@ -385,9 +385,16 @@ def strength_ok(row: dict, ev: dict, override: dict | None) -> bool:
     if ev.get("judge") != "swing_sigma":
         return True
     chg, z = row.get("chg"), row.get("z")
+    p = ev.get("params") or {}
+    tiers = sorted(float(x) for x in ((p.get("tiers") or {}).get(row.get("target")) or (p.get("tiers") or {}).get("default") or []))
+    if tiers and chg is not None:                     # 고정 단계(지수 급변, 2026-11-06 P4): 기본 = 첫 단계부터, 아주 크게 = 둘째 단계부터
+        st = (override or {}).get("strength") or "big"
+        if st == "value":
+            thr = float((override or {}).get("value") or 0) or None
+            return thr is None or abs(float(chg)) >= thr
+        return abs(float(chg)) >= (tiers[1] if st == "huge" and len(tiers) > 1 else tiers[0])
     if chg is None or not z:
         return True                                   # 세기를 잴 수 없으면 사전 판정 그대로
-    p = ev.get("params") or {}
     lo, hi = (list(p.get("clamp_pct") or [0.5, 5.0]) + [5.0])[:2]
     st = (override or {}).get("strength") or "big"
     if st == "value":

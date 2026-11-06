@@ -33,7 +33,7 @@ def test_default_on_watch_and_family_rules():
     prefs = {"watch": [{"id": "gold"}], "settings": {"package": "normal", "families": {"B": False}}}
     d = {x.row["target"] + x.row["event"]: x for x in subscribe.match(rows, _ctx(), prefs, EV)}
     assert d["kospiA1"].ring and d["kospiA1"].reason == "기본 켜짐"
-    assert not d["nasdaqA1"].ring and d["nasdaqA1"].reason == "관심 아님"
+    assert d["nasdaqA1"].ring and d["nasdaqA1"].reason == "기본 켜짐"   # 2026-11-06 P4: 코스닥 · 나스닥도 기본 켜짐
     assert d["goldA3"].ring and d["goldA3"].reason == "관심"
     assert not d["kospiB2"].ring and d["kospiB2"].reason == "갈래 꺼짐"
     assert not d["cpi_krH2"].ring and d["cpi_krH2"].level == "record"
@@ -123,18 +123,29 @@ def test_migrate_v3_keeps_custom_cap_and_skips_sv3():
 
 
 def test_strength_filters_swing_rows_by_user_sigma():
-    """사전은 2σ 로 넓게 잡고, 울림은 사용자 세기(기본 big 2.5σ)로 거른다 — σ = |등락| / z."""
-    row = dict(_row("A1", "kospi"), chg=2.2, z=2.2)          # σ 1.0% → 2.2σ
+    """사전은 2σ 로 넓게 잡고, 울림은 사용자 세기(기본 big 2.5σ)로 거른다 — σ = |등락| / z. (환율 급변 A2 — 지수 급변 A1 은 고정 단계)"""
+    row = dict(_row("A2", "usdkrw"), chg=2.2, z=2.2)         # σ 1.0% → 2.2σ
     base = subscribe.match([row], _ctx(), {"settings": {"package": "normal"}}, EV)[0]
     assert base.level == "record" and base.reason == "세기 미달"              # 기본 big 2.5σ 미달
-    normal = subscribe.match([row], _ctx(), {"alerts": [{"id": "s", "event": "A1", "target": "kospi", "strength": "normal"}]}, EV)[0]
+    normal = subscribe.match([row], _ctx(), {"alerts": [{"id": "s", "event": "A2", "target": "usdkrw", "strength": "normal"}]}, EV)[0]
     assert normal.ring and normal.level == "alert"
-    val = subscribe.match([row], _ctx(), {"alerts": [{"id": "s", "event": "A1", "target": "kospi", "strength": "value", "value": 2.0}]}, EV)[0]
+    val = subscribe.match([row], _ctx(), {"alerts": [{"id": "s", "event": "A2", "target": "usdkrw", "strength": "value", "value": 2.0}]}, EV)[0]
     assert val.ring
-    big_row = dict(_row("A1", "kospi"), chg=3.0, z=3.0)
+    big_row = dict(_row("A2", "usdkrw"), chg=3.0, z=3.0)
     assert subscribe.match([big_row], _ctx(), None, EV)[0].ring                  # 3σ 는 기본으로 울림
-    clamp_row = dict(_row("A1", "kospi"), chg=0.6, z=3.0)   # σ 0.2% → 2.5σ = 0.5% 하한 적용 → 0.6 ≥ 0.5 울림
+    clamp_row = dict(_row("A2", "usdkrw"), chg=0.6, z=3.0)  # σ 0.2% → 2.5σ = 0.5% 하한 적용 → 0.6 ≥ 0.5 울림
     assert subscribe.match([clamp_row], _ctx(), None, EV)[0].ring
+
+
+def test_strength_on_index_tiers():
+    """지수 급변(A1) 고정 단계: 기본 = 첫 단계(코스피 ±3%)부터, 아주 크게 = 둘째 단계(±5%)부터, 직접 = 그 값."""
+    r3 = dict(_row("A1", "kospi"), chg=-3.2, z=1.0)
+    r5 = dict(_row("A1", "kospi"), chg=-5.1, z=1.5)
+    assert subscribe.match([r3], _ctx(), None, EV)[0].ring
+    huge = {"alerts": [{"id": "s", "event": "A1", "target": "kospi", "strength": "huge"}]}
+    assert not subscribe.match([r3], _ctx(), huge, EV)[0].ring and subscribe.match([r5], _ctx(), huge, EV)[0].ring
+    val = {"alerts": [{"id": "s", "event": "A1", "target": "kospi", "strength": "value", "value": 4.0}]}
+    assert not subscribe.match([r3], _ctx(), val, EV)[0].ring
 
 
 def test_load_prefs_hits_worker_prefs_path_once(monkeypatch):

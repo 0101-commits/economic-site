@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom'
 import { loadBundle } from '../../lib/bundle'
 import { BottomSheet, SegBar } from '../ui'
 import { BTN, Field, INPUT, LV, Row, Switch } from './bits'
-import { ALERT_CAP, levelChoices, savedNote, sheetEvents, yearCounts, type Dict } from '../../lib/alerts/v2'
+import { ALERT_CAP, levelChoices, savedNote, sheetEvents, tierCounts, tiersFor, yearCounts, type Dict } from '../../lib/alerts/v2'
 import { loadDaily } from '../../lib/alerts/daily'
 import { armU1, condId, repeatNote } from '../../lib/personal/alertStatus'
 import { watchKind } from '../../lib/personal/remote'
@@ -49,13 +49,15 @@ function BellForm({ id, cur, unit }: { id: string; cur?: number | null; unit?: s
   const [savedAt, setSavedAt] = useState(0)
   const [counts, setCounts] = useState<Record<string, number> | null>(null)
   const swing = !!ev?.strength
+  const tiers = tiersFor(ev, id)                                  // 지수 급변 = 고정 단계(±3% · ±5% …), 그 밖 급변 = 세기
+  const [tierN, setTierN] = useState<number[] | null>(null)
   useEffect(() => {
-    setCounts(null)
+    setCounts(null); setTierN(null)
     if (!swing) return
     let live = true
-    loadDaily(id).then(sr => { if (live && sr) setCounts(yearCounts(sr, dict.strengths)) }, () => {})
+    loadDaily(id).then(sr => { if (live && sr) { setCounts(yearCounts(sr, dict.strengths)); if (tiers) setTierN(tierCounts(sr, tiers)) } }, () => {})
     return () => { live = false }
-  }, [id, swing])
+  }, [id, swing, tiers?.join(',')])
   const base = ev.level
   const had = useMemo(() => (ev.userValue ? undefined : readPrefs().alerts.find(x => x.event === ev.id && x.target === id)), [ev, id, savedAt])
 
@@ -92,7 +94,15 @@ function BellForm({ id, cur, unit }: { id: string; cur?: number | null; unit?: s
         </div>
       )}
       {ev.id === 'U2' && <Field label="하루 등락률(%) · 오름 · 내림 모두" className="sm:max-w-60"><input className={INPUT} value={value} onChange={e => setValue(e.target.value)} inputMode="decimal" placeholder="3" /></Field>}
-      {swing && (
+      {swing && tiers && (
+        <Row label="움직임 크기">
+          <SegBar label="움직임 크기" value={strength === 'huge' ? 'huge' : 'big'} onChange={setStrength}
+            options={[{ key: 'big' as Strength, label: `±${tiers[0]}%부터${tierN ? ` · 1년 ${tierN[0]}회` : ''}` },
+              ...(tiers.length > 1 ? [{ key: 'huge' as Strength, label: `±${tiers[1]}%부터${tierN ? ` · 1년 ${tierN[1]}회` : ''}` }] : [])]} />
+          <p className="m-0 mt-1 text-12 text-ink-3">단계({tiers.map(t => `±${t}%`).join(' · ')})를 넘을 때마다 한 번. 맨 위 단계는 {LV.alarm}입니다.</p>
+        </Row>
+      )}
+      {swing && !tiers && (
         <Row label="세기">
           <SegBar label="세기" value={strength} onChange={setStrength}
             options={STRENGTH_OPTS.map(o => ({ ...o, label: counts?.[o.key] != null ? `${o.label} · 1년 ${counts[o.key]}회` : o.label }))} />

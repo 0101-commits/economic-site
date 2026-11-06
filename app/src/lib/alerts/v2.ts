@@ -9,6 +9,7 @@ import type { AlertCond, Level } from '../personal/store'
 export type DictEvent = {
   id: string; name: string; family: string; level: Level; targets: string[]; defaultOn: string[]
   enabled: boolean; strength: boolean; userValue: boolean
+  tiers?: Record<string, number[]>                                 // 지수 급변 고정 단계(%, 대상별 · default) — 있으면 세기 대신 단계
 }
 export type Dict = { families: { id: string; name: string }[]; levels: { id: string; name: string }[]; packages: { id: string; name: string }[]; strengths: { id: string; name: string; sigma: number | null }[]; events: DictEvent[] }
 
@@ -197,6 +198,18 @@ export function savedNote(sync: { on: boolean; at: number | null }, savedAt: num
  * ponytail: σ 는 같은 1년 등락의 표준편차 한 값이다(서버 check_swings 는 날마다 직전 250일로 다시 잰다). 화면은 1년치만 있어
  *   어림이다 — 서버와 맞춰야 하면 events/history 에 400점이 쌓인 뒤 날마다 굴리는 셈으로 바꾼다.
  */
+/** 대상의 고정 단계(없으면 null). 서버 judges_market.swing_sigma 와 같은 표(events.yml params.tiers). */
+export const tiersFor = (ev: DictEvent | undefined, target: string): number[] | null =>
+  (ev?.tiers && (ev.tiers[target] ?? ev.tiers.default)) ? [...(ev.tiers[target] ?? ev.tiers.default)].sort((a, b) => a - b) : null
+
+/** 지난 1년(250거래일) 하루 등락이 각 단계(|%|) 이상이었던 날 수. 자료가 짧으면 null. */
+export function tierCounts(series: [string, number][], tiers: number[]): number[] | null {
+  const v = series.map(p => p[1]).filter(x => typeof x === 'number' && Number.isFinite(x) && x > 0)
+  if (v.length < 121) return null
+  const ret = v.slice(1).map((x, i) => (x / v[i] - 1) * 100).slice(-250)
+  return tiers.map(t => ret.filter(x => Math.abs(x) >= t).length)
+}
+
 export function yearCounts(series: [string, number][], sigmas: { id: string; sigma: number | null }[]): Record<string, number> | null {
   const v = series.map(p => p[1]).filter(x => typeof x === 'number' && Number.isFinite(x) && x > 0)
   if (v.length < 121) return null
