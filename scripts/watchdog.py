@@ -264,7 +264,13 @@ def check_silence(now=None):
         since = (_age_min(done[streak - STREAK_MIN].get("updated_at"), now) if streak < len(done)
                  else _last_success_age(key, now) or _age_min(done[-1].get("created_at"), now))
         if _due(since, (since - gap) if (watched and since is not None) else None):
-            out.append((name, f"최근 {streak}건 연속 실패 — 이어지면 {REMIND_MIN // 60}시간마다 다시 알림"))
+            why = f"최근 {streak}건 연속 실패 — 이어지면 {REMIND_MIN // 60}시간마다 다시 알림"
+            cause = _failure_cause(done[0].get("id"))
+            if cause:
+                gh, note = cause
+                why += ("\n  └ GitHub 쪽 장애로 보임(코드 문제 아님 · 보통 저절로 풀림 · githubstatus.com): "
+                        if gh else "\n  └ 오류: ") + note
+            out.append((name, why))
     return out
 
 
@@ -299,6 +305,54 @@ def _infra_failure(run_id):
     except (urllib.error.URLError, OSError, ValueError):
         pass
     return False
+
+
+# GitHub 쪽 장애가 남기는 오류 주석 — 우리 스텝이 죽으면 이런 말 대신 「exit code 1」 류가 남는다.
+# 2026-11-04 18:32~19:05 UTC 사이트 배포가 GitHub 안에서 멈춰(updating_pages 10분 → 「in progress deployment」
+# 9건 연속) 침묵 감시가 「사이트 배포 연속 실패」를 냈는데, 알림만 봐서는 코드 탓인지 알 수 없었다.
+GITHUB_SIDE = re.compile(
+    r"status: 5\d\d"                              # Pages 배포 만들기 500 · 504
+    r"|in progress deployment"                    # 앞 배포가 GitHub 쪽에서 안 끝남
+    r"|Timeout reached, aborting"                 # deploy-pages 가 배포 상태 대기에서 멈춤
+    r"|Fetching artifact metadata failed|Failed to FinalizeArtifact"
+    r"|couldn't respond to your request in time|githubstatus\.com"
+    r"|not acquired by Runner"
+    # OIDC 토큰 요청 시간 초과(2026-11-06 07:36 UTC) — 권한은 pages.yml 에 있고 test_watchdog 이 지킨다.
+    r'|Ensure GITHUB_TOKEN has permission "id-token: write"')
+CAUSE_MAX = 110           # 알림 한 줄에 붙이는 오류 주석 길이
+
+
+def _failure_cause(run_id):
+    """실패 런의 오류 주석 → (GitHub 쪽 장애인가, 한 줄 요약). 주석이 없거나 조회 실패면 None(덧붙이지 않는다)."""
+    if not run_id:
+        return None
+    msgs = []
+    try:
+        jobs = (_api(f"/repos/{_repo()}/actions/runs/{run_id}/jobs") or {}).get("jobs") or []
+        for j in jobs:
+            if j.get("conclusion") == "success":
+                continue
+            notes = _api(f"/repos/{_repo()}/check-runs/{j.get('id')}/annotations") or []
+            if isinstance(notes, list):
+                msgs += [str(n.get("message") or "") for n in notes if n.get("annotation_level") == "failure"]
+    except (urllib.error.URLError, OSError, ValueError, AttributeError):
+        return None
+    msgs = [re.sub(r"\s+", " ", re.sub(r"\s*Request ID [\w:]+\.?", "", m)).strip() for m in msgs]
+    msgs = [m for m in msgs if m]
+    if not msgs:
+        return None
+    # 원인 낱말이 앞에 있는 주석을 고른다 — 「status: 400 … Responded with: … in progress deployment」보다
+    # 「HttpError: … due to in progress deployment」가 한 줄 안에 원인을 보여 준다.
+    hits = []
+    for m in msgs:
+        hit = GITHUB_SIDE.search(m)
+        if hit:
+            hits.append((hit.start(), m))
+    gh = [m for _, m in sorted(hits)]
+    note = re.sub(r"\b([0-9a-f]{7})[0-9a-f]{33}\b", r"\1", (gh or msgs)[0])   # 커밋 해시는 7자로
+    if len(note) > CAUSE_MAX:
+        note = note[:CAUSE_MAX - 1] + "…"
+    return bool(gh), note
 
 
 def _streak_continues(wf_id, run_id):
