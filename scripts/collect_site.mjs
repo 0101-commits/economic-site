@@ -19,6 +19,8 @@ const SITE = path.join(ROOT, '_site');
 // index.html(현행 화면)은 legacy.html 로 배포한다 — 사이트 첫 주소(index.html)는 2026-10-02 부터 새 화면 층(app/dist)이다.
 //   현행 화면은 자료·js·css 를 상대 경로로 부르므로 같은 폴더에 다른 이름으로 두면 그대로 돈다.
 const RENAME = { 'index.html': 'legacy.html' };
+// 여기 .json(FILES · DIRS) = 숫자 파일 — 사이트 앞단 cloudflare-pages/_worker.js 의 DATA_FILES · DATA_DIRS 와 같아야 한다
+// (그 목록만 배포 없이 저장소에서 바로 내준다, 2026-11-07). cloudflare-pages/test_proxy.mjs 가 두 목록을 맞춰 본다.
 const FILES = [
   'index.html', 'go.html', 'og-cover.png',
   'data.json', 'data_meta.json', 'merblog.json', 'mer_signals.json',
