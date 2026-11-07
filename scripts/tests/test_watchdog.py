@@ -52,15 +52,18 @@ def test_trigger_names_have_no_glob_chars():
 
 
 def test_pages_deploy_triggers_match_actual_workflows():
-    """pages.yml 의 workflow_run 이름이 어긋나면 봇 데이터 커밋이 배포로 안 이어지고 사이트가 옛 값에 멈춘다.
+    """pages.yml 의 workflow_run 이름이 어긋나면 봇 코드 커밋(js 압축)이 배포로 안 이어지고 화면이 옛 판에 멈춘다.
 
-    GITHUB_TOKEN 커밋은 on: push 를 깨우지 않아 이 트리거가 봇 데이터의 유일한 배포 경로다.
+    GITHUB_TOKEN 커밋은 on: push 를 깨우지 않아 이 트리거가 봇 코드 커밋의 유일한 배포 경로다.
+    데이터 커밋은 일부러 뺐다(2026-11-07) — 숫자 파일은 사이트 앞단이 저장소에서 바로 내준다(cloudflare-pages/_worker.js).
     """
     yml = open(os.path.join(WFDIR, "pages.yml"), encoding="utf-8").read()
     block = yml.split("workflows:", 1)[1].split("types:", 1)[0]
     names = [m.group(1) for m in re.finditer(r'^\s*-\s*"(.+)"\s*$', block, re.M)]
     actual = {_wf_name(f) for f in os.listdir(WFDIR) if f.endswith(".yml")}
-    assert "Market Data Fetch" in names
+    assert "Build Frontend (minify js)" in names
+    assert "Market Data Fetch" not in names, "데이터 커밋마다 배포하던 길(하루 ~400번)이 되살아났다"
+    assert re.search(r"^  schedule:\n    - cron: '[^']+'", yml, re.M), "대비책 원본의 숫자를 갱신할 주기 배포가 없다"
     for n in names:
         assert n in actual, n
         assert not set(n) & set("+/*?[]!\\"), n
@@ -173,11 +176,55 @@ def test_silence_run_fails_when_notify_fails(monkeypatch):
     import pytest
     monkeypatch.setenv("WATCHDOG_MODE", "silence")
     monkeypatch.setattr(W, "check_silence", lambda: [("X", "끊김")])
+    monkeypatch.setattr(W, "check_site_lag", lambda: [])
     monkeypatch.setattr(W.notify_discord, "system", lambda *a, **k: False)
     with pytest.raises(SystemExit):
         W.main()
     monkeypatch.setattr(W.notify_discord, "system", lambda *a, **k: True)
     W.main()                                                         # 통지 성공이면 정상 종료
+
+
+def _site_lag(monkeypatch, lag_min, prev_ago=30, src="repo@abcdef0", fail=None):
+    """저장소 data_meta = 12:00 KST, 사이트 = 그보다 lag_min 분 앞선 값. 직전 감시 = prev_ago 분 전."""
+    import datetime as dt
+    now = dt.datetime(2026, 11, 7, 3, 0, tzinfo=dt.timezone.utc)
+    repo = dt.datetime(2026, 11, 7, 12, 0, tzinfo=W.KST)
+    monkeypatch.setattr(W, "_repo_meta", lambda: repo.isoformat())
+
+    def site():
+        if fail:
+            raise fail
+        return (repo - dt.timedelta(minutes=lag_min)).isoformat(), src
+    monkeypatch.setattr(W, "_site_meta", site)
+    monkeypatch.setattr(W, "_prev_check", lambda: None if prev_ago is None else now - dt.timedelta(minutes=prev_ago))
+    return W.check_site_lag(now)
+
+
+def test_site_lag_quiet_when_fresh(monkeypatch):
+    """사이트 숫자가 저장소와 같거나 조금 늦은 건 정상(배포 없이 바로 내주는 길)."""
+    assert _site_lag(monkeypatch, 0) == []
+    assert _site_lag(monkeypatch, W.SITE_LAG_MIN) == []
+
+
+def test_site_lag_first_then_every_3h(monkeypatch):
+    """임계를 넘은 첫 감시에 알리고, 이어지는 동안은 3시간 경계에서만 다시 알린다(다른 침묵 감시와 같은 규칙)."""
+    first = _site_lag(monkeypatch, W.SITE_LAG_MIN + 10, src="pages (refs 500)")
+    assert len(first) == 1 and first[0][0] == W.SITE_NAME and "pages (refs 500)" in first[0][1]
+    assert _site_lag(monkeypatch, W.SITE_LAG_MIN + 100) == []                      # 이어지는 중
+    assert len(_site_lag(monkeypatch, W.SITE_LAG_MIN + W.REMIND_MIN + 5)) == 1      # 3시간 경계
+
+
+def test_site_lag_reports_fetch_failure(monkeypatch):
+    """사이트를 못 열면 조용히 넘기지 않는다."""
+    import urllib.error
+    out = _site_lag(monkeypatch, 0, fail=urllib.error.URLError("down"))
+    assert len(out) == 1 and "조회 실패" in out[0][1]
+
+
+def test_site_lag_reads_site_from_app_url():
+    """사이트 주소는 app_url 단일 원천에서(주소를 두 곳에 적으면 어긋난다)."""
+    import inspect
+    assert "app_url.APP_URL" in inspect.getsource(W._site_meta)
 
 
 def test_watched_workflow_files_exist():

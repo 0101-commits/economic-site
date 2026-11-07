@@ -25,10 +25,12 @@
 import os
 import re
 import json
+import base64
 import datetime
 import urllib.error
 import urllib.request
 
+import app_url                            # 사이트 주소 단일 원천
 import check_alerts as ca                 # is_market_open 재사용(장중/장외 임계가 다르다)
 import notify_discord
 
@@ -53,10 +55,10 @@ WATCH = [
     ("briefing.yml", "브리핑", None, None, True),
     ("alerts-v2.yml", "알림 v2 확정 · 예고", None, None, True),
     # 사이트 배포(pages.yml — 2026-09-29 legacy pages-build-deployment(id 268675167)에서 전환).
-    # 데이터 커밋마다 돌고 대기 배포는 최신 1건으로 접히므로 산발 실패·취소가 정상이다.
-    # 그래서 즉시 통지에서 빼고 '연속 실패'와 '아예 안 돈다'만 본다 — 배포가 멈추면
-    # data.json 이 갱신돼도 화면은 옛 값에 멈춘다.
-    ("pages.yml", "사이트 배포", 60, 180, False),
+    # 2026-11-07 부터 데이터 커밋으로는 배포하지 않는다(숫자 파일은 사이트 앞단이 저장소에서 바로 내준다) —
+    # 코드 변경 + 6시간마다만 돈다. 그래서 '아예 안 돈다'는 하루(1440분) 넘게 없을 때만 보고, 화면 숫자가
+    # 멈췄는지는 아래 check_site_lag 가 사이트를 직접 열어 본다. 산발 실패는 즉시 통지에서 빼고 '연속 실패'만.
+    ("pages.yml", "사이트 배포", 1440, 1440, False),
 ]
 # 실패로 세지 않는 결론 — cancelled 는 concurrency 그룹이 앞 런을 밀어낸 정상 동작이고
 # (pages 배포·fetch-data 에서 상시 발생), skipped 는 게이트가 통과시키지 않은 것이다.
@@ -274,6 +276,48 @@ def check_silence(now=None):
     return out
 
 
+# 사이트 화면 숫자가 저장소보다 늦은가(2026-11-07). 숫자 파일은 배포 없이 사이트 앞단(cloudflare-pages/_worker.js)이
+# 저장소에서 바로 내준다. 앞단이 깨지거나 대비책(6시간마다 배포되는 원본)으로 떨어지면 데이터 커밋은 계속 초록인데
+# 화면 숫자만 멈춘다 — 실패 런이 생기지 않는 종류라 런 감시로는 못 잡는다. 사이트를 직접 열어 data_meta 의
+# lastUpdated 를 저장소 main 의 것과 견준다. 앞단이 어느 길로 내줬는지는 머리 x-ecom-src(repo@번호 · repo-main · pages).
+SITE_LAG_MIN = 30
+SITE_NAME = "사이트 화면 숫자"
+
+
+def _site_meta():
+    """사이트가 지금 내주는 (data_meta.lastUpdated, x-ecom-src)."""
+    req = urllib.request.Request(app_url.APP_URL + "data_meta.json",
+                                 headers={"User-Agent": "ecom-watchdog", "Cache-Control": "no-cache"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.load(r).get("lastUpdated"), r.headers.get("x-ecom-src") or "?"
+
+
+def _repo_meta():
+    """저장소 main 의 data_meta.lastUpdated."""
+    j = _api(f"/repos/{_repo()}/contents/data_meta.json?ref=main") or {}
+    return json.loads(base64.b64decode(j.get("content") or "")).get("lastUpdated")
+
+
+def check_site_lag(now=None):
+    """사이트 숫자가 저장소보다 SITE_LAG_MIN 분 넘게 늦으면 [(표시명, 사유)] — 처음 + 3시간 경계마다."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    try:
+        repo_ts = _repo_meta()
+        site_ts, src = _site_meta()
+        lag = (datetime.datetime.fromisoformat(repo_ts) - datetime.datetime.fromisoformat(site_ts)).total_seconds() / 60.0
+    except (urllib.error.URLError, OSError, ValueError, TypeError) as e:
+        return [(SITE_NAME, f"사이트 · 저장소 조회 실패 — {type(e).__name__}")]
+    over = lag - SITE_LAG_MIN
+    if over <= 0:
+        return []
+    prev = _prev_check()
+    gap = (now - prev).total_seconds() / 60.0 if prev else None
+    if not _due(over, (over - gap) if gap is not None else None):
+        return []
+    return [(SITE_NAME, f"저장소보다 {lag:.0f}분 늦다(내준 길: {src}) — 앞단 cloudflare-pages/_worker.js · "
+                        "githubstatus.com 확인. 「pages」면 저장소 길이 막혀 대비책 원본을 비추는 중")]
+
+
 def _failed_steps(run_id):
     """실패한 job 의 실패 스텝 이름 → 'job › step' 목록. 조회 실패면 빈 목록."""
     try:
@@ -402,12 +446,12 @@ def main():
         print(f"[watchdog] 사이트 배포 대기 런 취소 {len(healed)}건: {[rid for rid, _, _ in healed]}")
         notify_discord.system(
             "\n".join(f"· 런 {rid} — {st} {age:.0f}분" for rid, st, age in healed)
-            + "\n\n대기 런이 concurrency 그룹을 잡아 뒤 배포가 전부 취소되던 것을 풀었다. 다음 데이터 커밋이 새로 배포한다.",
+            + "\n\n대기 런이 concurrency 그룹을 잡아 뒤 배포가 전부 취소되던 것을 풀었다. 다음 배포(코드 변경 · 6시간 주기)가 새로 올린다.",
             title="🩹 사이트 배포 대기 런 취소(자가 치유)", color=notify_discord.COLOR_FIRE)
-    stalled = check_silence()
+    stalled = check_silence() + check_site_lag()
     if not stalled:
         # 조용히 return 하면 '감시가 돌았다'는 증거가 남지 않는다.
-        print(f"[watchdog] 워크플로 {len(WATCH)}종 점검 — 이상 0건")
+        print(f"[watchdog] 워크플로 {len(WATCH)}종 + 사이트 숫자 점검 — 이상 0건")
         return
     body = "\n".join(f"· **{n}** — {why}" for n, why in stalled)
     print(f"[watchdog] 침묵 감지 {len(stalled)}건: {[n for n, _ in stalled]}")

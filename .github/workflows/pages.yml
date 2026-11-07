@@ -2,11 +2,15 @@ name: Pages Deploy
 # 사이트 배포 — 허용 목록(scripts/collect_site.mjs)만 올린다. 종전 build_type=legacy 는 저장소
 # 루트 전체(CLAUDE.md·docs·scripts·tests …)를 공개 URL 로 내보냈다(2026-09-29 전환).
 #
-# ⚠ GITHUB_TOKEN 으로 한 push 는 on: push 를 깨우지 않는다 — 봇 데이터 커밋이 배포로 이어지려면
-#   그 커밋을 만드는 워크플로의 '완료'(workflow_run)로 깨워야 한다. 이름은 glob 패턴으로 해석되고
-#   한 글자만 달라도 조용히 안 걸린다(scripts/tests/test_watchdog.py 가 실제 name 과 대조한다).
-#   Stock Alerts 는 일부러 뺐다 — 하루 ~960런 중 커밋은 ~1건이고, 그 alerts_state.json 은
-#   장중 5분마다 도는 Market Data Fetch 의 다음 배포에 실려 나간다.
+# 숫자 파일(data.json · bundles/ · events/ · briefs/ …)은 배포를 거치지 않는다(2026-11-07) — 사이트 앞단
+# (cloudflare-pages/_worker.js)이 저장소 main 에서 바로 내준다. 그래서 데이터 커밋(Market Data Fetch · Link Check
+# 결과)으로는 배포하지 않는다. 종전엔 하루 ~411번 중 404번이 데이터 커밋 배포였고, GitHub 쪽 일시 장애가 날 때마다
+# 실패 런·알림이 줄지어 쌓였다. 여기 남은 배포 = 화면 코드가 바뀔 때 + 6시간마다 한 번(앞단이 저장소 길을 못 쓸 때
+# 비추는 원본의 숫자가 너무 낡지 않게 하는 대비).
+#
+# ⚠ GITHUB_TOKEN 으로 한 push 는 on: push 를 깨우지 않는다 — 봇이 만드는 코드 커밋(js 압축)이 배포로 이어지려면
+#   그 워크플로의 '완료'(workflow_run)로 깨워야 한다. 이름은 glob 패턴으로 해석되고 한 글자만 달라도
+#   조용히 안 걸린다(scripts/tests/test_watchdog.py 가 실제 name 과 대조한다).
 on:
   push:
     branches: [main]
@@ -15,10 +19,10 @@ on:
       - 'alerts_config.json'      # Worker /portfolio
   workflow_run:
     workflows:
-      - "Market Data Fetch"
       - "Build Frontend (minify js)"
-      - "Link Check (외부 링크 주간 점검)"
     types: [completed]
+  schedule:
+    - cron: '23 */6 * * *'        # 대비책 원본의 숫자 갱신(GitHub schedule 은 몇 시간씩 밀릴 수 있다 — 감시 임계는 24시간)
   workflow_dispatch:
 
 permissions:
