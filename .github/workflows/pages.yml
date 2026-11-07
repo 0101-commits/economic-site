@@ -34,10 +34,10 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25           # 빌드 ~1분 + 배포 최대 3번(번마다 5분 상한) + 사이 쉼 1·3분
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment_retry1.outputs.page_url || steps.deployment_retry2.outputs.page_url }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       # 새 화면 층(app/, React) — 빌드 결과 app/dist 를 collect_site 가 _site/(첫 주소)와 _site/next/ 로 옮기고, 현행 index.html 은 legacy.html 로 둔다.
@@ -55,5 +55,32 @@ jobs:
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
+      # 배포 재시도 — GitHub 쪽 일시 장애(「Deployment failed, try again later」 · 배포 생성 500/504 ·
+      # OIDC 시간 초과 · 아티팩트 조회 지연)는 몇 분 뒤 같은 산출물로 다시 올리면 대개 붙는다
+      # (2026-10-27~11-06 실패 24건 전부 GitHub 쪽, 우리 빌드 실패 0). 한 번에 실패로 끝내면 하루 ~320번
+      # 배포라 장애 한 번에 실패 런·GitHub 실패 알림이 여러 통 쌓인다 → 1분·3분 쉬고 두 번 더 해 본다.
+      # 마지막 번에는 continue-on-error 를 달지 않는다 — 세 번 다 실패하면 런이 실패로 남아야 watchdog 의
+      # 연속 실패·정지 감시가 오래가는 장애를 본다(scripts/tests/test_watchdog.py 가 이 모양을 지킨다).
+      # 번마다 상한 5분(정상 6초~3분 실측) — 멈춘 배포는 deploy-pages 가 취소하고 다음 번으로 넘어간다.
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        continue-on-error: true
+        with:
+          timeout: 300000
+      - name: 배포 재시도 전 쉼 (1분)
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 60
+      - id: deployment_retry1
+        if: steps.deployment.outcome == 'failure'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        continue-on-error: true
+        with:
+          timeout: 300000
+      - name: 배포 재시도 전 쉼 (3분)
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
+        run: sleep 180
+      - id: deployment_retry2
+        if: steps.deployment.outcome == 'failure' && steps.deployment_retry1.outcome == 'failure'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        with:
+          timeout: 300000
