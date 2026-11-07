@@ -315,3 +315,24 @@ def test_pages_keeps_id_token_permission():
     yml = open(os.path.join(WFDIR, "pages.yml"), encoding="utf-8").read()
     assert re.search(r"^permissions:(?:\n  .*)*\n  id-token: write", yml, re.M)
     assert W.GITHUB_SIDE.search('Ensure GITHUB_TOKEN has permission "id-token: write".')
+
+
+def test_pages_deploy_retries_then_fails_loud():
+    """배포는 GitHub 쪽 일시 장애를 두 번 더 시도해 흡수하되, 마지막 번은 실패를 삼키지 않는다.
+
+    마지막 번까지 continue-on-error 면 오래가는 장애에도 런이 초록이라 watchdog 의 연속 실패·정지 감시가 눈을 감는다.
+    """
+    yml = open(os.path.join(WFDIR, "pages.yml"), encoding="utf-8").read()
+    steps = re.split(r"\n      - ", yml.split("\n    steps:\n", 1)[1])
+    deploys = [s for s in steps if "uses: actions/deploy-pages@" in s]
+    assert len(deploys) == 3
+    pins = {re.search(r"deploy-pages@([0-9a-f]{40})", s).group(1) for s in deploys}
+    assert len(pins) == 1                                   # 세 번 모두 같은 판
+    assert all("continue-on-error: true" in s for s in deploys[:2])
+    assert "continue-on-error" not in deploys[-1]
+    for s in deploys[1:]:
+        assert re.search(r"if: steps\.deployment\.outcome == 'failure'", s)
+    url = re.search(r"^      url: (.+)$", yml, re.M).group(1)
+    for sid in ("deployment", "deployment_retry1", "deployment_retry2"):
+        assert f"steps.{sid}.outputs.page_url" in url, sid
+        assert f"id: {sid}" in yml, sid
