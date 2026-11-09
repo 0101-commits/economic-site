@@ -333,7 +333,10 @@ def test_failure_cause_marks_github_side(monkeypatch):
     assert len(note) <= W.CAUSE_MAX
     for msg in ("Error: Failed to create deployment (status: 504) with build version abc",
                 "Timeout reached, aborting!",
-                "Fetching artifact metadata failed. Is githubstatus.com reporting issues"):
+                "Fetching artifact metadata failed. Is githubstatus.com reporting issues",
+                # 2026-11-06 17:55~18:16 UTC — 배포가 deployment_queued 에서 3분 멈춘 뒤 GitHub 가 거절(7건 연속).
+                # 이 주석만 남아 알림이 「오류:」(우리 코드 탓)로 나갔다.
+                "Deployment failed, try again later."):
         monkeypatch.setattr(W, "_api", _cause_api([{"annotation_level": "failure", "message": msg}]))
         assert W._failure_cause("1")[0] is True, msg
 
