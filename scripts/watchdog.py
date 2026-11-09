@@ -358,6 +358,7 @@ GITHUB_SIDE = re.compile(
     r"status: 5\d\d"                              # Pages 배포 만들기 500 · 504
     r"|in progress deployment"                    # 앞 배포가 GitHub 쪽에서 안 끝남
     r"|Timeout reached, aborting"                 # deploy-pages 가 배포 상태 대기에서 멈춤
+    r"|Deployment failed, try again later"        # 배포가 deployment_queued 에서 안 풀려 GitHub 가 거절(2026-11-06 7건)
     r"|Fetching artifact metadata failed|Failed to FinalizeArtifact"
     r"|couldn't respond to your request in time|githubstatus\.com"
     r"|not acquired by Runner"
