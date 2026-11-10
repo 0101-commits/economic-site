@@ -279,8 +279,8 @@ def check_silence(now=None):
 # 회복 통지(2026-11-10). 알림은 「실패했다」만 있고 「풀렸다」는 글이 없어 #시스템의 마지막 글이 늘 옛 오류였다 —
 # 그걸 보고 「계속 실패 중」으로 읽혀 같은 조사가 네 번 반복됐다(11-06 · 07 · 09 · 10, 실제 마지막 오류 알림은 11-07 03:14,
 # 그 뒤 사흘 0건). 알림이 나간 실패가 풀리면 다음 silence 감시가 무음 한 줄을 남긴다(사용자 결정 「회복 한 줄 추가」).
-# 알림이 나갔는지는 기록이 없으니 알림 규칙을 그대로 되짚는다 —
-#   실패: 즉시 통지 워크플로는 연속의 첫 실패가 러너 미획득(_infra_failure)이 아니면, 아니면 STREAK_MIN 연속.
+# 알림이 나갔는지는 기록이 없으니 알림 규칙을 그대로 되짚는다(_was_notified) —
+#   실패: 즉시 통지 워크플로는 연속 중 GitHub 쪽 장애가 아닌 실패가 있으면, 또는 직전 감시가 STREAK_MIN 연속을 봤으면.
 #   끊김: 직전 감시 때 임계를 넘어 있었고(그때 알렸다) 그 뒤 새 런이 생겼으면.
 # 창 = (직전 감시 시작, 이 감시 시작] — 이 런이 시작된 뒤 끝난 회복은 다음 감시가 센다(두 번 쓰지 않게).
 RECOVER_WINDOW_MIN = 35   # 직전 감시를 모를 때만 쓰는 창(감시 주기 30분 + 여유) — 모르면 최근 것만, 중복보다 생략
@@ -310,6 +310,27 @@ def _self_started(now):
         return now
 
 
+def _was_notified(inst, fails, prev, thr_prev, hi):
+    """이 실패 연속(fails = 최신 → 오래된 순)에 실패 알림이 나갔는가 — 알림 규칙을 되짚는다.
+
+    silence: 직전 감시 때 이미 STREAK_MIN 건이 끝나 있었으면 그 감시(또는 더 앞 감시)가 「연속 실패」를 알렸다.
+             직전 감시를 모르면 건수만 본다.
+    failure: 즉시 통지 워크플로는 연속 중 GitHub 쪽 장애가 아닌 첫 실패에 한 번 알렸다(_streak_continues 와 같은 규칙).
+    11-10 03:26~03:29 KST 장중 알림 평가 3건은 전부 잡 0개(GitHub 쪽)였고 사이 감시도 없어 아무 알림도 안 나갔는데,
+    종전 규칙(건수 ≥3 이면 알렸다고 침)으로는 무엇이 고장 났었는지 모를 「회복」 한 줄이 혼자 나갔을 것이다.
+    """
+    if prev is None:
+        if len(fails) >= STREAK_MIN:
+            return True
+    elif thr_prev is not None:
+        seen = [f for f in fails if (_ts(f.get("updated_at")) or hi) <= prev]
+        if len(seen) >= STREAK_MIN:
+            return True
+    if inst:
+        return any(not _infra_failure(f.get("id")) for f in fails[::-1][:INFRA_LOOKBACK])
+    return False
+
+
 def check_recovered(now=None):
     """직전 silence 감시 뒤에 풀린 실패 · 끊김 → [(표시명, 설명)]. 회복 통지는 덤이라 조회 실패는 조용히 넘긴다."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
@@ -324,6 +345,7 @@ def check_recovered(now=None):
                          f"?per_page={RECENT_N}") or {}).get("workflow_runs") or []
         except (urllib.error.URLError, OSError, ValueError):
             continue
+        thr_prev = _threshold(wf, prev.astimezone(KST)) if prev else None
         done = [r for r in runs if r.get("status") == "completed"
                 and r.get("conclusion") not in ("cancelled", "skipped")]
         first_bad = next((i for i, r in enumerate(done) if r.get("conclusion") not in OK_CONCLUSIONS), None)
@@ -333,14 +355,10 @@ def check_recovered(now=None):
             fails = done[first_bad:end]
             back = _ts(done[first_bad - 1].get("updated_at"))          # 실패 뒤 첫 성공이 끝난 때
             t0 = _ts(fails[-1].get("created_at"))
-            if back and t0 and lo < back <= hi and (
-                    len(fails) >= STREAK_MIN or (inst and not _infra_failure(fails[-1].get("id")))):
+            if back and t0 and lo < back <= hi and _was_notified(inst, fails, prev, thr_prev, hi):
                 out.append((name, f"{_kst(t0)}부터 실패 {len(fails)}건 → {_kst(back)} 다시 정상"))
                 continue
-        if prev is None:
-            continue
-        thr_prev = _threshold(wf, prev.astimezone(KST))
-        if thr_prev is None:
+        if thr_prev is None:                           # 직전 감시를 모르거나 그때 감시 밖이었다
             continue
         before = next((r for r in runs if (_ts(r.get("created_at")) or hi) <= prev), None)
         fresh = [t for t in (_ts(r.get("created_at")) for r in runs) if t and prev < t <= hi]
@@ -408,11 +426,43 @@ def _failed_steps(run_id):
     return out
 
 
+INFRA_LOOKBACK = 5        # 연속 실패를 거슬러 「GitHub 쪽이 아닌 실패」를 찾을 때 볼 최대 런 수(런마다 API 1~4번)
+
+
+def _no_jobs_same_file(run_id):
+    """잡이 하나도 안 만들어진 실패 런 → 워크플로 파일이 마지막 성공 런 때와 같은가(True · False, 모르면 None).
+
+    2026-11-10 03:10~03:29 KST GitHub 쪽 장애에서 stock-alerts 12 · fetch-data 3 · watchdog 8 런이 전부 잡 0개로
+    실패했다(화면 문구 「workflow file issue」). 잡 0개는 워크플로 파일이 깨졌을 때도 나온다 — 그래서 파일이 마지막
+    성공 런 때와 글자까지 같을 때만 GitHub 쪽으로 본다. 파일을 바꾼 직후의 잡 0개는 진짜 파일 오류다.
+    """
+    try:
+        r = _api(f"/repos/{_repo()}/actions/runs/{run_id}") or {}
+        path, sha, wf = r.get("path"), r.get("head_sha"), r.get("workflow_id")
+        if not (path and sha and wf):
+            return None
+        ok = (_api(f"/repos/{_repo()}/actions/workflows/{wf}/runs?status=success&per_page=1") or {}
+              ).get("workflow_runs") or []
+        if not ok or not ok[0].get("head_sha"):
+            return None
+        if ok[0]["head_sha"] == sha:
+            return True
+        blob = lambda ref: (_api(f"/repos/{_repo()}/contents/{path}?ref={ref}") or {}).get("sha")  # noqa: E731
+        a, b = blob(sha), blob(ok[0]["head_sha"])
+        return None if not (a and b) else a == b
+    except (urllib.error.URLError, OSError, ValueError, AttributeError):
+        return None
+
+
 def _infra_failure(run_id):
-    """GitHub 쪽 장애로 러너를 못 잡은 실패인가 — 잡에 실패 스텝이 하나도 없고 주석이 그렇게 말할 때.
-    2026-10-05 19:11~21:05 UTC Actions 장애에서 25런이 전부 이 모양이었다(코드 결함 0). 저장소 문제로 알리면 늑대가 된다."""
+    """GitHub 쪽 장애로 런이 돌지 못한 실패인가 — 저장소 문제로 알리면 늑대가 된다.
+    · 러너 미획득: 잡에 실패 스텝이 없고 주석이 그렇게 말할 때(2026-10-05 19:11~21:05 UTC 25런, 코드 결함 0).
+    · 런 생성 실패: 잡이 0개이고 워크플로 파일이 마지막 성공 때와 같을 때(2026-11-10, _no_jobs_same_file).
+    모르면 False(통지) — 침묵보다 중복."""
     try:
         jobs = (_api(f"/repos/{_repo()}/actions/runs/{run_id}/jobs") or {}).get("jobs") or []
+        if not jobs:
+            return _no_jobs_same_file(run_id) is True
         for j in jobs:
             if any(s.get("conclusion") == "failure" for s in (j.get("steps") or [])):
                 return False
@@ -448,6 +498,12 @@ def _failure_cause(run_id):
     msgs = []
     try:
         jobs = (_api(f"/repos/{_repo()}/actions/runs/{run_id}/jobs") or {}).get("jobs") or []
+        if not jobs:                                   # 잡 0개 — 주석이 없으니 파일 비교로 말한다
+            same = _no_jobs_same_file(run_id)
+            return (same is True, "런이 시작도 못 함(잡 0개) — " + (
+                "워크플로 파일은 마지막 성공 때와 같다" if same else
+                "워크플로 파일이 마지막 성공 뒤 바뀌었다, 파일 오류 확인" if same is False else
+                "GitHub 쪽 장애 또는 워크플로 파일 오류"))
         for j in jobs:
             if j.get("conclusion") == "success":
                 continue
@@ -490,7 +546,16 @@ def _streak_continues(wf_id, run_id):
         return False
     prev = [r for r in runs if str(r.get("id")) != str(run_id)
             and r.get("conclusion") not in ("cancelled", "skipped")]
-    return bool(prev) and prev[0].get("conclusion") == "failure"
+    # GitHub 쪽 장애 실패는 알리지 않았으므로 연속에 넣지 않고 건너뛴다 — 그 뒤 처음 나온 진짜 실패가 첫 건이다.
+    # 종전엔 바로 앞 런이 실패면 무조건 「이미 통지」로 쳐서, 장애 런 뒤에 온 실패를 아무도 알리지 않았다
+    # (2026-11-10 03:12 KST 감시 로그 「첫 건에 이미 통지」 — 실제로는 첫 건 감시 런도 같은 장애로 못 돌았다).
+    for i, r in enumerate(prev):
+        if r.get("conclusion") != "failure":
+            return False
+        if i < INFRA_LOOKBACK and _infra_failure(r.get("id")):
+            continue
+        return True
+    return False
 
 
 def main():
@@ -499,11 +564,12 @@ def main():
         name = os.environ.get("WF_NAME") or "(이름 없음)"
         url = os.environ.get("WF_URL") or ""
         rid = os.environ.get("WF_RUN_ID") or ""
+        # 장애 판정이 먼저 — 그래야 장애 런이 「연속 실패」로 잘못 기록되지 않는다.
+        if rid and _infra_failure(rid):
+            print(f"[watchdog] {name} — GitHub 쪽 장애(러너 미획득 · 런 생성 실패), 저장소 문제 아님 — 통지 생략")
+            return
         if _streak_continues(os.environ.get("WF_ID"), rid):
             print(f"[watchdog] {name} 연속 실패 — 첫 건에 이미 통지, 이번은 생략")
-            return
-        if rid and _infra_failure(rid):
-            print(f"[watchdog] {name} — GitHub 러너 미획득(인프라 장애), 저장소 문제 아님 — 통지 생략")
             return
         steps = _failed_steps(rid) if rid else []
         body = f"**{name}** 런이 실패했습니다."
