@@ -409,7 +409,7 @@ def _recovered(monkeypatch, runs, prev_ago=30, inst=True, infra=False, thr=lambd
     monkeypatch.setattr(W, "_prev_check",
                         lambda: None if prev_ago is None else now - dt.timedelta(minutes=prev_ago))
     monkeypatch.setattr(W, "_self_started", lambda n: n)
-    monkeypatch.setattr(W, "_infra_failure", lambda _rid: infra)
+    monkeypatch.setattr(W, "_infra_failure", infra if callable(infra) else (lambda _rid: infra))
     monkeypatch.setattr(W, "_api", lambda _p: {"workflow_runs": runs})
     return W.check_recovered(now)
 
@@ -430,9 +430,100 @@ def test_recovery_reported_once_after_notified_failure(monkeypatch):
 def test_recovery_only_for_failures_that_were_notified(monkeypatch):
     """알린 적 없는 실패의 회복은 쓰지 않는다 — 혼자 뜬 「회복」은 무엇이 고장 났었는지 되묻게 만든다."""
     assert _recovered(monkeypatch, BACK, inst=False) == []       # 즉시 통지 밖 · 2건 < STREAK_MIN
-    assert _recovered(monkeypatch, BACK, infra=True) == []       # 러너 미획득은 통지를 생략했었다
+    assert _recovered(monkeypatch, BACK, infra=True) == []       # GitHub 쪽 장애는 통지를 생략했었다
     three = BACK[:3] + [{"ago": 18, "conclusion": "failure"}] + BACK[3:]
-    assert len(_recovered(monkeypatch, three, inst=False)) == 1  # 연속 실패 3건은 침묵 감시가 알렸다
+    # 3건이어도 직전 감시(30분 전) 뒤에 생기고 끝났으면 침묵 감시가 본 적이 없다 — 즉시 통지 밖이면 알린 적 없다.
+    # 11-10 03:26~03:29 KST 잡 0개 3건이 이 모양이었다(종전 규칙은 「3건 = 알렸다」로 쳐 외톨이 회복을 냈을 것).
+    assert _recovered(monkeypatch, three, inst=False) == []
+    assert _recovered(monkeypatch, three, inst=True, infra=True) == []
+    seen = [{"ago": 3, "conclusion": "success"}] + [
+        {"ago": a, "conclusion": "failure"} for a in (35, 40, 45)] + [{"ago": 90, "conclusion": "success"}]
+    assert len(_recovered(monkeypatch, seen, inst=False)) == 1   # 직전 감시 때 3건이 끝나 있었다 → 침묵 감시가 알렸다
+    assert len(_recovered(monkeypatch, three, inst=False, prev_ago=None)) == 1   # 직전 감시를 모르면 건수로
+
+
+# ── 잡 0개 실패 = GitHub 쪽 장애(2026-11-10) ─────────────────────────────────────────
+# 11-10 03:10~03:29 KST stock-alerts 12 · fetch-data 3 · watchdog 8 런이 전부 잡 0개로 실패했다. 종전엔 이것을
+# 저장소 실패로 쳤고(감시 런도 같은 장애로 못 돌아 알림은 안 나갔지만) 뒤 감시는 「첫 건에 이미 통지」로 잘못 적었다.
+
+def _route(table):
+    """경로 조각 → 응답 표로 _api 를 흉내 낸다(먼저 맞는 조각)."""
+    def api(p):
+        for k, v in table:
+            if k in p:
+                return v
+        raise AssertionError(p)
+    return api
+
+
+def test_no_jobs_same_file(monkeypatch):
+    """잡 0개는 워크플로 파일이 마지막 성공 때와 같을 때만 GitHub 쪽 — 파일을 바꾼 직후면 진짜 파일 오류다."""
+    run = ("/actions/runs/9", {"path": ".github/workflows/x.yml", "head_sha": "A", "workflow_id": 7})
+    succ = lambda sha: ("/workflows/7/runs?status=success", {"workflow_runs": [{"head_sha": sha}] if sha else []})
+    blob = lambda b: [("ref=A", {"sha": "f1"}), ("ref=B", {"sha": b})]
+    monkeypatch.setattr(W, "_api", _route([run, succ("B")] + blob("f1")))
+    assert W._no_jobs_same_file(9) is True
+    monkeypatch.setattr(W, "_api", _route([run, succ("B")] + blob("f2")))
+    assert W._no_jobs_same_file(9) is False
+    monkeypatch.setattr(W, "_api", _route([run, succ("A")]))
+    assert W._no_jobs_same_file(9) is True                      # 같은 커밋에서 성공한 런이 있다
+    monkeypatch.setattr(W, "_api", _route([run, succ(None)]))
+    assert W._no_jobs_same_file(9) is None                      # 비교할 성공이 없다 — 모른다
+
+    def boom(_p):
+        raise OSError("down")
+    monkeypatch.setattr(W, "_api", boom)
+    assert W._no_jobs_same_file(9) is None
+
+
+def test_zero_job_failure_is_infra_and_has_cause(monkeypatch):
+    monkeypatch.setattr(W, "_api", lambda p: {"jobs": []})
+    for same, infra, gh, word in ((True, True, True, "같다"), (False, False, False, "바뀌었다"),
+                                  (None, False, False, "또는")):
+        monkeypatch.setattr(W, "_no_jobs_same_file", lambda _r, s=same: s)
+        assert W._infra_failure(9) is infra
+        cause = W._failure_cause(9)
+        assert cause[0] is gh and "잡 0개" in cause[1] and word in cause[1], cause
+
+
+def test_streak_skips_github_side_failures(monkeypatch):
+    """앞 런이 GitHub 쪽 장애 실패면 연속으로 치지 않는다 — 그 뒤 처음 온 진짜 실패를 알려야 한다."""
+    runs = {"workflow_runs": [{"id": 3, "conclusion": "failure"},     # 지금 런
+                              {"id": 2, "conclusion": "failure"},     # 장애(잡 0개)
+                              {"id": 1, "conclusion": "success"}]}
+    monkeypatch.setattr(W, "_api", lambda _p: runs)
+    monkeypatch.setattr(W, "_infra_failure", lambda rid: str(rid) == "2")
+    assert W._streak_continues("7", "3") is False                    # 알린다
+    runs["workflow_runs"][2]["conclusion"] = "failure"               # 장애 앞에 진짜 실패 — 그때 이미 알렸다
+    assert W._streak_continues("7", "3") is True
+    # 장애가 상한보다 길게 이어진 뒤의 진짜 실패는 알린다 — 11-10 장애는 12런이었다(검토에서 잡음).
+    long = [{"id": 100, "conclusion": "failure"}] + [
+        {"id": 50 + i, "conclusion": "failure"} for i in range(W.INFRA_LOOKBACK + 3)] + [{"id": 1, "conclusion": "failure"}]
+    monkeypatch.setattr(W, "_api", lambda _p: {"workflow_runs": long})
+    monkeypatch.setattr(W, "_infra_failure", lambda rid: 50 <= int(rid) < 100)
+    assert W._streak_continues("7", "100") is False
+
+
+def test_recovery_after_long_outage_then_real_failure(monkeypatch):
+    """장애 런 여럿 뒤 진짜 실패가 온 연속은 알렸다 — 회복도 쓴다(_streak_continues 와 같은 규칙)."""
+    runs = [{"ago": 3, "conclusion": "success"}, {"ago": 5, "conclusion": "failure", "id": 1}] + [
+        {"ago": 6 + i, "conclusion": "failure", "id": 50 + i} for i in range(8)] + [{"ago": 60, "conclusion": "success"}]
+    out = _recovered(monkeypatch, runs, infra=lambda rid: int(rid) >= 50)
+    assert len(out) == 1 and "실패 9건" in out[0][1], out
+    assert _recovered(monkeypatch, runs, infra=True) == []              # 전부 장애면 알린 적 없다
+
+
+def test_failure_mode_checks_infra_before_streak(monkeypatch, capsys):
+    """장애 런은 「연속 실패 — 이미 통지」가 아니라 장애로 기록하고 알리지 않는다."""
+    sent = []
+    monkeypatch.setenv("WATCHDOG_MODE", "failure")
+    monkeypatch.setenv("WF_NAME", "X")
+    monkeypatch.setenv("WF_RUN_ID", "3")
+    monkeypatch.setattr(W, "_infra_failure", lambda _r: True)
+    monkeypatch.setattr(W, "_streak_continues", lambda *_a: True)
+    monkeypatch.setattr(W.notify_discord, "system", lambda *a, **k: sent.append(a) or True)
+    W.main()
+    assert sent == [] and "GitHub 쪽 장애" in capsys.readouterr().out
 
 
 def test_recovery_quiet_while_failing_or_clean(monkeypatch):
