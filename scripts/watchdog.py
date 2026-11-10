@@ -276,6 +276,80 @@ def check_silence(now=None):
     return out
 
 
+# 회복 통지(2026-11-10). 알림은 「실패했다」만 있고 「풀렸다」는 글이 없어 #시스템의 마지막 글이 늘 옛 오류였다 —
+# 그걸 보고 「계속 실패 중」으로 읽혀 같은 조사가 네 번 반복됐다(11-06 · 07 · 09 · 10, 실제 마지막 오류 알림은 11-07 03:14,
+# 그 뒤 사흘 0건). 알림이 나간 실패가 풀리면 다음 silence 감시가 무음 한 줄을 남긴다(사용자 결정 「회복 한 줄 추가」).
+# 알림이 나갔는지는 기록이 없으니 알림 규칙을 그대로 되짚는다 —
+#   실패: 즉시 통지 워크플로는 연속의 첫 실패가 러너 미획득(_infra_failure)이 아니면, 아니면 STREAK_MIN 연속.
+#   끊김: 직전 감시 때 임계를 넘어 있었고(그때 알렸다) 그 뒤 새 런이 생겼으면.
+# 창 = (직전 감시 시작, 이 감시 시작] — 이 런이 시작된 뒤 끝난 회복은 다음 감시가 센다(두 번 쓰지 않게).
+RECOVER_WINDOW_MIN = 35   # 직전 감시를 모를 때만 쓰는 창(감시 주기 30분 + 여유) — 모르면 최근 것만, 중복보다 생략
+
+
+def _ts(iso):
+    try:
+        return datetime.datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _kst(t):
+    t = t.astimezone(KST)
+    return f"{t.month}/{t.day} {t:%H:%M}"
+
+
+def _self_started(now):
+    """이 감시 런이 시작된 시각 — 다음 감시의 '직전 감시'와 같은 값이어야 창이 겹치지 않는다. 모르면 now."""
+    rid = os.environ.get("GITHUB_RUN_ID")
+    if not rid:
+        return now
+    try:
+        r = _api(f"/repos/{_repo()}/actions/runs/{rid}") or {}
+        return _ts(r.get("run_started_at") or r.get("created_at")) or now
+    except (urllib.error.URLError, OSError, ValueError):
+        return now
+
+
+def check_recovered(now=None):
+    """직전 silence 감시 뒤에 풀린 실패 · 끊김 → [(표시명, 설명)]. 회복 통지는 덤이라 조회 실패는 조용히 넘긴다."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    prev = _prev_check()
+    lo = prev or (now - datetime.timedelta(minutes=RECOVER_WINDOW_MIN))
+    hi = _self_started(now)
+    out = []
+    for wf in WATCH:
+        key, name, _live, _idle, inst = wf
+        try:
+            runs = (_api(f"/repos/{_repo()}/actions/workflows/{key}/runs"
+                         f"?per_page={RECENT_N}") or {}).get("workflow_runs") or []
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+        done = [r for r in runs if r.get("status") == "completed"
+                and r.get("conclusion") not in ("cancelled", "skipped")]
+        first_bad = next((i for i, r in enumerate(done) if r.get("conclusion") not in OK_CONCLUSIONS), None)
+        if first_bad:                                  # 0 = 아직 실패 중, None = 쪽 안에 실패 없음
+            end = next((j for j in range(first_bad, len(done))
+                        if done[j].get("conclusion") in OK_CONCLUSIONS), len(done))
+            fails = done[first_bad:end]
+            back = _ts(done[first_bad - 1].get("updated_at"))          # 실패 뒤 첫 성공이 끝난 때
+            t0 = _ts(fails[-1].get("created_at"))
+            if back and t0 and lo < back <= hi and (
+                    len(fails) >= STREAK_MIN or (inst and not _infra_failure(fails[-1].get("id")))):
+                out.append((name, f"{_kst(t0)}부터 실패 {len(fails)}건 → {_kst(back)} 다시 정상"))
+                continue
+        if prev is None:
+            continue
+        thr_prev = _threshold(wf, prev.astimezone(KST))
+        if thr_prev is None:
+            continue
+        before = next((r for r in runs if (_ts(r.get("created_at")) or hi) <= prev), None)
+        fresh = [t for t in (_ts(r.get("created_at")) for r in runs) if t and prev < t <= hi]
+        gap = _age_min(before.get("created_at"), prev) if before else None
+        if fresh and gap is not None and gap > thr_prev:
+            out.append((name, f"런이 다시 돈다 — {_kst(min(fresh))} 새 런(직전 감시 때 {gap:.0f}분째 없었다)"))
+    return out
+
+
 # 사이트 화면 숫자가 저장소보다 늦은가(2026-11-07). 숫자 파일은 배포 없이 사이트 앞단(cloudflare-pages/_worker.js)이
 # 저장소에서 바로 내준다. 앞단이 깨지거나 대비책(6시간마다 배포되는 원본)으로 떨어지면 데이터 커밋은 계속 초록인데
 # 화면 숫자만 멈춘다 — 실패 런이 생기지 않는 종류라 런 감시로는 못 잡는다. 사이트를 직접 열어 data_meta 의
@@ -450,6 +524,17 @@ def main():
             + "\n\n대기 런이 concurrency 그룹을 잡아 뒤 배포가 전부 취소되던 것을 풀었다. 다음 배포(코드 변경 · 6시간 주기)가 새로 올린다.",
             title="🩹 사이트 배포 대기 런 취소(자가 치유)", color=notify_discord.COLOR_FIRE)
     stalled = check_silence() + check_site_lag()
+    try:
+        recovered = check_recovered()
+    except Exception as e:                             # noqa: BLE001 — 회복 통지가 감시 런을 깨면 본말전도
+        print(f"[watchdog] 회복 점검 건너뜀({type(e).__name__}: {e})")
+        recovered = []
+    if recovered:
+        # 아직 남은 이상이 있으면 그 알림이 뒤에 오도록 회복을 먼저 쓴다 — 채널의 마지막 글 = 지금 상태.
+        # 통지 실패는 런을 실패로 만들지 않는다(그러면 다음 감시가 이 런의 침묵 통지까지 다시 보낸다).
+        print(f"[watchdog] 회복 {len(recovered)}건: {[n for n, _ in recovered]}")
+        notify_discord.system("\n".join(f"· **{n}** — {why}" for n, why in recovered),
+                              title="✅ 회복", color=notify_discord.COLOR_RESOLVE)
     if not stalled:
         # 조용히 return 하면 '감시가 돌았다'는 증거가 남지 않는다.
         print(f"[watchdog] 워크플로 {len(WATCH)}종 + 사이트 숫자 점검 — 이상 0건")

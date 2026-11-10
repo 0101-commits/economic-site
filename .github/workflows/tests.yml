@@ -1,0 +1,70 @@
+name: Tests (병합 전 시험)
+
+# 시험 관문이 운영 워크플로(매분 stock-alerts · fetch-data · kakao-daily) 안에만 있으면, 깨진 시험이 main 에
+# 들어간 순간 운영 런의 「Run tests」 가 실패해 그 뒤 발송 · 수집 단계가 통째로 건너뛰어지고 #시스템에
+# 「워크플로 실패 › Run tests」 가 뜬다. 2026-10-27 ~ 11-04 #시스템 실패 알림 9건 중 8건이 이것이었다 —
+# 무거운 모듈이 없는 환경(cryptography · pykrx), 날짜가 지나면 깨지는 단언, 그냥 깨진 단언. 전부 병합 뒤에야 드러났다.
+# 그래서 같은 시험을 병합 전에 돌린다. 운영 관문의 두 환경을 그대로 흉내 낸다 —
+#   light = stock-alerts · kakao-daily(pykrx 없음, 둘 중 먼저 도는 쪽이 통과 마커를 정한다)
+#   full  = fetch-data
+# 한쪽에서만 통과하는 시험은 운영에서 「먼저 돈 워크플로」 에 따라 갈려 실패한다(11-04: 병합마다 stock-alerts 한 번씩).
+# 두 환경의 패키지 목록은 scripts/tests/test_ci_tests_workflow.py 가 운영 워크플로의 pip install 과 글자로 맞춘다.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: light
+            deps: requests pynacl matplotlib pytest PyYAML yfinance
+          - env: full
+            deps: requests yfinance "pykrx==1.2.8" beautifulsoup4 lxml PyYAML matplotlib pynacl pytest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: pip install ${{ matrix.deps }}
+
+      # 운영과 같은 한글 폰트 캐시(discord_card 시험이 KO_FONT_PATH 를 본다). 실패해도 카드는 영문으로 강등될 뿐.
+      - name: Korean fonts (cache)
+        id: kofonts
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/kofonts
+          key: noto-sans-kr-static-v1
+      - name: Korean fonts (download on cache miss)
+        if: steps.kofonts.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p ~/kofonts
+          for w in Regular Bold; do
+            curl -fsSL --max-time 30 -o ~/kofonts/NotoSansKR-$w.otf \
+              "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/KR/NotoSansKR-$w.otf"
+          done
+
+      # 운영 관문과 달리 -x 를 빼 깨진 시험을 한 번에 다 보여 준다.
+      - name: Run tests
+        env:
+          KO_FONT_PATH: ~/kofonts
+        run: python -m pytest scripts/tests -q
