@@ -460,21 +460,38 @@ def test_stall_recovery(monkeypatch):
     assert _recovered(monkeypatch, steady) == []              # 직전 감시 땐 10분째 — 끊김 아니었다
 
 
-def test_main_posts_recovery_before_remaining_alert(monkeypatch):
-    """회복을 먼저, 남은 이상을 뒤에 — 채널의 마지막 글이 지금 상태다. 회복 점검이 터져도 감시 런은 그대로."""
+def _main_calls(monkeypatch, stalled, recovered, ok=True):
     calls = []
     monkeypatch.setenv("WATCHDOG_MODE", "silence")
     monkeypatch.setattr(W, "check_pages_stuck", lambda: [])
-    monkeypatch.setattr(W, "check_silence", lambda: [("Y", "끊김")])
+    monkeypatch.setattr(W, "check_silence", lambda: list(stalled))
     monkeypatch.setattr(W, "check_site_lag", lambda: [])
-    monkeypatch.setattr(W, "check_recovered", lambda: [("X", "다시 정상")])
-    monkeypatch.setattr(W.notify_discord, "system", lambda _b, title="", **_k: calls.append(title) or True)
+    monkeypatch.setattr(W, "check_recovered", recovered if callable(recovered) else (lambda: list(recovered)))
+    monkeypatch.setattr(W.notify_discord, "system", lambda b, title="", **_k: calls.append((title, b)) or ok)
     W.main()
-    assert calls == ["✅ 회복", "🔇 알림 파이프라인 침묵"], calls
+    return calls
 
+
+def test_main_recovery_alone_or_merged_into_remaining_alert(monkeypatch):
+    """회복만 있으면 회복 한 통. 남은 이상이 있으면 한 통에 합친다 — 따로 보내면 회복을 쓴 뒤 침묵 통지가 실패했을 때
+    런이 실패로 끝나 다음 감시가 같은 회복을 또 쓴다(2026-11-10 검토)."""
+    calls = _main_calls(monkeypatch, [], [("X", "다시 정상")])
+    assert [t for t, _ in calls] == ["✅ 회복"], calls
+    calls = _main_calls(monkeypatch, [("Y", "끊김")], [("X", "다시 정상")])
+    assert len(calls) == 1 and calls[0][0] == "🔇 알림 파이프라인 침묵", calls
+    assert calls[0][1].index("Y") < calls[0][1].index("✅ 회복") < calls[0][1].index("X"), calls[0][1]
+    assert _main_calls(monkeypatch, [], []) == []
+
+
+def test_main_recovery_notify_failure_fails_run(monkeypatch):
+    """회복 통지를 못 했는데 성공으로 끝나면 다음 감시가 이 런을 '직전 감시'로 세어 회복을 영영 안 쓴다."""
+    import pytest
+    with pytest.raises(SystemExit):
+        _main_calls(monkeypatch, [], [("X", "다시 정상")], ok=False)
+
+
+def test_main_survives_recovery_check_crash(monkeypatch):
     def boom():
         raise RuntimeError("x")
-    monkeypatch.setattr(W, "check_recovered", boom)
-    calls.clear()
-    W.main()
-    assert calls == ["🔇 알림 파이프라인 침묵"], calls
+    calls = _main_calls(monkeypatch, [("Y", "끊김")], boom)
+    assert len(calls) == 1 and "✅ 회복" not in calls[0][1], calls

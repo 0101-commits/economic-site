@@ -529,20 +529,23 @@ def main():
     except Exception as e:                             # noqa: BLE001 — 회복 통지가 감시 런을 깨면 본말전도
         print(f"[watchdog] 회복 점검 건너뜀({type(e).__name__}: {e})")
         recovered = []
+    # 회복과 남은 이상은 한 통으로 — 따로 보내면 회복을 쓴 뒤 침묵 통지가 실패했을 때 이 런이 실패로 끝나
+    # 다음 감시가 같은 창을 다시 보고 회복을 두 번 쓴다(2026-11-10 검토). 회복만 있을 때 통지가 실패해도
+    # 런을 실패로 끝낸다 — 다음 감시가 직전 감시를 그 앞 런으로 보고 같은 회복을 다시 쓴다(이 런엔 다른 통지가 없다).
+    rec = "\n".join(f"· **{n}** — {why}" for n, why in recovered)
     if recovered:
-        # 아직 남은 이상이 있으면 그 알림이 뒤에 오도록 회복을 먼저 쓴다 — 채널의 마지막 글 = 지금 상태.
-        # 통지 실패는 런을 실패로 만들지 않는다(그러면 다음 감시가 이 런의 침묵 통지까지 다시 보낸다).
         print(f"[watchdog] 회복 {len(recovered)}건: {[n for n, _ in recovered]}")
-        notify_discord.system("\n".join(f"· **{n}** — {why}" for n, why in recovered),
-                              title="✅ 회복", color=notify_discord.COLOR_RESOLVE)
     if not stalled:
         # 조용히 return 하면 '감시가 돌았다'는 증거가 남지 않는다.
         print(f"[watchdog] 워크플로 {len(WATCH)}종 + 사이트 숫자 점검 — 이상 0건")
+        if recovered and not notify_discord.system(rec, title="✅ 회복", color=notify_discord.COLOR_RESOLVE):
+            raise SystemExit("[watchdog] 회복 통지 실패 — 이 런은 감시로 세지 않는다")
         return
     body = "\n".join(f"· **{n}** — {why}" for n, why in stalled)
     print(f"[watchdog] 침묵 감지 {len(stalled)}건: {[n for n, _ in stalled]}")
     ok = notify_discord.system(
-        body + "\n\n트리거(Cloudflare Worker cron / GHA schedule)를 확인하세요.",
+        body + "\n\n트리거(Cloudflare Worker cron / GHA schedule)를 확인하세요."
+        + (f"\n\n✅ 회복\n{rec}" if recovered else ""),
         title="🔇 알림 파이프라인 침묵", color=notify_discord.COLOR_FIRE)   # #시스템은 무음(2026-10-13)
     if not ok:
         # 통지를 못 했는데 success 로 끝나면 다음 감시가 이 런을 '직전 감시'로 보고 이미 알린
