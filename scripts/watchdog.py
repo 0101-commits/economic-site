@@ -315,7 +315,8 @@ def _was_notified(inst, fails, prev, thr_prev, hi):
 
     silence: 직전 감시 때 이미 STREAK_MIN 건이 끝나 있었으면 그 감시(또는 더 앞 감시)가 「연속 실패」를 알렸다.
              직전 감시를 모르면 건수만 본다.
-    failure: 즉시 통지 워크플로는 연속 중 GitHub 쪽 장애가 아닌 첫 실패에 한 번 알렸다(_streak_continues 와 같은 규칙).
+    failure: 즉시 통지 워크플로는 연속 안에 GitHub 쪽 장애가 아닌 실패가 하나라도 있으면 적어도 한 번 알렸다
+             (_streak_continues 규칙의 귀결). 오래된 것부터 보며 첫 진짜 실패에서 멈춘다 — 보통 첫 런에서 끝난다.
     11-10 03:26~03:29 KST 장중 알림 평가 3건은 전부 잡 0개(GitHub 쪽)였고 사이 감시도 없어 아무 알림도 안 나갔는데,
     종전 규칙(건수 ≥3 이면 알렸다고 침)으로는 무엇이 고장 났었는지 모를 「회복」 한 줄이 혼자 나갔을 것이다.
     """
@@ -327,7 +328,7 @@ def _was_notified(inst, fails, prev, thr_prev, hi):
         if len(seen) >= STREAK_MIN:
             return True
     if inst:
-        return any(not _infra_failure(f.get("id")) for f in fails[::-1][:INFRA_LOOKBACK])
+        return any(not _infra_failure(f.get("id")) for f in reversed(fails))
     return False
 
 
@@ -549,10 +550,13 @@ def _streak_continues(wf_id, run_id):
     # GitHub 쪽 장애 실패는 알리지 않았으므로 연속에 넣지 않고 건너뛴다 — 그 뒤 처음 나온 진짜 실패가 첫 건이다.
     # 종전엔 바로 앞 런이 실패면 무조건 「이미 통지」로 쳐서, 장애 런 뒤에 온 실패를 아무도 알리지 않았다
     # (2026-11-10 03:12 KST 감시 로그 「첫 건에 이미 통지」 — 실제로는 첫 건 감시 런도 같은 장애로 못 돌았다).
+    # 장애 실패가 INFRA_LOOKBACK 개를 넘게 이어지면 그 앞 실패를 알렸는지 모른다 → 알린다(침묵보다 중복).
+    # 11-10 장애는 12런이었다 — 상한에서 「이어짐」으로 치면 장애 뒤 첫 진짜 실패를 삼킨다(2026-11-10 검토).
+    # 그래서 연속 안에 GitHub 쪽이 아닌 실패가 하나라도 있으면 적어도 한 번은 알렸다 — _was_notified 가 이 규칙을 쓴다.
     for i, r in enumerate(prev):
-        if r.get("conclusion") != "failure":
+        if r.get("conclusion") != "failure" or i >= INFRA_LOOKBACK:
             return False
-        if i < INFRA_LOOKBACK and _infra_failure(r.get("id")):
+        if _infra_failure(r.get("id")):
             continue
         return True
     return False

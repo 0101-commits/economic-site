@@ -409,7 +409,7 @@ def _recovered(monkeypatch, runs, prev_ago=30, inst=True, infra=False, thr=lambd
     monkeypatch.setattr(W, "_prev_check",
                         lambda: None if prev_ago is None else now - dt.timedelta(minutes=prev_ago))
     monkeypatch.setattr(W, "_self_started", lambda n: n)
-    monkeypatch.setattr(W, "_infra_failure", lambda _rid: infra)
+    monkeypatch.setattr(W, "_infra_failure", infra if callable(infra) else (lambda _rid: infra))
     monkeypatch.setattr(W, "_api", lambda _p: {"workflow_runs": runs})
     return W.check_recovered(now)
 
@@ -496,6 +496,21 @@ def test_streak_skips_github_side_failures(monkeypatch):
     assert W._streak_continues("7", "3") is False                    # 알린다
     runs["workflow_runs"][2]["conclusion"] = "failure"               # 장애 앞에 진짜 실패 — 그때 이미 알렸다
     assert W._streak_continues("7", "3") is True
+    # 장애가 상한보다 길게 이어진 뒤의 진짜 실패는 알린다 — 11-10 장애는 12런이었다(검토에서 잡음).
+    long = [{"id": 100, "conclusion": "failure"}] + [
+        {"id": 50 + i, "conclusion": "failure"} for i in range(W.INFRA_LOOKBACK + 3)] + [{"id": 1, "conclusion": "failure"}]
+    monkeypatch.setattr(W, "_api", lambda _p: {"workflow_runs": long})
+    monkeypatch.setattr(W, "_infra_failure", lambda rid: 50 <= int(rid) < 100)
+    assert W._streak_continues("7", "100") is False
+
+
+def test_recovery_after_long_outage_then_real_failure(monkeypatch):
+    """장애 런 여럿 뒤 진짜 실패가 온 연속은 알렸다 — 회복도 쓴다(_streak_continues 와 같은 규칙)."""
+    runs = [{"ago": 3, "conclusion": "success"}, {"ago": 5, "conclusion": "failure", "id": 1}] + [
+        {"ago": 6 + i, "conclusion": "failure", "id": 50 + i} for i in range(8)] + [{"ago": 60, "conclusion": "success"}]
+    out = _recovered(monkeypatch, runs, infra=lambda rid: int(rid) >= 50)
+    assert len(out) == 1 and "실패 9건" in out[0][1], out
+    assert _recovered(monkeypatch, runs, infra=True) == []              # 전부 장애면 알린 적 없다
 
 
 def test_failure_mode_checks_infra_before_streak(monkeypatch, capsys):
