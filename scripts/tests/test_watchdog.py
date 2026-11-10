@@ -177,6 +177,7 @@ def test_silence_run_fails_when_notify_fails(monkeypatch):
     monkeypatch.setenv("WATCHDOG_MODE", "silence")
     monkeypatch.setattr(W, "check_silence", lambda: [("X", "끊김")])
     monkeypatch.setattr(W, "check_site_lag", lambda: [])
+    monkeypatch.setattr(W, "check_recovered", lambda: [])
     monkeypatch.setattr(W.notify_discord, "system", lambda *a, **k: False)
     with pytest.raises(SystemExit):
         W.main()
@@ -386,3 +387,111 @@ def test_pages_deploy_retries_then_fails_loud():
     for sid in ("deployment", "deployment_retry1", "deployment_retry2"):
         assert f"steps.{sid}.outputs.page_url" in url, sid
         assert f"id: {sid}" in yml, sid
+
+
+# ── 회복 통지(2026-11-10) ─────────────────────────────────────────────────────────────
+# 실패 알림만 있고 「풀렸다」는 글이 없어 #시스템의 마지막 글이 늘 옛 오류였다 — 사흘 동안 새 알림이 0건인데도
+# 「계속 실패 중」으로 읽혀 같은 조사가 반복됐다. 알림이 나간 실패만, 한 번만 회복을 쓴다.
+
+def _recovered(monkeypatch, runs, prev_ago=30, inst=True, infra=False, thr=lambda _wf, _t: 30):
+    """WATCH 한 종으로 check_recovered 를 돌린다. 지금 = 이 감시 시작 = 12:00 UTC, 직전 감시 = prev_ago 분 전."""
+    import datetime as dt
+    now = dt.datetime(2026, 11, 10, 12, 0, tzinfo=dt.timezone.utc)
+    iso = lambda m: (now - dt.timedelta(minutes=m)).isoformat()
+    runs = [dict(r) for r in runs]
+    for i, r in enumerate(runs):
+        ago = r.pop("ago")
+        r.setdefault("status", "completed")
+        r.setdefault("id", 100 - i)
+        r["created_at"], r["updated_at"] = iso(ago), iso(r.pop("done", ago))
+    monkeypatch.setattr(W, "WATCH", [("x.yml", "X", 30, 30, inst)])
+    monkeypatch.setattr(W, "_threshold", thr)
+    monkeypatch.setattr(W, "_prev_check",
+                        lambda: None if prev_ago is None else now - dt.timedelta(minutes=prev_ago))
+    monkeypatch.setattr(W, "_self_started", lambda n: n)
+    monkeypatch.setattr(W, "_infra_failure", lambda _rid: infra)
+    monkeypatch.setattr(W, "_api", lambda _p: {"workflow_runs": runs})
+    return W.check_recovered(now)
+
+
+BACK = [{"ago": 3, "conclusion": "success"},        # 3분 전 다시 정상
+        {"ago": 8, "conclusion": "failure"},
+        {"ago": 13, "conclusion": "failure"},
+        {"ago": 60, "conclusion": "success"}]
+
+
+def test_recovery_reported_once_after_notified_failure(monkeypatch):
+    """즉시 통지가 나간 실패가 풀리면 한 줄 — 다음 감시(창이 지난 뒤)는 다시 안 쓴다."""
+    out = _recovered(monkeypatch, BACK)
+    assert len(out) == 1 and "실패 2건" in out[0][1] and "다시 정상" in out[0][1], out
+    assert _recovered(monkeypatch, BACK, prev_ago=1) == []
+
+
+def test_recovery_only_for_failures_that_were_notified(monkeypatch):
+    """알린 적 없는 실패의 회복은 쓰지 않는다 — 혼자 뜬 「회복」은 무엇이 고장 났었는지 되묻게 만든다."""
+    assert _recovered(monkeypatch, BACK, inst=False) == []       # 즉시 통지 밖 · 2건 < STREAK_MIN
+    assert _recovered(monkeypatch, BACK, infra=True) == []       # 러너 미획득은 통지를 생략했었다
+    three = BACK[:3] + [{"ago": 18, "conclusion": "failure"}] + BACK[3:]
+    assert len(_recovered(monkeypatch, three, inst=False)) == 1  # 연속 실패 3건은 침묵 감시가 알렸다
+
+
+def test_recovery_quiet_while_failing_or_clean(monkeypatch):
+    assert _recovered(monkeypatch, [{"ago": 2, "conclusion": "failure"}] + BACK) == []   # 다시 실패 중
+    assert _recovered(monkeypatch, [{"ago": m, "conclusion": "success"} for m in (2, 7, 12)]) == []
+    cancelled = [{"ago": 2, "conclusion": "cancelled"}] + BACK                         # 취소는 건너뛴다
+    assert len(_recovered(monkeypatch, cancelled)) == 1
+
+
+def test_recovery_unknown_prev_uses_short_window(monkeypatch):
+    """직전 감시를 모르면 최근 RECOVER_WINDOW_MIN 분 안의 회복만 — 모를 때 옛 회복을 매번 다시 쓰지 않는다."""
+    assert len(_recovered(monkeypatch, BACK, prev_ago=None)) == 1
+    old = [dict(r, ago=r["ago"] + 60) for r in BACK]
+    assert _recovered(monkeypatch, old, prev_ago=None) == []
+
+
+def test_stall_recovery(monkeypatch):
+    """끊김 알림(직전 감시 때 임계 초과)이 나간 뒤 새 런이 생기면 회복."""
+    stall = [{"ago": 5, "conclusion": "success"}, {"ago": 100, "conclusion": "success"}]
+    out = _recovered(monkeypatch, stall)                      # 직전 감시 땐 70분째 없었다 > 임계 30
+    assert len(out) == 1 and "다시 돈다" in out[0][1], out
+    assert _recovered(monkeypatch, stall, thr=lambda _wf, _t: 120) == []   # 임계 안 — 알린 적 없다
+    assert _recovered(monkeypatch, stall, thr=lambda _wf, _t: None) == []  # 감시 밖 시간
+    steady = [{"ago": 5, "conclusion": "success"}, {"ago": 40, "conclusion": "success"}]
+    assert _recovered(monkeypatch, steady) == []              # 직전 감시 땐 10분째 — 끊김 아니었다
+
+
+def _main_calls(monkeypatch, stalled, recovered, ok=True):
+    calls = []
+    monkeypatch.setenv("WATCHDOG_MODE", "silence")
+    monkeypatch.setattr(W, "check_pages_stuck", lambda: [])
+    monkeypatch.setattr(W, "check_silence", lambda: list(stalled))
+    monkeypatch.setattr(W, "check_site_lag", lambda: [])
+    monkeypatch.setattr(W, "check_recovered", recovered if callable(recovered) else (lambda: list(recovered)))
+    monkeypatch.setattr(W.notify_discord, "system", lambda b, title="", **_k: calls.append((title, b)) or ok)
+    W.main()
+    return calls
+
+
+def test_main_recovery_alone_or_merged_into_remaining_alert(monkeypatch):
+    """회복만 있으면 회복 한 통. 남은 이상이 있으면 한 통에 합친다 — 따로 보내면 회복을 쓴 뒤 침묵 통지가 실패했을 때
+    런이 실패로 끝나 다음 감시가 같은 회복을 또 쓴다(2026-11-10 검토)."""
+    calls = _main_calls(monkeypatch, [], [("X", "다시 정상")])
+    assert [t for t, _ in calls] == ["✅ 회복"], calls
+    calls = _main_calls(monkeypatch, [("Y", "끊김")], [("X", "다시 정상")])
+    assert len(calls) == 1 and calls[0][0] == "🔇 알림 파이프라인 침묵", calls
+    assert calls[0][1].index("Y") < calls[0][1].index("✅ 회복") < calls[0][1].index("X"), calls[0][1]
+    assert _main_calls(monkeypatch, [], []) == []
+
+
+def test_main_recovery_notify_failure_fails_run(monkeypatch):
+    """회복 통지를 못 했는데 성공으로 끝나면 다음 감시가 이 런을 '직전 감시'로 세어 회복을 영영 안 쓴다."""
+    import pytest
+    with pytest.raises(SystemExit):
+        _main_calls(monkeypatch, [], [("X", "다시 정상")], ok=False)
+
+
+def test_main_survives_recovery_check_crash(monkeypatch):
+    def boom():
+        raise RuntimeError("x")
+    calls = _main_calls(monkeypatch, [("Y", "끊김")], boom)
+    assert len(calls) == 1 and "✅ 회복" not in calls[0][1], calls

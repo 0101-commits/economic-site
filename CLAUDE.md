@@ -417,6 +417,13 @@ data.json + js/app1.js(macroIndicators) + mer_signals.json
 | `link-check.yml` | Periodic | none |
 | `notice-check.yml` (Notice Check) | Mon 09:20 KST | `DISCORD_WEBHOOK_SYSTEM`, `GEMINI_API_KEY`(없으면 키워드만) — 제공기관 공지판 새 글 중 주소·종료·한도 관련만 #시스템 |
 | `health-report.yml` (Health Report) | 1일 09:30 KST | `DISCORD_WEBHOOK_SYSTEM` — 지표 146 상태·원천별 실패·교차검증·전월 대비 한 통 |
+| `tests.yml` (Tests, 병합 전 시험) | PR → main | none — 운영 시험 관문 두 환경(light = stock-alerts·kakao-daily, full = fetch-data)으로 `scripts/tests` 전체. 패키지 목록은 `test_ci_tests_workflow.py` 가 운영 pip install 과 맞춘다 |
+
+**PR 은 Tests 가 초록일 때만 병합한다**(`gh pr checks <번호> --watch`). 시험 관문이 운영 워크플로 안에만 있던 동안
+깨진 시험은 병합 뒤 매분 런을 멈추고서야 드러났다 — 2026-10-27 ~ 11-04 #시스템 「워크플로 실패 › Run tests」 8건이 전부 그것
+(pykrx · cryptography 없는 환경, 날짜 지나면 깨지는 단언). main 에 직접 올리는 코드 커밋도 먼저 PR 로 돌려 볼 것.
+**#시스템 회복 한 줄**(2026-11-10): watchdog silence 감시가 알림이 나간 실패 · 끊김이 풀리면 「✅ 회복」을 무음으로 남긴다
+(`check_recovered`) — 채널의 마지막 글 = 지금 상태. 그 전엔 마지막 글이 늘 옛 오류라 「계속 실패 중」으로 읽혔다.
 
 Trigger `fetch-data` or `kakao-daily` manually via **Actions → workflow_dispatch** for testing.
 
