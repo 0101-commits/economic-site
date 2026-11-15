@@ -1,6 +1,8 @@
 // 시장 › 거시 — 보기 = 주제 6(묶음 topics 키) + 달력. 고른 주제의 카드를 일곱 나라 한 격자에(카드마다 나라 꼬리표).
 // 카드를 누르면 그 지표의 24개월 차트(주소 s). 옛 나라 칩 주소(m=us)로 와도 m 은 읽지 않고 넘긴다.
 // 「달력」(v=calendar)은 월 격자 + 그 달 목록(이전 · 예측 · 실제). 나라 칩은 일정 자료에 있는 나라만.
+import { refLabel } from '../../lib/read'
+import { ReadCard } from './read'
 import { useState, type ReactNode } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Sched, StripItem } from '../../lib/bundle'
@@ -31,6 +33,7 @@ type View = typeof VIEWS[number]['key']
 
 /** 거시 카드: 나라 꼬리표 · 이름 · 기준 달 → 값(+단위) → 전월 · 전년. 이름 앞의 나라 이름은 꼬리표가 말하므로 뗀다. 누르면 큰 차트. */
 function MacroCard({ it, on, onPick }: { it: MacroItem; on: boolean; onPick: () => void }) {
+  if (it.read && it.read.main.value != null) return <ReadCard it={{ ...it, read: it.read }} on={on} onPick={onPick} />
   const v = scaled(it.value, it.scale), prev = v != null && it.change != null ? v - (scaled(it.change, it.scale) ?? 0) : null
   const ya = scaled(yearAgo(it.series), it.scale)
   const cn = CNAME[it.country ?? '']
@@ -54,8 +57,14 @@ function MacroCard({ it, on, onPick }: { it: MacroItem; on: boolean; onPick: () 
 
 /** 달력 한 줄: name = 나라 이름을 뗀 이름(꼬리표가 나라를 말한다), full = 원래 이름(모바일 목록 · 정렬). */
 type CalEv = Sched & { full: string }
+/** 일정 목록 차례: 오늘 이후(가까운 것부터) → 지난 발표(최근 것부터). */
+function recentFirst<E extends Sched>(events: E[], today: string): E[] {
+  const k = (e: E) => `${e.date} ${e.time ?? ''}`
+  return [...events.filter(e => e.date >= today).sort((a, b) => k(a).localeCompare(k(b))),
+    ...events.filter(e => e.date < today).sort((a, b) => k(b).localeCompare(k(a)))]
+}
 const WEEK = ['일', '월', '화', '수', '목', '금', '토']
-// 실제가 예측보다 좋음 = 상승색 · 나쁨 = 하락색(현행 화면 달력과 같은 뜻)
+// 발표가 컨센서스보다 좋음 = 상승색 · 나쁨 = 하락색(옛 화면 달력과 같은 뜻)
 const BEAT: Record<string, string> = { '1': 'text-up', '-1': 'text-down' }
 // 실제 칸: 지난 회차(오늘 이전)인데 실적이 없으면 「미수집」 — 「—」만 두면 아직 발표 전처럼 보인다(2026-10-12 실측 8~9월 23건, 원천 미수집).
 // 숫자가 나오는 일정에만 단다(이전 값이 있거나 연설 · 의사록 · 기자회견이 아닌 것). 예측이 없으면 「—」(묶음이 진짜 예상이 있을 때만 싣는다).
@@ -67,12 +76,12 @@ const calCols = (today: string): Col<CalEv>[] => [
   { key: 'name', label: '일정', get: e => e.full, role: 'name', render: e => (
     <>
       {CNAME[(e.cc ?? '').toLowerCase()] && <span className="mr-1.5 inline-flex align-middle"><Pill tone="o">{CNAME[(e.cc ?? '').toLowerCase()]}</Pill></span>}
-      {e.name}{!!e.stars && <span className="ml-1.5 text-11 text-ink-3" aria-label={`중요도 ${e.stars}`}>{'★'.repeat(e.stars)}</span>}
+      {e.name}{e.ref && <span className="ml-1 num text-11 text-ink-3">{refLabel(e.ref)}</span>}{!!e.stars && <span className="ml-1.5 text-11 text-ink-3" aria-label={`중요도 ${e.stars}`}>{'★'.repeat(e.stars)}</span>}
     </>
   ) },
-  { key: 'prev', label: '이전', get: e => e.prev, num: true },
-  { key: 'fore', label: '예측', get: e => e.fore, num: true, role: 'change', render: e => (e.fore == null ? null : <><span className="md:hidden text-ink-3">예측 </span>{e.fore}</>) },
-  { key: 'act', label: '실제', get: e => e.act, num: true, role: 'value', render: e => (e.act != null ? <span className={`font-bold ${BEAT[String(e.beat)] ?? 'text-ink-1'}`}>{e.act}</span>
+  { key: 'prev', label: '지난 값', get: e => e.prev, num: true },
+  { key: 'fore', label: '컨센서스', get: e => e.fore, num: true, role: 'change', render: e => (e.fore == null ? null : <><span className="md:hidden text-ink-3">컨센서스 </span>{e.fore}</>) },
+  { key: 'act', label: '발표', get: e => e.act, num: true, role: 'value', render: e => (e.act != null ? <span className={`font-bold ${BEAT[String(e.beat)] ?? 'text-ink-1'}`}>{e.act}</span>
     : uncollected(e, today) ? <span className="text-12 text-ink-3">미수집</span> : null) },
 ]
 
@@ -174,7 +183,8 @@ export default function Macro({ b, selId, setS }: BodyProps<MacroBundle>) {
   const calendar = (cls: string) => <CalendarPanel className={cls} events={events} today={today} />
   const calPanel = (cls: string, primary: boolean): ReactNode => (
     <Panel className={cls} title="경제 일정" fold={!primary}>
-      <EventList events={events} today={today} tag={e => cname(e.cc) && <Pill tone="o">{cname(e.cc)}</Pill>} />
+      {/* 다가올 일정은 가까운 것부터, 지난 발표는 최근 것부터 — 9월 회차가 맨 위에 오고 11월 발표가 「더 보기」 뒤에 묻혔다 */}
+      <EventList events={recentFirst(events, today)} today={today} tag={e => cname(e.cc) && <Pill tone="o">{cname(e.cc)}</Pill>} />
     </Panel>
   )
 

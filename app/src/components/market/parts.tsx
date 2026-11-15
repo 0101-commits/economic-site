@@ -1,5 +1,7 @@
 // 시장 화면 공용 조각 — 큰 차트 · 등락 글자 · 수익률 곡선 · 일정 목록 · 격자 칸 · 뉴스.
 // 공유 부품(components/ui·charts·panels)은 고치지 않고 그 위에 얹는다.
+import { asRead, refLabel } from '../../lib/read'
+import { ReadBig, ReadLines } from './read'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
@@ -75,22 +77,26 @@ export function periodsOf(item: StripItem, series: Pt[] | null): Partial<Record<
  * 큰 차트: 고른 칸의 값·등락 + 52주 위치 + 기간 칩 선 차트(기간은 주소 p). 홈 큰 차트와 같은 모양이다.
  * 기간 칩은 일별이면 1주·3달·1년, 월별(거시·부동산)이면 1년·2년(24개월)이다.
  */
-export function BigChart({ item, className = '' }: { item?: StripItem; className?: string }) {
+export function BigChart({ item: raw, className = '' }: { item?: StripItem; className?: string }) {
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
+  // 읽는 값이면 그 시계열(전년비 · 전월비 %)을 그린다 — 지수 선 · 52주 최저 · 최고는 늘 오르는 물가지수엔 뜻이 없다
+  const rd = raw?.read && raw.read.main.value != null ? raw.read : undefined
+  const item = raw && rd ? asRead(raw) : raw
   const series = useSeries(item)
   const periods = useMemo(() => (item ? periodsOf(item, series) : {}), [item, series])
   if (!item) return <Panel className={className} title="차트"><Empty>고를 지표가 없습니다.</Empty></Panel>
   const v = scaled(item.value, item.scale), c = scaled(item.change, item.scale)
-  const r52 = series?.length ? range52(scaledPts(series, item.scale)) : null
+  const r52 = series?.length && !rd ? range52(scaledPts(series, item.scale)) : null
   return (
     <Panel className={className} title={item.short || item.label} asOf={item.asOf} state={item.state} liveUntil={item.liveUntil}
       tools={<MoreLink to={`/i/${item.id}`}>자세히</MoreLink>}>
       <div className="mb-2 flex flex-wrap items-end gap-x-6 gap-y-2">
-        <NumBlock value={v} decimals={item.decimals} chg={c} pct={item.changePct} size="L" unit={shownUnit(item)} />
+        {rd ? <span className="flex flex-col gap-1"><ReadBig r={rd} size="L" /><ReadLines r={rd} /></span>
+          : <NumBlock value={v} decimals={item.decimals} chg={c} pct={item.changePct} size="L" unit={shownUnit(item)} />}
         {r52 && <div className="w-64 max-w-full"><Range52 low={r52.low} high={r52.high} value={v} decimals={item.decimals} /></div>}
       </div>
       <LineChart key={item.id} label={item.label} periods={periods} period={p} onPeriod={setP} decimals={item.decimals}
-        base={v != null && c != null ? { value: v - c, label: '전일' } : null}
+        base={!rd && v != null && c != null ? { value: v - c, label: '전일' } : null}
         empty={series === null ? '불러오는 중' : '시계열 준비 중'} />
     </Panel>
   )
@@ -253,11 +259,11 @@ export function EventList({ events, today, tag }: { events: Ev[]; today?: string
   return <More rows={events} name="일정">{shown => (
     <ul className="m-0 p-0 list-none">
       {shown.map((e, i) => {
-        const nums = [['이전', s(e.prev)], ['예측', s(e.fore)], ['실제', s(e.act)]].filter(([, x]) => x)
+        const nums = [['지난 값', s(e.prev)], ['컨센서스', s(e.fore)], ['발표', s(e.act)]].filter(([, x]) => x)
         return (
           <li key={`${e.date}-${e.name}-${i}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 border-b border-line last:border-b-0">
             <span className="w-[5.5rem] shrink-0 num text-12 text-ink-3">{`${e.date === today ? '오늘' : shortDate(e.date)}${e.time ? ` ${e.time}` : ''}`}</span>
-            <span className="flex-1 min-w-[8rem] text-13 text-ink-1">{tag && <span className="mr-1.5 inline-flex align-middle">{tag(e)}</span>}{e.name}{e.approx ? <span className="text-ink-3"> (추정)</span> : null}</span>
+            <span className="flex-1 min-w-[8rem] text-13 text-ink-1">{tag && <span className="mr-1.5 inline-flex align-middle">{tag(e)}</span>}{e.name}{e.ref ? <span className="ml-1 num text-11 text-ink-3">{refLabel(e.ref)}</span> : null}{e.approx ? <span className="text-ink-3"> (추정)</span> : null}</span>
             {!!e.stars && <span className="shrink-0 text-11 text-ink-3" aria-label={`중요도 ${e.stars}`}>{'★'.repeat(e.stars)}</span>}
             {nums.length > 0 && (
               <span className="basis-full pl-[6.25rem] text-11 text-ink-3">

@@ -18,6 +18,8 @@ import type { LensBundle, LensChain } from '../components/lens/model'
 import { NewsPanel } from '../components/market/parts'
 import { BellPanel, FlowPanel, Related, useCmp } from '../components/detail/parts'
 import StockDetail from '../components/detail/Stock'
+import { ReadBig, ReadLines, ReleasesChart } from '../components/market/read'
+import { readName, readPts, refLabel, releasedLabel } from '../lib/read'
 import { noteRecent } from '../lib/personal/store'
 
 // 사전 자산군 → 시장 화면 자산군 탭(Market.tsx ASSETS 키)
@@ -78,7 +80,9 @@ function IndicatorDetail({ id }: { id: string }) {
     )
   }
 
-  const name = reg?.label ?? item!.label
+  // 읽는 값(lib/read.ts) — 지수 대신 전년비 · 전월비 · 증감이 머리 · 흐름의 주인공, 지수는 아래 「원자료」
+  const rd = item?.read && item.read.main.value != null ? item.read : undefined
+  const name = rd ? readName({ label: reg?.label ?? item!.label, short: reg?.short, country: item?.country, read: rd }) : reg?.label ?? item!.label
   const decimals = reg?.decimals ?? item?.decimals ?? 2
   const scale = item?.scale ?? reg?.scale
   const unitShown = shownUnit({ id, scale, unit: item?.unit ?? reg?.unit })
@@ -87,7 +91,8 @@ function IndicatorDetail({ id }: { id: string }) {
   const lens = got.lens, t = lens?.t
   // 흐름 차트 기준선: 트리거 값이 화면 값과 같은 잣대일 때만(물가는 트리거 = 전년비 %, 화면 = 지수라 그리지 않는다)
   // ponytail: 5% 근접으로 잣대를 가늠한다 — 트리거에 화면 단위가 실리면 그것으로 바꾼다
-  const known = t?.value != null && v != null, same = known && Math.abs(t!.value! - v!) <= Math.abs(v!) * 0.05
+  const cmpV = rd ? rd.main.value : v      // 렌즈 트리거(물가 = 전년비 %)와 견줄 화면 값
+  const known = t?.value != null && cmpV != null, same = known && Math.abs(t!.value! - cmpV!) <= Math.abs(cmpV!) * 0.05
   const limit = t?.level != null && same ? { value: t.level, label: '기준' } : null
   // 잣대가 다르면(기준선을 안 그리는 같은 판정) 렌즈 줄 앞에 잣대 이름 — 트리거 이름 괄호(「한국 CPI(전년비)」 → 전년비), 없으면 트리거 이름.
   // 묶음 트리거엔 변환 칸이 없고 단위는 '%' 뿐이라 이름이 유일한 원천이다(2026-10-09 실측: 잣대가 다른 것 = cpi_kr · pce_us, 둘 다 괄호 있음).
@@ -100,16 +105,36 @@ function IndicatorDetail({ id }: { id: string }) {
           <h1 className="m-0 text-24 font-bold text-ink-1">{name}</h1>
           <WatchStar on={watch.has(id)} onToggle={() => watch.toggle(id)} label={name} />
         </div>
-        <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
-          <NumBlock value={v} decimals={decimals} chg={item?.change !== undefined ? c : undefined} pct={item?.changePct} size="L" unit={unitShown} />
-          <AsOfBadge asOf={item?.asOf} state={item?.state} liveUntil={item?.liveUntil} />
-        </div>
-        {reg?.unit && !unitShown && <p className="m-0 text-12 text-ink-3">단위 {reg.unit}</p>}
+        {rd ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-12 text-ink-2"><b className="num text-ink-1">{refLabel(rd.ref)}</b>{rd.released && <span className="ml-2 num text-ink-3">{releasedLabel(rd.released)}</span>}</span>
+            <ReadBig r={rd} size="L" />
+            <ReadLines r={rd} />
+          </div>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+              <NumBlock value={v} decimals={decimals} chg={item?.change !== undefined ? c : undefined} pct={item?.changePct} size="L" unit={unitShown} />
+              <AsOfBadge asOf={item?.asOf} state={item?.state} liveUntil={item?.liveUntil} />
+            </div>
+            {reg?.unit && !unitShown && <p className="m-0 text-12 text-ink-3">단위 {reg.unit}</p>}
+          </>
+        )}
       </header>
 
       <div className="grid grid-cols-1 pc:grid-cols-12 gap-4 items-start">
-        <FlowPanel className="pc:col-span-8" name={name} short={reg?.short} pts={pts ?? []} decimals={decimals} value={v}
-          base={v != null && c != null ? { value: v - c, label: '전일' } : null} limit={limit} cmp={cmpGot} onCmpOff={() => setCmp('')} />
+        {rd ? (
+          <div className="pc:col-span-8 flex flex-col gap-4">
+            <FlowPanel name={name} short={name} pts={readPts(rd)} decimals={rd.main.dec} value={rd.main.value}
+              title={`흐름 · ${rd.main.short || name}`} noRange limit={limit} cmp={null} onCmpOff={() => setCmp('')} />
+            {(rd.rel ?? []).some(x => x[2] != null) && <Panel title="발표값과 컨센서스"><ReleasesChart r={rd} /></Panel>}
+            <FlowPanel name={`${name} 원자료`} short={reg?.short} pts={pts ?? []} decimals={decimals} value={v} noRange
+              title={`원자료${reg?.unit ? ` · ${reg.unit}` : ''}`} cmp={cmpGot} onCmpOff={() => setCmp('')} />
+          </div>
+        ) : (
+          <FlowPanel className="pc:col-span-8" name={name} short={reg?.short} pts={pts ?? []} decimals={decimals} value={v}
+            base={v != null && c != null ? { value: v - c, label: '전일' } : null} limit={limit} cmp={cmpGot} onCmpOff={() => setCmp('')} />
+        )}
 
         <div className="pc:col-span-4 flex flex-col gap-4">
           <BellPanel id={id} name={name} what="이 지표가" cur={v} unit={unitWord(id, item?.unit ?? reg?.unit)} />

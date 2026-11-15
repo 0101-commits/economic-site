@@ -1,4 +1,6 @@
 // 공통 패널 — 패널 머리 · 지표 띠 카드 · 순위 표 · 더 보기. ui.tsx 의 Card·AsOfBadge·BottomSheet·Boundary 위에 얹는다.
+import { asRead, cellAt, fmtRead, prevWord } from '../lib/read'
+import { CalcTag } from './market/read'
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ChevronDown, Star, type LucideIcon } from 'lucide-react'
@@ -92,11 +94,14 @@ export function More<R>({ rows, children, name = '목록', unit = '행' }: { row
  * 파생 칸: up·down 이 있으면 값 자리에 「상승/하락」 종목 수를 적는다.
  * 기준 시각은 칸 시각(AsOfBadge cell) — 장 상태 줄과 같은 말을 하는 값은 숨긴다(과제 4).
  */
-export function StripCard({ item, selected, onSelect, to, watched, onWatch, tag }: {
+export function StripCard({ item: raw, selected, onSelect, to, watched, onWatch, tag }: {
   item: StripItem; selected?: boolean; onSelect?: () => void; to?: string; watched?: boolean; onWatch?: () => void; tag?: ReactNode
 }) {
+  // 읽는 값(거시 · 부동산): 지수 대신 전년비 · 전월비 · 증감을 큰 숫자로(lib/read.ts). 공식 발표값이 아니면 「계산」.
+  const rd = raw.read && raw.read.main.value != null ? raw.read : undefined
+  const item = rd ? asRead(raw) : raw
   const v = scaled(item.value, item.scale), chg = scaled(item.change, item.scale)
-  const unit = shownUnit(item)
+  const unit = rd ? undefined : shownUnit(item)
   const breadth = item.up != null && item.down != null
   const pctOnly = chg == null && !breadth && item.changePct != null   // 등락률만 있는 칸(홈 띠의 관심 종목)
   const dir = pctOnly ? changeDir(item.changePct, 2) : changeDir(chg, item.decimals)
@@ -127,12 +132,19 @@ export function StripCard({ item, selected, onSelect, to, watched, onWatch, tag 
         <Sparkline values={item.spark} dir={dir} />
       </span>
       <span key={flash?.n ?? 0} className={`block num text-18 font-bold leading-tight text-ink-1 rounded-inner ${flash ? `flash-${flash.dir}` : ''}`}>
-        {breadth ? `${item.up}/${item.down}` : fmtNumber(v, item.decimals)}
+        {breadth ? `${item.up}/${item.down}` : rd ? fmtRead(rd.main) : fmtNumber(v, item.decimals)}
         {unit && <span className="ml-0.5 text-12 font-normal text-ink-3">{unit}</span>}
       </span>
-      <span className={`block num text-12 mt-1 ${DIR_TEXT[dir]}`}>
-        {chg != null ? fmtChange(chg, item.changePct, item.decimals) : pctOnly ? fmtPct(item.changePct) : breadth ? `보합 ${item.flat ?? '—'}` : ' '}
-      </span>
+      {rd ? (
+        <span className="block num text-12 mt-1 text-ink-3">
+          {[rd.main.short, rd.prev != null ? `${prevWord(rd.freq)} ${fmtRead(cellAt(rd.main, rd.prev))}` : ''].filter(Boolean).join(' · ') || ' '}
+          {rd.main.src === 'calc' && <span className="ml-1 align-middle"><CalcTag /></span>}
+        </span>
+      ) : (
+        <span className={`block num text-12 mt-1 ${DIR_TEXT[dir]}`}>
+          {chg != null ? fmtChange(chg, item.changePct, item.decimals) : pctOnly ? fmtPct(item.changePct) : breadth ? `보합 ${item.flat ?? '—'}` : ' '}
+        </span>
+      )}
       {/* 이유는 한 줄이 목표지만 PC 8열 카드(약 115px)엔 안 들어간다 — 자르지 않고 줄을 바꾼다 */}
       {(item.reason || item.reasonShort) && (
         <span className="block mt-1 text-11 leading-snug text-ink-3">

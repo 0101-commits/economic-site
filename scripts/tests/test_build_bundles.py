@@ -29,6 +29,11 @@ def _item(bundle, ind_id):
     return next(x for x in bundle["strip"] if x["id"] == ind_id)
 
 
+def _derived(bundle, ind_id):
+    """띠 밖으로 옮긴 옛 전년비 파생 칸(views.derived) — 상세 · 관심 주소(#/i/cpi_kr_yoy)가 찾는 자리."""
+    return next(x for x in bundle["views"]["derived"] if x["id"] == ind_id)
+
+
 def test_each_bundle_within_200kb():
     for name, obj in bundles().items():
         n = len(bb.dumps(obj).encode("utf-8"))
@@ -189,7 +194,8 @@ def test_yoy_and_derived_cells():
     h = DATA["economicIndicators"]["kr"]["cpi_kr"]["history"]
     k = DATA["economicIndicators"]["kr"]["cpi_kr"]["period"]
     want = round((h[k] / h[str(int(k[:4]) - 1) + k[4:]] - 1) * 100, 2)
-    assert _item(b["market-macro"], "cpi_kr_yoy")["value"] == want
+    assert _derived(b["market-macro"], "cpi_kr_yoy")["value"] == want
+    assert [x["id"] for x in b["market-macro"]["strip"]][:3] == ["cpi_kr", "base_rate_kr", "cpi_us"]   # 띠 = 읽는 값을 실은 원 지표
     assert _item(b["market-macro"], "unemployment")["asOf"] == DATA["economicIndicators"]["us"]["unemployment"]["period"][:7]
     jeonse = _item(b["market-realestate"], "avg_jeonse_price_kr")
     assert jeonse["scale"] == 1e5 and jeonse["unit"] == "억원"               # 천원 → 억원
@@ -209,10 +215,13 @@ def test_yoy_guard_over_50pct():
     k = leaf["period"]
     leaf["history"][str(int(k[:4]) - 1) + k[4:]] = leaf["history"][k] / 1.6          # 전년비 +60% 로 만든다
     b = bb.build_all(data, MER, NOW)
-    cpi = _item(b["market-macro"], "cpi_kr_yoy")
+    cpi = _derived(b["market-macro"], "cpi_kr_yoy")
     assert cpi["value"] is None and cpi["state"] == "missing" and cpi["guarded"] == 60.0
     assert any(i["path"] == "economicIndicators.kr.cpi_kr" and "전년비 60.0%" in i["note"] for i in b["_issues"])
-    assert _item(b["market-macro"], "cpi_us_yoy")["value"] is not None           # 범위 안은 그대로
+    us = data["economicIndicators"]["us"]["cpi_us"]
+    ago = str(int(us["period"][:4]) - 1) + us["period"][4:]
+    # 범위 안은 그대로 — 1년 전 지수가 없으면(2025-10 셧다운) 빈 값이 맞다(그 자리에서 깨지던 날짜 의존 단언, 2026-11-15)
+    assert (_derived(b["market-macro"], "cpi_us_yoy")["value"] is not None) == (ago in us["history"])
     m = bb.meta(data, MER, {}, NOW, b)
     assert any("cpi_kr 전년비 60.0% — 원본 이력 확인 필요" in (i.get("note") or "") for i in m["health"]["issues"])
     # 거시 띠의 수출 칸 = 절대값(억달러·월), 전년비는 note 로만

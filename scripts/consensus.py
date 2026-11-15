@@ -110,17 +110,35 @@ def _fmt(val, unit, how):
         return f"{'+' if v >= 0 else ''}{int(round(v))}K"
     if how == "raw1k":    # 천 호 — 나스닥은 '1.221M'
         return f"{val * 1000 if unit == 'M' else val:.1f}"
+    if how == "bn":       # 십억 단위 금액 — 나스닥은 '61.46B'
+        return f"{val:.2f}B"
     return str(val)
 
 
-def pick_row(rows, country, name, how):
-    """하루 묶음에서 그 지표 줄을 고른다. 고를 수 없으면 None(지어내지 않는다)."""
+def _single_is(row, how, memory):
+    """같은 이름이 한 줄만 온 날 — 그 줄이 how(short/long) 기준인지. 직전 값이 그 기준의 지난 발표값과 맞고(0.15 안)
+    다른 기준의 지난 발표값과는 멀 때(0.3 넘게)만 그렇다고 본다. 둘 중 하나라도 모르면 고르지 않는다(지어내지 않는다).
+    2026-11-10 미국 CPI: 1년 전(2025-10) 지수가 셧다운으로 없어 전년비 줄이 빠지고 전월비 한 줄(0.4%, 직전 0.6%)만 왔다 —
+    두 줄을 기다리던 고르기가 실패해 그 회차 발표값을 끝내 못 받았다."""
+    v = _num(row.get("previous"))[0]
+    same = (memory or {}).get(how)
+    other = (memory or {}).get("long" if how == "short" else "short")
+    if v is None or same is None or other is None:
+        return False
+    return abs(v - same) <= 0.15 and abs(v - other) > 0.3
+
+
+def pick_row(rows, country, name, how, memory=None):
+    """하루 묶음에서 그 지표 줄을 고른다. 고를 수 없으면 None(지어내지 않는다).
+    memory = {"short": 지난 전월(전기)비 발표값, "long": 지난 전년비 발표값} — 한 줄만 온 날 판별에 쓴다(_single_is)."""
     cand = [r for r in rows if r.get("country") == country and str(r.get("eventName", "")).strip().lower() == name]
     if how == "level":
         cand = [r for r in cand if _num(r.get("actual") or r.get("previous"))[1] != "%"]
         return cand[0] if len(cand) == 1 else None
     if how is None:
         return cand[0] if len(cand) == 1 else None
+    if len(cand) == 1 and memory:
+        return cand[0] if _single_is(cand[0], how, memory) else None
     if len(cand) != 2:     # 전월 · 전년 두 줄이 다 와야 가를 수 있다
         return None
     def size(r):
@@ -166,11 +184,12 @@ def _fetch_days(qs, fetch, pause, st, budget_s=None):
     return days
 
 
-def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_day, pause=0.4, days_out=None):
+def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_day, pause=0.4, days_out=None, hist=None):
     """일정 행에 fore(컨센서스) · act(발표값) · prev(직전)를 나스닥 값으로 채운다.
 
     full=True(일일 런)면 지난 62일 ~ 앞으로 10일을 다시 받고, 아니면 최근 6시간 안에 발표된 회차만 받는다.
     이번에 안 받은 회차는 직전 data.json 의 같은 (iso, 이름) 행에서 나스닥 값을 잇는다.
+    hist = 직전 consensusHistory.series — 같은 이름이 한 줄만 온 날의 판별(memory_for)에 쓴다.
     반환: 진단 dict (요청 수 · 실패 · 채운 행 수).
     """
     now = now or datetime.now(KST)
@@ -202,7 +221,7 @@ def apply_consensus(events, prev_events=None, full=False, now=None, fetch=fetch_
             continue
         country, name, how, fmt = mp
         q = query_date(ev)
-        row = pick_row(days[q], country, name, how) if q in days else None
+        row = pick_row(days[q], country, name, how, memory_for(hist or {}, CONSENSUS_MAP, ev.get("name"), q)) if q in days else None
         if row is None:
             old = carry.get((ev.get("iso"), ev.get("name")))
             if old:
@@ -244,7 +263,7 @@ _HIST_DAYS = 400          # 이만큼 지난 회차까지 둔다(1년 + 여유)
 _STATS_DAYS = 370         # 평소 폭은 최근 1년으로 잰다
 _BACKFILL_PER_RUN = 120   # 일일 런 한 번에 거꾸로 훑는 날 수(3번이면 1년)
 _BACKFILL_BUDGET_S = 300  # 거꾸로 훑기는 런마다 이 초 안에서만 — 느린 날 일일 런이 늘어지지 않게
-_UNIT = {"pct1": "%", "pct2": "%", "kd": "K", "raw1k": ""}
+_UNIT = {"pct1": "%", "pct2": "%", "kd": "K", "raw1k": "", "bn": "B"}
 
 
 def _val(n, how):
@@ -257,12 +276,42 @@ def _val(n, how):
     return round(v, 4)
 
 
-def harvest(days, series):
-    """하루 묶음들에서 짝 지표의 발표된 회차를 series[이름] 에 넣는다(조회일 q 가 같으면 새 값으로 바꾼다)."""
+def _pairs(table):
+    """(나라, 이름) → {"short": 열쇠, "long": 열쇠} — 같은 이름 두 줄을 나눠 받는 짝."""
+    out = {}
+    for k, (country, nm, how, _fmt) in table.items():
+        if how in ("short", "long"):
+            out.setdefault((country, nm), {})[how] = k
+    return out
+
+
+def _last_a(lst, q):
+    """기록에서 조회일 q 보다 앞선 가장 늦은 발표값."""
+    best = None
+    for x in lst or []:
+        if x.get("a") is not None and str(x.get("q", "")) < q and (best is None or x["q"] > best["q"]):
+            best = x
+    return best["a"] if best else None
+
+
+def memory_for(series, table, key, q):
+    """그 열쇠의 한 줄 판별용 기억 — 짝(전월 · 전년)의 조회일 q 앞 발표값."""
+    country, nm, how, _fmt = table[key]
+    if how not in ("short", "long"):
+        return None
+    pair = _pairs(table).get((country, nm)) or {}
+    return {h: _last_a(series.get(k), q) for h, k in pair.items()}
+
+
+def harvest(days, series, table=None):
+    """하루 묶음들에서 짝 지표의 발표된 회차를 series[이름] 에 넣는다(조회일 q 가 같으면 새 값으로 바꾼다).
+    조회일 오름차순으로 넣는다 — 한 줄만 온 날의 판별(memory)이 그 앞 회차 값을 본다."""
+    table = table or CONSENSUS_MAP
     added = 0
-    for q, rows in days.items():
-        for name, (country, nm, how, fmt) in CONSENSUS_MAP.items():
-            r = pick_row(rows, country, nm, how)
+    for q in sorted(days):
+        rows = days[q]
+        for name, (country, nm, how, fmt) in table.items():
+            r = pick_row(rows, country, nm, how, memory_for(series, table, name, q))
             if r is None:
                 continue
             a = _val(_num(r.get("actual")), fmt)
@@ -279,8 +328,9 @@ def harvest(days, series):
     return added
 
 
-def history_stats(series, today):
+def history_stats(series, today, table=None):
     """지표별 최근 1년 통계 — n(컨센서스 있는 회차) · meanAbs(평소 어긋나는 폭) · 높음/같음/낮음 횟수 · 단위."""
+    table = table or CONSENSUS_MAP
     lo = (today - timedelta(days=_STATS_DAYS)).isoformat()
     out = {}
     for name, lst in series.items():
@@ -290,7 +340,7 @@ def history_stats(series, today):
         d = [round(x["a"] - x["c"], 4) for x in both]
         out[name] = {"n": len(d), "meanAbs": round(sum(abs(v) for v in d) / len(d), 4),
                      "above": sum(1 for v in d if v > 1e-9), "same": sum(1 for v in d if abs(v) <= 1e-9),
-                     "below": sum(1 for v in d if v < -1e-9), "unit": _UNIT.get(CONSENSUS_MAP[name][3], "")}
+                     "below": sum(1 for v in d if v < -1e-9), "unit": _UNIT.get(table[name][3], "")}
     return out
 
 
@@ -330,3 +380,84 @@ def update_history(prev_hist, days, full=False, now=None, fetch=fetch_day, pause
 def date_from(iso):
     y, m, d = (int(x) for x in str(iso)[:10].split("-"))
     return datetime(y, m, d).date()
+
+
+# ── 공식 발표값 기록(읽는 값 개편, 기획서 3qh6Z7rw) ────────────────────────────
+# 화면 카드의 큰 숫자(전월비 · 전년비 · 증감)를 발표 기관 값으로 쓰려고, 일정 행과 따로 지표별 발표 회차를 모은다.
+# 일정에 없는 발표일(유로 GDP · 한국 광공업생산 등)도 받도록 일일 런마다 최근 _RECENT_SCAN 일을 다시 훑고,
+# 처음엔 1년을 거꾸로 채운다(consensusHistory 와 같은 방식). 열쇠 = read_values.RULES 의 off 이름.
+OFFICIAL_MAP = {
+    "kr_cpi_yoy": ("South Korea", "cpi", "long", "pct1"), "kr_cpi_mom": ("South Korea", "cpi", "short", "pct1"),
+    "kr_ppi_yoy": ("South Korea", "ppi", "long", "pct1"), "kr_ppi_mom": ("South Korea", "ppi", "short", "pct1"),
+    "kr_ip_yoy": ("South Korea", "industrial production", "long", "pct1"),
+    "kr_ip_mom": ("South Korea", "industrial production", "short", "pct1"),
+    "kr_retail_mom": ("South Korea", "retail sales", None, "pct1"),
+    "kr_gdp_yoy": ("South Korea", "gdp", "long", "pct1"), "kr_gdp_qoq": ("South Korea", "gdp", "short", "pct1"),
+    "kr_exports_yoy": ("South Korea", "exports", None, "pct1"),
+    "kr_ca": ("South Korea", "current account", None, "bn"),
+    "kr_rate": ("South Korea", "interest rate decision", None, "pct2"),
+    "us_cpi_mom": ("United States", "cpi", "short", "pct1"), "us_cpi_yoy": ("United States", "cpi", "long", "pct1"),
+    "us_core_cpi_mom": ("United States", "core cpi", "short", "pct1"),
+    "us_core_cpi_yoy": ("United States", "core cpi", "long", "pct1"),
+    "us_pce_mom": ("United States", "pce price index", "short", "pct1"),
+    "us_pce_yoy": ("United States", "pce price index", "long", "pct1"),
+    "us_core_pce_mom": ("United States", "core pce price index", "short", "pct1"),
+    "us_core_pce_yoy": ("United States", "core pce price index", "long", "pct1"),
+    "us_ppi_mom": ("United States", "ppi", "short", "pct1"), "us_ppi_yoy": ("United States", "ppi", "long", "pct1"),
+    "us_retail_mom": ("United States", "retail sales", "short", "pct1"),
+    "us_retail_yoy": ("United States", "retail sales", "long", "pct1"),
+    "us_ip_mom": ("United States", "industrial production", "short", "pct1"),
+    "us_ip_yoy": ("United States", "industrial production", "long", "pct1"),
+    "us_nfp": ("United States", "nonfarm payrolls", None, "kd"),
+    "us_unemp": ("United States", "unemployment rate", None, "pct1"),
+    "us_gdp": ("United States", "gdp", None, "pct1"),
+    "us_fed": ("United States", "fed interest rate decision", None, "pct2"),
+    "eu_cpi_yoy": ("Euro Zone", "cpi", "long", "pct1"), "eu_cpi_mom": ("Euro Zone", "cpi", "short", "pct1"),
+    "eu_gdp_yoy": ("Euro Zone", "gdp", "long", "pct1"), "eu_gdp_qoq": ("Euro Zone", "gdp", "short", "pct1"),
+    "eu_unemp": ("Euro Zone", "unemployment rate", None, "pct1"),
+    "de_hicp_yoy": ("Germany", "german hicp", "long", "pct1"), "de_hicp_mom": ("Germany", "german hicp", "short", "pct1"),
+    "de_gdp_yoy": ("Germany", "german gdp", "long", "pct1"), "de_gdp_qoq": ("Germany", "german gdp", "short", "pct1"),
+    "uk_cpi_yoy": ("United Kingdom", "cpi", "long", "pct1"), "uk_cpi_mom": ("United Kingdom", "cpi", "short", "pct1"),
+    "uk_unemp": ("United Kingdom", "unemployment rate", None, "pct1"),
+    "jp_cpi_yoy": ("Japan", "national cpi", "long", "pct1"), "jp_cpi_mom": ("Japan", "national cpi", "short", "pct1"),
+    "jp_unemp": ("Japan", "unemployment rate", None, "pct1"),
+    "jp_boj": ("Japan", "boj interest rate decision", None, "pct2"),
+    "cn_cpi_yoy": ("China", "cpi", "long", "pct1"), "cn_cpi_mom": ("China", "cpi", "short", "pct1"),
+    "cn_gdp_yoy": ("China", "gdp", "long", "pct1"), "cn_gdp_qoq": ("China", "gdp", "short", "pct1"),
+}
+_RECENT_SCAN = 10         # 일일 런마다 다시 훑는 최근 날 수 — 일정에 없는 발표일을 놓치지 않게
+
+
+def update_official(prev_off, days, full=False, now=None, fetch=fetch_day, pause=0.4):
+    """직전 공식값 기록 + 이번 런이 받은 묶음 (+ 일일 런: 최근 10일 다시 훑기 · 1년 거꾸로 채우기) → (새 기록, 진단)."""
+    now = now or datetime.now(KST)
+    today = now.date()
+    prev_off = prev_off if isinstance(prev_off, dict) else {}
+    series = {k: [dict(x) for x in v] for k, v in (prev_off.get("series") or {}).items()
+              if k in OFFICIAL_MAP and isinstance(v, list)}
+    st = {"requests": 0, "failed": 0, "added": 0}
+    got = dict(days)
+    floor = (today - timedelta(days=_HIST_DAYS)).isoformat()
+    scanned_to = prev_off.get("scannedTo")
+    if full:
+        recent = [(today - timedelta(days=i)).isoformat() for i in range(_RECENT_SCAN + 1)]
+        got.update(_fetch_days([q for q in recent if q not in got], fetch, pause, st))
+        if not st.get("blocked") and (not scanned_to or scanned_to > floor):
+            start = date_from(scanned_to) - timedelta(days=1) if scanned_to else today
+            qs, d = [], start
+            while len(qs) < _BACKFILL_PER_RUN and d.isoformat() >= floor:
+                if d.isoformat() not in got:
+                    qs.append(d.isoformat())
+                d -= timedelta(days=1)
+            back = _fetch_days(qs, fetch, pause, st, budget_s=_BACKFILL_BUDGET_S)
+            got.update(back)
+            if back:
+                scanned_to = min(back) if (st.get("blocked") or st.get("budgetHit")) else min(qs)
+    st["added"] += harvest(got, series, OFFICIAL_MAP)
+    for k in series:
+        series[k] = sorted((x for x in series[k] if x.get("q", "") >= floor), key=lambda x: x["q"])
+    off = {"series": series, "stats": history_stats(series, today, OFFICIAL_MAP), "scannedTo": scanned_to,
+           "source": SOURCE, "updatedAt": now.isoformat(timespec="minutes")}
+    st["scannedTo"] = scanned_to
+    st["series"] = sum(1 for v in series.values() if v)
+    return off, st
