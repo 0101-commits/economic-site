@@ -99,6 +99,15 @@ TOPIC_TAB = {
     "소비": "demand", "부동산": "demand", "시장": "growth",
 }
 
+# 거시 주제 · 단위 바로잡기(2026-11-15 읽는 값 개편 P4) — 옛 화면 표(js/app1.js macroIndicators)에 없는 지표는 분류가 비어
+# 전부 「경기」 탭에 섞였다(미국 PPI · 근원 CPI · 근원 PCE 가 물가 탭 밖). 영국 · 중국 CPI 값은 전년비 % 인데 단위가 「지수」였다.
+TOPIC_BY_ID = {
+    "ppi_us": "price", "core_cpi_us": "price", "core_pce_us": "price",
+    "retail_us": "demand", "nfp_us": "labor", "employed_kr": "labor",
+    "ff_target": "money", "household_debt_kr": "money", "mortgage_rate_kr": "money",
+}
+UNIT_BY_ID = {"cpi_uk": "% (전년 대비)", "cpi_cn": "% (전년 대비)"}
+
 # 라벨 표기 단일화(D5). 화면마다 달리 부르던 이름을 여기로 모은다.
 LABEL = {
     "KOSPI": "KOSPI", "KOSDAQ": "KOSDAQ", "SP500": "S&P 500", "NASDAQ": "NASDAQ",
@@ -406,8 +415,8 @@ def build(data, mer):
             desc = (ei[cc][key] or {}).get("desc")
             cat = (row or {}).get("cat") or ""
             add(id=key.lower(), label=LABEL.get(key.lower()) or (row or {}).get("name") or desc or key,
-                unit=(row or {}).get("unit"), asset="macro",
-                topic=TOPIC_TAB.get(cat, "growth"), cat=cat or None,
+                unit=UNIT_BY_ID.get(key.lower()) or (row or {}).get("unit"), asset="macro",
+                topic=TOPIC_BY_ID.get(key.lower()) or TOPIC_TAB.get(cat, "growth"), cat=cat or None,
                 country=cc, data=path, onScreen=bool(row) or on_screen(key))
 
     # 부동산

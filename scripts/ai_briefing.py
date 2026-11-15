@@ -74,6 +74,13 @@ def _chg(v):
         return "—"
 
 
+def _fed_range(upper):
+    """미국 기준금리 목표 범위 글 — 상단 4.0 → 「3.75~4.00%」(연준 범위 폭 0.25%p, 2008-12 이후)."""
+    if not isinstance(upper, (int, float)):
+        return "—"
+    return f"{upper - 0.25:.2f}~{upper:.2f}%"
+
+
 def build_snapshot(d):
     """LLM 프롬프트/규칙 기반 요약에 공통으로 쓰는 시장 스냅샷."""
     idx = d.get("indices") or {}
@@ -103,7 +110,9 @@ def build_snapshot(d):
         "WTI": com.get("WTI"),
         "Gold": com.get("Gold"),
         "VIX": (ei_us.get("vix") or {}).get("value"),
-        "미국기준금리": (ei_us.get("ff_rate") or {}).get("value"),
+        # 기준금리 = FOMC 목표 범위 상단(ff_target). 실효금리 월평균(ff_rate, 3.88%)은 「기준금리」로 읽히면 틀린 숫자다(2026-11-15)
+        "미국기준금리": (ei_us.get("ff_target") or {}).get("value") or (ei_us.get("ff_rate") or {}).get("value"),
+        "미국기준금리범위": (ei_us.get("ff_target") or {}).get("value") is not None,
         "FearGreed": fg.get("value"),
         "FearGreedLabel": fg.get("rating") or fg.get("label"),
     }
@@ -226,7 +235,7 @@ def rule_based_lines(snap):
     rate = snap.get("미국기준금리")
     vix = snap.get("VIX")
     line2 = (f"환율·금리 — 원/달러 {_num(fxk.get('rate'))}원 ({_chg(fxk.get('change'))}), "
-             f"미국 기준금리 {_num(rate)}%" + (f", VIX {_num(vix)}" if vix is not None else ""))
+             f"미국 기준금리 {_fed_range(rate) if snap.get('미국기준금리범위') else f'{_num(rate)}%'}" + (f", VIX {_num(vix)}" if vix is not None else ""))
 
     wti, gold = snap.get("WTI") or {}, snap.get("Gold") or {}
     fg_v, fg_l = snap.get("FearGreed"), snap.get("FearGreedLabel")
@@ -528,7 +537,8 @@ def build_sources(d, snap, now=None):
     if _isnum(vix.get("value")):
         add("지표", f"VIX {_num(vix['value'])}", "VIX", at=_md_dow(vix.get("period")))
     if _isnum(snap.get("미국기준금리")):
-        add("지표", f"미국 기준금리 {_num(snap['미국기준금리'])}%", "미국기준금리")
+        rate_txt = _fed_range(snap["미국기준금리"]) if snap.get("미국기준금리범위") else f"{_num(snap['미국기준금리'])}%"
+        add("지표", f"미국 기준금리 {rate_txt}", "미국기준금리")
     if _isnum(snap.get("한국기준금리")):
         gap = snap.get("한미기준금리차")
         add("지표", f"한국 기준금리 {_num(snap['한국기준금리'])}%" + (f" · 한미 차 {_signed_pp(gap)}" if _isnum(gap) else ""),

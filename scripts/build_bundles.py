@@ -93,7 +93,8 @@ STRIPS = {
     "global": ["sp500", "nasdaq", "sox", "nikkei", "shanghai", "hsi", "btc"],   # btc = 24시간 자산 — 알림 v2 A4(2026-10-05), 일곱째 칸
     "fxrates": ["usdkrw", "usdjpy", "jpykrw", "eurkrw", "us10y", "kr10y"],
     "commodities": ["wti", "brent", "gold", "silver", "copper", "natgas", "gold_premium"],
-    "macro": ["cpi_kr_yoy", "base_rate_kr", "cpi_us_yoy", "unemployment", "exports_kr", "gdp_growth_us"],
+    # 거시 띠는 읽는 값(read)을 실은 원 지표 — 옛 전년비 파생 칸(cpi_*_yoy)은 views.derived 로 옮겨 상세 · 관심 주소만 산다
+    "macro": ["cpi_kr", "base_rate_kr", "cpi_us", "unemployment", "exports_kr", "gdp_growth_us"],
     # 여섯째 칸은 기관 5일 누적 — 「외국인 보유 비중」 칸은 시장 전체 값을 어느 원천에서도 받지 않아(종목별 fholdRate 만)
     # 띠가 생긴 2026-10-01 부터 늘 「자료 없음」이었다(2026-10-09 점검).
     "flows": ["flow_foreign", "flow_inst", "flow_retail", "flow_foreign_5d", "nps_kr_equity", "flow_inst_5d"],
@@ -660,6 +661,12 @@ class Quotes:
         if not q:
             return {"id": ind_id, "label": ind_id, "value": None, "state": "missing"}
         out = {k: v for k, v in q.items() if not k.startswith("_")}
+        row = self.rows.get(ind_id) or {}
+        leaf = get(self.data, (row.get("data") or "").split(":")[0]) if row.get("data") else None
+        if isinstance(leaf, dict) and isinstance(leaf.get("read"), dict):
+            out["read"] = leaf["read"]               # 읽는 값(scripts/read_values.py) — 화면은 이 값을 큰 숫자로 쓴다
+            if row.get("country"):
+                out["country"] = row["country"]
         if spark:
             out["spark"] = [p[1] for p in q["_series"][-spark:]] or None
         if tail:
@@ -838,10 +845,31 @@ def calendar_events(data, now, days=None, cc=None):
     return sorted(out, key=lambda e: (e["date"], e["time"] or ""))
 
 
+_NO_REF = re.compile(r"금통위|FOMC|ECB|BOJ|일본은행|BOE|회의|결정|연설|의사록|기자회견|발언")
+
+
+def event_ref(name, iso):
+    """일정 줄의 기준 기간 — 월간 = 발표 달의 전달(「10월분」) · GDP = 발표일 10일 전까지 끝난 분기 · 금리 결정 · 연설 = 없음.
+    읽는 값(read_values.ref_of_release)과 같은 규칙이다."""
+    if not iso or _NO_REF.search(name or ""):
+        return None
+    try:
+        d = dt.date.fromisoformat(str(iso)[:10])
+    except ValueError:
+        return None
+    if "GDP" in (name or ""):
+        e = d - dt.timedelta(days=10)
+        q = (e.month - 1) // 3          # 지난 분기(0 이면 작년 4분기)
+        return "%d-Q%d" % (e.year - (q == 0), q or 4)
+    m = d.month - 1 or 12
+    return "%d-%02d" % (d.year - (d.month == 1), m)
+
+
 def all_events(data):
     return [{"date": e.get("iso"), "time": (e.get("dt") or "").split(" ")[-1] if " " in (e.get("dt") or "") else None,
              "cc": e.get("cc"), "name": event_name(e.get("name")), "stars": e.get("stars"), "prev": e.get("prev") or None,
-             "fore": e.get("fore") or None, "act": e.get("act") or None, "beat": e.get("beat")}
+             "fore": e.get("fore") or None, "act": e.get("act") or None, "beat": e.get("beat"),
+             "ref": event_ref(e.get("name"), e.get("iso"))}
             for e in ((data.get("economicCalendar") or {}).get("events") or [])]
 
 
@@ -1414,7 +1442,8 @@ def build_all(data, mer, now, toss=None):
             it = Q.item(r["id"], spark=0, tail=24)
             it["country"], it["topic"] = r.get("country"), r.get("topic")
             topics.setdefault(r.get("topic") or "growth", []).append(it)
-    b["market-macro"] = market("macro", {"topics": topics, "calendar": all_events(data)})
+    b["market-macro"] = market("macro", {"topics": topics, "calendar": all_events(data),
+                                         "derived": [derived[k] for k in ("cpi_kr_yoy", "cpi_us_yoy", "exports_kr_yoy") if k in derived]})
 
     # 수급
     nps = data.get("nps") or {}

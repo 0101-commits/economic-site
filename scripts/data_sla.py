@@ -87,7 +87,9 @@ _PERIOD_MONTHS = {"monthly": 1, "quarterly": 3, "annual": 12}
 # 주기 허용치에 더하는 경로별 공표 지연(일). 케이스실러는 두 달 뒤 마지막 화요일 공표라
 # 월간 70 일로는 정상 갱신 중에도 지연으로 뜬다. (한국 수출 달러액의 60일 여유는 2026-11-04 원천을 ECOS 관세청
 # 통관으로 바꾸며 지웠다 — 그 여유가 FRED OECD 계열의 2개월 지연을 '정상'으로 가리고 있었다.)
-EXTRA_LAG = [("realestate.us.case_shiller*", 30)]
+EXTRA_LAG = [("realestate.us.case_shiller*", 30),
+             # ONS 실업률 = 3개월 이동 평균(끝 달 기준) · 끝 달 뒤 약 7주에 발표 — 다음 발표 직전엔 기간 끝에서 ~79일(2026-11-15 76일 「낡음」)
+             ("economicIndicators.uk.unemployment_uk", 20)]
 DEFAULT_SLA = (60, "normal")
 
 # as-of 로 인정하는 키 (우선순위 순)

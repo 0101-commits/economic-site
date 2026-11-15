@@ -5,6 +5,7 @@
 //   배포  /economic-site/        → ./data.json · ./bundles/
 //         /economic-site/next/   → ../data.json · ../bundles/
 //   개발  /next/                 → /data.json · /bundles/   (vite.config 의 개발 서버가 저장소 루트에서 내준다)
+import type { Read } from './read'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { changeFromPct, marketCtx, type Market, type MarketCtx, type PeriodKey, type Pt } from './format'
 import { buildOf, changedBundles, homeCacheFrom, reloadDue, waitMs, HOME_CACHE_KEY, type Halt, type HomeCache } from './refresh'
@@ -201,6 +202,9 @@ export type StripItem = {
   spark?: number[] | null
   /** 시장 묶음 views 칸에만: [날짜, 값] 일별(월별) 시계열 */
   series?: Pt[] | null
+  /** 거시 · 부동산 칸: 읽는 값(lib/read.ts — 전년비 · 전월비 · 증감, 공식 발표값 우선) · 나라 열쇠(kr · us …) */
+  read?: Read
+  country?: string
 }
 
 /**
@@ -232,7 +236,7 @@ export type Flows = {
   rows?: (string | number | null)[][]; columns?: string[]
 }
 /** 경제 일정 한 줄. 이전·예측·실제는 단위가 붙은 글자다(「+0.4%」 · 「1275.0」 — 거시 달력), 없으면 null. beat = 실제가 예측보다 좋음 1 · 나쁨 -1. */
-export type Sched = { date: string; time?: string | null; cc?: string; name: string; stars?: number; prev?: string | null; fore?: string | null; act?: string | null; beat?: number | null; approx?: boolean }
+export type Sched = { date: string; time?: string | null; cc?: string; name: string; stars?: number; prev?: string | null; fore?: string | null; act?: string | null; beat?: number | null; approx?: boolean; ref?: string | null }
 export type News = { title: string; url: string; date?: string; topic?: string }
 /** 렌즈 트리거 한 줄: state crossed(돌파)·near(주시), level = 가장 가까운 임계값, distancePct = 임계까지 거리(%). unit 은 없으면 null 로 온다. */
 export type Trigger = { id: string; label: string; layer?: string; unit?: string | null; state: string; stateLabel?: string; value: number | null; asOf?: string | null; level: number | null; distancePct?: number | null }

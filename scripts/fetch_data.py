@@ -2219,7 +2219,8 @@ def fetch_fred_economic_indicators():
         # WPSFD4 = "Producer Price Index by Commodity: Final Demand" (월간, 2009.11=100)
         "ppi_us":      ("PPIFIS",          "미국 PPI 최종재 (월간, Final Demand)"),
         # 소매판매 — 캘린더 미국 소매판매 이벤트 백필용
-        "retail_us":   ("RSXFS",           "미국 소매판매 (수정후, 백만USD)"),
+        # 발표 · 컨센서스 기준 = 소매 · 음식점 전체(RSAFS). 음식점 제외(RSXFS)는 9월 +0.72% vs 발표 +0.8% 로 어긋났다(2026-11-15, D4)
+        "retail_us":   ("RSAFS",           "미국 소매판매 (소매·음식점 전체, 백만USD)"),
         # 비농업고용 (NFP, 월간 수준, 단위: 천명) — 캘린더 NFP 백필용
         "nfp_us":      ("PAYEMS",          "미국 비농업고용 (PAYEMS, 천명)"),
         # FOMC 목표금리 상한 (일간, 결정 즉시 반영) — FEDFUNDS(실효율)보다 정확
@@ -8652,23 +8653,32 @@ def build_data():
             # 컨센서스 · 공식 발표값 — 나스닥 경제 일정(scripts/consensus.py). FRED 로 채운 act 를 같은 자료원 값으로 덮는다
             # (컨센서스와 견줄 값은 같은 곳에서 — FRED 지수로 직접 계산한 CPI 전월비가 반올림으로 0.1%p 어긋났다).
             try:
-                from consensus import apply_consensus, update_history
+                from consensus import apply_consensus, update_history, update_official
                 _full = os.environ.get("AV_FETCH_FULL", "").strip() in ("1", "true", "yes")
                 _days = {}
-                _cst = apply_consensus(cal_data.get("events", []) or [], _prev_ev, full=_full, days_out=_days)
-                # 지난 회차 기록(평소 어긋나는 폭) — 직전 기록을 잇고, 일일 런은 1년치를 거꾸로 조금씩 훑어 채운다
+                # 지난 회차 기록(평소 어긋나는 폭) — 직전 기록을 잇고, 일일 런은 1년치를 거꾸로 조금씩 훑어 채운다.
+                # 같은 이름이 한 줄만 온 날(2026-11-10 미국 CPI)의 판별에도 이 기록을 쓴다.
                 _prev_hist = ((prev or {}).get("economicCalendar") or {}).get("consensusHistory")
+                _cst = apply_consensus(cal_data.get("events", []) or [], _prev_ev, full=_full, days_out=_days,
+                                       hist=(_prev_hist or {}).get("series"))
+                _prev_off = ((prev or {}).get("economicCalendar") or {}).get("officialHistory")
                 if not _cst.get("blocked"):
                     cal_data["consensusHistory"], _cst["history"] = update_history(_prev_hist, _days, full=_full)
-                elif _prev_hist:
-                    cal_data["consensusHistory"] = _prev_hist
+                    # 공식 발표값 기록 — 읽는 값(scripts/read_values.py)의 큰 숫자. 일일 런은 최근 10일 다시 훑기 + 1년 채우기
+                    cal_data["officialHistory"], _cst["official"] = update_official(_prev_off, _days, full=_full)
+                else:
+                    if _prev_hist:
+                        cal_data["consensusHistory"] = _prev_hist
+                    if _prev_off:
+                        cal_data["officialHistory"] = _prev_off
                 data.setdefault("diagnostics", {})["calendarConsensus"] = _cst
                 log(f"[Calendar] 컨센서스 {_cst}")
             except Exception as e:
                 log(f"[Calendar] 컨센서스 오류: {e}")
-                _ph = ((prev or {}).get("economicCalendar") or {}).get("consensusHistory")
-                if _ph and isinstance(cal_data, dict) and "consensusHistory" not in cal_data:
-                    cal_data["consensusHistory"] = _ph
+                for _hk in ("consensusHistory", "officialHistory"):
+                    _ph = ((prev or {}).get("economicCalendar") or {}).get(_hk)
+                    if _ph and isinstance(cal_data, dict) and _hk not in cal_data:
+                        cal_data[_hk] = _ph
             try:
                 _kq = fill_kostat_cpi_act(cal_data.get("events", []) or [], _prev_ev)
                 if _kq:
@@ -8804,6 +8814,16 @@ def build_data():
             log(f"[tombstone] 폐기 지표 제거: {', '.join(removed)} — 프론트는 '—' 표시")
     except Exception as e:
         log(f"[tombstone] 정리 오류 (무시): {e}")
+
+    # ── 읽는 값(read) — 지수 · 금액 원값을 전년비 · 전월비 · 증감으로(기획서 3qh6Z7rw). 모든 preserve 뒤라야
+    # 직전 값으로 이은 잎도 같은 규칙으로 다시 계산된다. 공식 발표값은 economicCalendar.officialHistory.
+    try:
+        import read_values
+        _rv = read_values.attach(data)
+        data.setdefault("diagnostics", {})["readValues"] = _rv
+        log(f"[read] 읽는 값 {_rv['filled']}개(공식 {_rv['official']}) · 대조 어긋남 {len(_rv['mismatch'])}")
+    except Exception as e:
+        log(f"[read] 읽는 값 오류 (무시): {e}")
 
     # ── 등락 종목 이상치 표시 · 시장별 기준일 통일 — 모든 preserve 가 끝난 뒤(보존 목록도 같은 규칙) ──
     try:
@@ -9629,18 +9649,18 @@ def _compute_change(history, key, mode="mom"):
     cur = history.get(key)
     if cur is None or cur == 0:
         return None
-    if mode == "mom":
-        if idx == 0:
-            return None
-        prev_key = keys_sorted[idx - 1]
-    else:  # yoy
-        if idx < 12:
-            return None
-        prev_key = keys_sorted[idx - 12]
-    prev_val = history.get(prev_key)
+    # 비교 기간은 날짜로 찾는다 — 칸 순서로 12칸 전을 세면 빠진 달(2025-10 미국 CPI, 셧다운)이 있을 때 13개월 전과
+    # 비교했다. 반올림은 소수 첫째 자리로 한 번만(사사오입) — 둘째 자리로 먼저 자르면 0.649 → 0.65 → +0.7% 로
+    # 공식 0.6% 와 어긋났다(2026-11-15 점검).
+    import read_values
+    ref = read_values.ref_of_key(key, "M")
+    if not ref:
+        return None
+    want = read_values.shift(ref, "M", -1 if mode == "mom" else -12)
+    prev_val = next((history[k] for k in keys_sorted if read_values.ref_of_key(k, "M") == want), None)
     if prev_val is None or prev_val == 0:
         return None
-    return round((cur - prev_val) / prev_val * 100, 2)
+    return read_values.rnd((cur - prev_val) / prev_val * 100, 1)
 
 
 def _get_by_path(obj, path):

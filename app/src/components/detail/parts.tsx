@@ -33,16 +33,16 @@ export function useCmp(id: string): [string, (next: string) => void, Cmp | null]
  * 흐름 패널: 기간 차트(주소 p) + 52주 범위. cmp 가 오면 두 선을 그 기간 첫 날 = 100 으로 바꿔 겹치고(전일선 · 기준선은 빼고),
  * 머리에 두 선 이름 범례와 「겹침 끄기」. fail = 시계열을 못 받았을 때 차트 대신 한 줄.
  */
-export function FlowPanel({ name, short, pts, decimals, value, base, limit, cmp, onCmpOff, fail, className }: {
+export function FlowPanel({ name, short, pts, decimals, value, base, limit, cmp, onCmpOff, fail, className, title = '흐름', noRange }: {
   name: string; short?: string; pts?: Pt[]; decimals: number; value: number | null; base?: Ref; limit?: Ref
-  cmp?: Cmp | null; onCmpOff: () => void; fail?: string; className?: string
+  cmp?: Cmp | null; onCmpOff: () => void; fail?: string; className?: string; title?: string; noRange?: boolean
 }) {
   const [p, setP] = useViewParam<PeriodKey>('p', '3m', PERIODS.map(o => o.key))
   const periods = slicePeriods(pts)
   const ov = cmp?.pts?.length ? overlay(periods, cmp.pts) : null
-  const r52 = range52(pts)
+  const r52 = noRange ? null : range52(pts)
   return (
-    <Panel className={className} title="흐름">
+    <Panel className={className} title={title}>
       {fail ? <p className="m-0 text-13 text-ink-3">{fail}</p> : ov ? (
         <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2 text-12">

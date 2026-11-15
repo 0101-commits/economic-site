@@ -40,6 +40,9 @@ UNREAD = [
     # 아직 안 싣는다. 이 칸은 일일 런이 채운 뒤에야 생겨, 시험 통과 표식이 캐시된 동안 게이트 실패가 가려져 있었다(2026-11-04 발견 —
     # scripts 를 바꾸는 다음 커밋에서 시험이 다시 돌며 수집·커밋 전체를 멈출 뻔했다).
     "economicCalendar.consensusHistory",
+    # 공식 발표값 기록(2026-11-15 읽는 값 개편) — read_values 가 읽어 잎마다 read 를 만든다(묶음은 그 read 를 싣는다).
+    # 일일 런이 처음 채운 뒤에야 생기는 칸이라 미리 면한다(위 consensusHistory 와 같은 함정)
+    "economicCalendar.officialHistory",
     # 버크셔 13F(2026-11-04 처음 수집 — SEC 연락처 시크릿) — 옛 화면 「주요 투자자」(_renderBerkshire)가 data.json 에서 직접 읽는다.
     # 새 앱엔 투자자 화면이 없어 묶음에 싣지 않는다.
     "berkshire",

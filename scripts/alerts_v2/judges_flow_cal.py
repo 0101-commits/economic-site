@@ -726,10 +726,24 @@ def monthly_new_value(ctx: Context, ev: dict) -> list[Hit]:
             if len(ks) < 2 or not 25 <= (ks[-1][0] - ks[-2][0]).days <= 100:
                 continue
             rid = by_path.get(f"economicIndicators.{region}.{key}", key)
-            hits.append(Hit(target=rid, dir="new", value=leaf.get("value"), unit=str(leaf.get("unit") or ""),
-                            asOf=str(leaf["period"]), fresh="prev", fields={
-                                "name": (ctx.registry.get(rid) or {}).get("label") or leaf.get("desc") or rid,
-                                "period": _period_ko(leaf["period"])}))
+            name = (ctx.registry.get(rid) or {}).get("label") or leaf.get("desc") or rid
+            value, unit = leaf.get("value"), str(leaf.get("unit") or "")
+            as_of, period = str(leaf["period"]), _period_ko(leaf["period"])
+            rd = leaf.get("read") if isinstance(leaf.get("read"), dict) else None
+            mv = (rd or {}).get("main") or {}
+            if mv.get("value") is not None:
+                # 읽는 값(scripts/read_values.py) — 지수 337.48 대신 「전월비 +0.4%」. 이름 = 나라 + 읽는 이름 + 기준.
+                # 값 글에 단위까지 붙여 넘긴다(compose.fmt_num 은 글자 값에 단위를 붙이지 않는다) · 기간 = 읽는 값 기간(공식값이 원값보다 새 달일 수 있다)
+                cn = {"kr": "한국", "us": "미국", "eu": "유로", "de": "독일", "uk": "영국", "jp": "일본", "cn": "중국"}.get(region, "")
+                name = " ".join(x for x in (cn, rd.get("name"), mv.get("short")) if x)
+                v, dec = mv["value"], mv.get("dec", 1)
+                value = (f"{v:+.{dec}f}" if mv.get("sign") else f"{v:.{dec}f}") + (mv.get("unit") or "")
+                unit = ""
+                as_of = str(rd.get("ref") or as_of)
+                q = re.fullmatch(r"(\d{4})-Q([1-4])", as_of)
+                period = f"{q.group(1)}년 {q.group(2)}분기" if q else _period_ko(as_of)
+            hits.append(Hit(target=rid, dir="new", value=value, unit=unit,
+                            asOf=as_of, fresh="prev", fields={"name": name, "period": period}))
     return _baseline(ctx, ev, _unseen(ctx, ev, hits))
 
 
