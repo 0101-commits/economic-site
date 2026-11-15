@@ -312,8 +312,15 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
             continue
         if c["event"] == "U1" and sides is None:
             continue
-        val = ctx.value(target)
-        sc = ctx.scale(target)
+        rm = ctx.read_main(target) if c.get("basis") == "read" else None
+        if c.get("basis") == "read":
+            # 읽는 값 기준 조건(2026-11-15~) — 사용자가 상세 화면에서 본 전월비 · 전년비와 같은 잣대. 읽는 값이 없으면 판정하지 않는다
+            if c["event"] != "U1" or rm is None:
+                continue
+            val, sc = float(rm["value"]), None
+        else:
+            val = ctx.value(target)
+            sc = ctx.scale(target)
         if val is not None and sc:
             val = float(val) / sc                # 화면 단위 — 조건 값은 사용자가 화면에서 본 그대로(엔/원 원본 9.3 → 930원)
         chg = ctx.change_pct(target)
@@ -334,8 +341,12 @@ def user_hits(ctx, prefs: dict | None, history: list[dict], render=None, log=pri
             crossed = met and prev in ("u", "d") and prev != side
             sides[key(c["id"])] = new
             if crossed:
-                hit = Hit(target=target, dir=d, value=val, unit="", asOf=ctx.as_of(target), fresh=ctx.fresh(target),
-                          chg=chg, fields={"dir_ko": U1_DIR_KO[d]})
+                shown = val
+                if rm:                           # 「+0.4%」 — 값 글에 단위까지(compose.fmt_num 은 글자 값에 단위를 붙이지 않는다)
+                    dec = rm.get("dec", 1)
+                    shown = (f"{val:+.{dec}f}" if rm.get("sign") else f"{val:.{dec}f}") + (rm.get("unit") or "")
+                hit = Hit(target=target, dir=d, value=shown, unit="", asOf=ctx.as_of(target), fresh=ctx.fresh(target),
+                          chg=chg, fields={"dir_ko": U1_DIR_KO[d], **({"basis": rm.get("short")} if rm else {})})
         elif c["event"] == "U2" and chg is not None:
             if abs(float(chg)) >= float(thr):
                 d = "up" if float(chg) > 0 else "down"

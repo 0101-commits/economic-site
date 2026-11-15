@@ -22,21 +22,22 @@ const REPEAT_OPTS = [{ key: 'each', label: '매번' }, { key: 'once', label: '�
 export const CAP_MSG = `조건은 ${ALERT_CAP}건까지 만들 수 있습니다. 알림 화면에서 안 쓰는 조건을 지우세요.`
 
 /** cur = 그 지표의 지금 값(화면 단위 — 사용자가 넣는 조건 값과 같은 잣대) — U1 조건의 그 순간 쪽(armSide)을 잰다. 모르면 비운다. unit = 그 화면 단위 말(bundle.ts unitWord) — 값 칸 꼬리. */
-export function BellSheet({ open, onClose, id, label, cur, unit }: { open: boolean; onClose: () => void; id: string; label: string; cur?: number | null; unit?: string }) {
+export function BellSheet({ open, onClose, id, label, cur, unit, basis }: { open: boolean; onClose: () => void; id: string; label: string; cur?: number | null; unit?: string; basis?: 'read' }) {
   return (
     <BottomSheet open={open} onClose={onClose} title={`${label} 알림 조건`}>
-      {open && <BellForm id={id} cur={cur} unit={unit} />}
+      {open && <BellForm id={id} cur={cur} unit={unit} basis={basis} />}
     </BottomSheet>
   )
 }
 
-function BellForm({ id, cur, unit }: { id: string; cur?: number | null; unit?: string }) {
+function BellForm({ id, cur, unit, basis }: { id: string; cur?: number | null; unit?: string; basis?: 'read' }) {
   const sync = useSyncStatus()
   const stock = watchKind(id) === 'stock'
   // 렌즈 묶음에 든 지표인지: 렌즈 사건(C1 · C2)은 그때만 낸다. 묶음을 못 받으면 없는 것으로 본다.
   const [lens, setLens] = useState<ReadonlySet<string>>(new Set())
   useEffect(() => { loadBundle<{ triggers?: { id: string }[] }>('lens').then(b => setLens(new Set((b.triggers ?? []).map(t => t.id))), () => {}) }, [])
-  const evs = useMemo(() => sheetEvents(dict, id, stock, lens), [id, stock, lens])
+  // 읽는 값 지표(basis read): 하루 등락률(U2)은 뜻이 없다(전월비의 하루 변화) — 값 넘기(U1) · 사건만 낸다
+  const evs = useMemo(() => sheetEvents(dict, id, stock, lens).filter(e => !(basis === 'read' && e.id === 'U2')), [id, stock, lens, basis])
   const [event, setEvent] = useState('')
   const ev = evs.find(e => e.id === event) ?? evs[0]
   const [dir, setDir] = useState<'up' | 'down'>('up')
@@ -65,7 +66,7 @@ function BellForm({ id, cur, unit }: { id: string; cur?: number | null; unit?: s
     e.preventDefault()
     const v = Number(value)
     const a: AlertCond = { id: condId(), event: ev.id, target: id, repeat, ring, enabled: true }
-    if (ev.id === 'U1') { if (value.trim() === '' || !Number.isFinite(v)) { setErr('값을 넣으세요.'); return } a.value = v; a.dir = dir }
+    if (ev.id === 'U1') { if (value.trim() === '' || !Number.isFinite(v)) { setErr('값을 넣으세요.'); return } a.value = v; a.dir = dir; if (basis) a.basis = basis }
     else if (ev.id === 'U2') { if (!(Math.abs(v) > 0)) { setErr('하루 등락률(%)을 넣으세요. 오름 · 내림 모두 봅니다.'); return } a.value = Math.abs(v) }
     if (swing && strength !== 'big') a.strength = strength
     if (level && level !== base) a.level = level

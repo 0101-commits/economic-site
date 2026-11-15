@@ -63,17 +63,17 @@ export function FlowPanel({ name, short, pts, decimals, value, base, limit, cmp,
 }
 
 /** 알림 패널 + 벨 시트. 주소에 bell=1 이 있으면 시트가 열린 채로 온다(넘침 게이트 · 공유용). what = 문장의 주어(「이 지표가」「이 종목이」). cur = 지금 값(화면 단위 — 조건 값과 같은 잣대, U1 armSide 용). unit = 그 화면 단위 말(값 칸 꼬리). */
-export function BellPanel({ id, name, what, cur, unit }: { id: string; name: string; what: string; cur?: number | null; unit?: string }) {
+export function BellPanel({ id, name, what, cur, unit, basis }: { id: string; name: string; what: string; cur?: number | null; unit?: string; basis?: 'read' }) {
   const [bell] = useViewParam<string>('bell', '')
   const [open, setOpen] = useState(bell === '1')
   return (
     <Panel title="알림">
-      <p className="m-0 mb-3 text-13 text-ink-2">{what} 정한 값을 넘거나 크게 움직이면 알려 드립니다.</p>
+      <p className="m-0 mb-3 text-13 text-ink-2">{what} 정한 값을 {basis === 'read' ? '넘으면' : '넘거나 크게 움직이면'} 알려 드립니다.</p>
       <button type="button" onClick={() => setOpen(true)}
         className="inline-flex items-center gap-1.5 h-9 px-3 rounded-btn bg-accent text-on-accent text-13 font-bold border-0 cursor-pointer">
         <BellPlus size={16} aria-hidden />알림 조건 추가
       </button>
-      <BellSheet open={open} onClose={() => setOpen(false)} id={id} label={name} cur={cur} unit={unit} />
+      <BellSheet open={open} onClose={() => setOpen(false)} id={id} label={name} cur={cur} unit={unit} basis={basis} />
     </Panel>
   )
 }

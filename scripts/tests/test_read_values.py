@@ -159,3 +159,38 @@ def test_compute_change_by_date():
     assert fd._compute_change(h, "2026-09-01", "yoy") == 0.6           # 0.649 → 반올림 한 번
     assert fd._compute_change(h, "2026-10-01", "yoy") is None          # 2025-10 없음 → 13개월 전과 비교하지 않는다
     assert fd._compute_change(h, "2025-11-01", "mom") is None          # 지난달(2025-10) 없음
+
+
+def test_official_backfill_also_on_hourly_runs():
+    """1년 채우기 전엔 매시 풀 런(full=False)도 20일씩 거꾸로 훑는다 — 다 채우면 요청 0."""
+    import datetime as dt
+    asked = []
+    now = dt.datetime(2026, 11, 15, 12, 0, tzinfo=consensus.KST)
+    off, st = consensus.update_official({"scannedTo": "2026-07-24"}, {}, full=False, now=now,
+                                        fetch=lambda q: asked.append(q) or [], pause=0)
+    assert len(asked) == consensus._BACKFILL_HOURLY and max(asked) == "2026-07-23" and off["scannedTo"] == min(asked)
+    asked.clear()
+    consensus.update_official({"scannedTo": "2025-10-01"}, {}, full=False, now=now, fetch=lambda q: asked.append(q) or [], pause=0)
+    assert asked == []
+
+
+def test_user_condition_on_read_value(monkeypatch):
+    """알림 조건(벨) basis=read — 지수(337.5)가 아니라 읽는 값(전월비 +0.4%)과 견준다. 옛 조건(basis 없음)은 그대로 원값."""
+    monkeypatch.setenv("ALERTS_STATE_SALT", "salt-for-test")
+    import datetime as dt
+    from alerts_v2 import compose, subscribe
+    from alerts_v2.context import Context
+    leaf = dict(_cpi_leaf(), read={"name": "소비자물가", "ref": "2026-10", "freq": "M",
+                                   "main": {"b": "mom", "short": "전월비", "value": 0.4, "unit": "%", "dec": 1, "sign": True}})
+    ctx = Context(now=dt.datetime(2026, 11, 15, 12, 0, tzinfo=consensus.KST), data={"economicIndicators": {"us": {"cpi_us": leaf}}},
+                  bundles={}, registry={"cpi_us": {"id": "cpi_us", "label": "미국 소비자물가", "dataPath": "economicIndicators.us.cpi_us"}}, mer={})
+    conds = [{"id": "r1", "event": "U1", "target": "cpi_us", "dir": "up", "value": 0.3, "basis": "read"},   # 0.4 ≥ 0.3 → 울림
+             {"id": "r2", "event": "U1", "target": "cpi_us", "dir": "up", "value": 1.0, "basis": "read"},   # 0.4 < 1.0
+             {"id": "r3", "event": "U2", "target": "cpi_us", "value": 1.0, "basis": "read"},               # 읽는 값엔 U2 없음
+             {"id": "o1", "event": "U1", "target": "cpi_us", "dir": "up", "value": 1.0}]                   # 옛 조건 = 지수 321 ≥ 1
+    sides = {c["id"]: {"side": "d"} for c in conds if c["event"] == "U1"}
+    prefs = {"alerts": [dict(c, enabled=True, repeat="each") for c in conds]}
+    rows = subscribe.user_hits(ctx, prefs, [], render=lambda ev, h: compose.render(ev, h, ctx), log=lambda *a: None, sides=sides)
+    assert sorted(r["cond"] for r in rows) == ["o1", "r1"]
+    r1 = next(r for r in rows if r["cond"] == "r1")
+    assert "+0.4%" in r1["title"] and "0.3" not in r1["title"]          # 임계값은 공개 원장에 없다(G5)

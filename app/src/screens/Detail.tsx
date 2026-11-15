@@ -137,7 +137,8 @@ function IndicatorDetail({ id }: { id: string }) {
         )}
 
         <div className="pc:col-span-4 flex flex-col gap-4">
-          <BellPanel id={id} name={name} what="이 지표가" cur={v} unit={unitWord(id, item?.unit ?? reg?.unit)} />
+          {rd ? <BellPanel id={id} name={name} what={rd.main.short ? `이 지표(${rd.main.short})가` : '이 지표가'} cur={rd.main.value} unit={`${rd.main.unit}${rd.main.short ? ` (${rd.main.short})` : ''}`} basis="read" />
+            : <BellPanel id={id} name={name} what="이 지표가" cur={v} unit={unitWord(id, item?.unit ?? reg?.unit)} />}
 
           {lens && t && (
             <Panel title="렌즈" source="메르 글 기준">
