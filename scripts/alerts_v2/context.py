@@ -178,6 +178,17 @@ class Context:
     def strip(self, target: str) -> dict | None:
         return self._strip.get(self.rid(target))
 
+    def read_main(self, target: str) -> dict | None:
+        """읽는 값의 큰 숫자 칸(scripts/read_values.py read.main) — 번들 칸 → 레지스트리 dataPath 잎. 없으면 None."""
+        s = self.strip(target)
+        rd = (s or {}).get("read")
+        if not isinstance(rd, dict):
+            row = self.row(target)
+            leaf = _get(self.data, row["dataPath"]) if row and row.get("dataPath") else None
+            rd = leaf.get("read") if isinstance(leaf, dict) else None
+        m = (rd or {}).get("main") if isinstance(rd, dict) else None
+        return m if isinstance(m, dict) and m.get("value") is not None else None
+
     def value(self, target: str):
         """현재값(화면 값과 같은 원천). 번들 띠 → 레지스트리 dataPath 순."""
         s = self.strip(target)

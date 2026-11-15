@@ -64,6 +64,7 @@ export type AlertCond = {
   id: string; event: string; target: string; strength?: Strength; value?: number; dir?: 'up' | 'down'
   level?: Level; repeat: 'each' | 'once'; ring?: boolean; enabled: boolean; armedAt?: string; name?: string
   armSide?: 'u' | 'd'                                            // U1 의 켠 순간 쪽(alertStatus.sideOf) — 비공개 /prefs 에만
+  basis?: 'read'                                                 // 읽는 값 기준(전월비 · 전년비 — lib/read.ts). 없으면 원값(지수 · 가격)
 }
 export type Updown = 'kr' | 'us'
 export type Settings = {

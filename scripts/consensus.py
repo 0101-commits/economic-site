@@ -426,6 +426,8 @@ OFFICIAL_MAP = {
     "cn_gdp_yoy": ("China", "gdp", "long", "pct1"), "cn_gdp_qoq": ("China", "gdp", "short", "pct1"),
 }
 _RECENT_SCAN = 10         # 일일 런마다 다시 훑는 최근 날 수 — 일정에 없는 발표일을 놓치지 않게
+_BACKFILL_HOURLY = 20     # 1년을 다 채우기 전엔 매시 풀 런도 이만큼 거꾸로 훑는다(60초 예산 — 다 채우면 0건)
+_BACKFILL_HOURLY_S = 60
 
 
 def update_official(prev_off, days, full=False, now=None, fetch=fetch_day, pause=0.4):
@@ -442,14 +444,17 @@ def update_official(prev_off, days, full=False, now=None, fetch=fetch_day, pause
     if full:
         recent = [(today - timedelta(days=i)).isoformat() for i in range(_RECENT_SCAN + 1)]
         got.update(_fetch_days([q for q in recent if q not in got], fetch, pause, st))
-        if not st.get("blocked") and (not scanned_to or scanned_to > floor):
-            start = date_from(scanned_to) - timedelta(days=1) if scanned_to else today
-            qs, d = [], start
-            while len(qs) < _BACKFILL_PER_RUN and d.isoformat() >= floor:
-                if d.isoformat() not in got:
-                    qs.append(d.isoformat())
-                d -= timedelta(days=1)
-            back = _fetch_days(qs, fetch, pause, st, budget_s=_BACKFILL_BUDGET_S)
+    if not st.get("blocked") and (not scanned_to or scanned_to > floor):
+        # 1년 채우기 — 일일 런은 120일(300초), 매시 풀 런은 20일(60초). 다 채우면 이 가지는 돌지 않는다
+        per, budget = (_BACKFILL_PER_RUN, _BACKFILL_BUDGET_S) if full else (_BACKFILL_HOURLY, _BACKFILL_HOURLY_S)
+        start = date_from(scanned_to) - timedelta(days=1) if scanned_to else today
+        qs, d = [], start
+        while len(qs) < per and d.isoformat() >= floor:
+            if d.isoformat() not in got:
+                qs.append(d.isoformat())
+            d -= timedelta(days=1)
+        if qs:
+            back = _fetch_days(qs, fetch, pause, st, budget_s=budget)
             got.update(back)
             if back:
                 scanned_to = min(back) if (st.get("blocked") or st.get("budgetHit")) else min(qs)
