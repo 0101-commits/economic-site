@@ -318,6 +318,8 @@ def build_read(leaf, rule, off_hist, stats):
     if prev is None and pref:
         po = moff.get(pref)
         prev = po["a"] if po else mcalc.get(pref)
+    if mf == "D" and prev is not None and rnd(prev, m["dec"]) == read["main"]["value"]:
+        prev = None          # 결정에서 안 바뀐 금리 — 「직전」은 마지막으로 달랐던 값(같은 숫자를 두 번 적지 않는다)
     if prev is None and mf == "D":
         older = sorted(r for r in set(mcalc) | set(moff) if r < ref)
         for r in reversed(older):

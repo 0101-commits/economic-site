@@ -1,5 +1,5 @@
 // 공통 패널 — 패널 머리 · 지표 띠 카드 · 순위 표 · 더 보기. ui.tsx 의 Card·AsOfBadge·BottomSheet·Boundary 위에 얹는다.
-import { asRead, fmtRead, prevWord } from '../lib/read'
+import { asRead, cellAt, fmtRead, prevWord } from '../lib/read'
 import { CalcTag } from './market/read'
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -137,7 +137,7 @@ export function StripCard({ item: raw, selected, onSelect, to, watched, onWatch,
       </span>
       {rd ? (
         <span className="block num text-12 mt-1 text-ink-3">
-          {[rd.main.short, rd.prev != null ? `${prevWord(rd.freq)} ${fmtRead({ ...rd.main, value: rd.prev })}` : ''].filter(Boolean).join(' · ') || ' '}
+          {[rd.main.short, rd.prev != null ? `${prevWord(rd.freq)} ${fmtRead(cellAt(rd.main, rd.prev))}` : ''].filter(Boolean).join(' · ') || ' '}
           {rd.main.src === 'calc' && <span className="ml-1 align-middle"><CalcTag /></span>}
         </span>
       ) : (

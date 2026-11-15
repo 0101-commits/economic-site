@@ -1,7 +1,7 @@
 // 읽는 값(lib/read.ts) 부품 — 거시 카드 · 큰 차트 머리 · 지표 상세 머리 · 발표값과 컨센서스 차트.
 // 카드 줄 차례(기획서 3qh6Z7rw 5절): 나라 · 이름 · 기준 기간 · 발표일 / 큰 숫자 + 기준 말 / 함께 보는 값 · 지난 값 / 컨센서스 / 작은 막대.
 import type { StripItem } from '../../lib/bundle'
-import { COUNTRY, consText, fmtRead, prevWord, refLabel, releasedLabel, type Read, type ReadCell } from '../../lib/read'
+import { COUNTRY, cellAt, consText, fmtRead, prevWord, refLabel, releasedLabel, type Read, type ReadCell } from '../../lib/read'
 import { Pill } from '../ui'
 
 /** 「계산」 꼬리표 — 공식 발표값이 아니라 지수로 계산한 값. */
@@ -36,7 +36,7 @@ function SubCell({ c }: { c: ReadCell }) {
 /** 둘째 · 셋째 줄 — 함께 보는 값 · 지난 값 / 컨센서스 대비. */
 export function ReadLines({ r }: { r: Read }) {
   const cons = consText(r)
-  const prev = r.prev != null ? fmtRead({ ...r.main, value: r.prev }) : null
+  const prev = r.prev != null ? fmtRead(cellAt(r.main, r.prev)) : null
   return (
     <>
       {(r.subs.length > 0 || prev) && (
@@ -47,7 +47,7 @@ export function ReadLines({ r }: { r: Read }) {
       )}
       {cons && (
         <span className="flex flex-wrap items-center gap-x-2 text-12 text-ink-2">
-          컨센서스 <b className="num font-bold text-ink-1">{fmtRead({ ...r.main, value: r.cons ?? null })}</b>
+          컨센서스 <b className="num font-bold text-ink-1">{fmtRead(cellAt(r.main, r.cons))}</b>
           <span>·</span><b className="font-bold text-ink-1">{cons}</b>
           {r.size && <Pill tone="n">평소보다 {r.size === '매우 큼' ? '매우 큰' : '큰'} 차이</Pill>}
         </span>

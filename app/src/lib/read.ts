@@ -24,6 +24,12 @@ export function fmtRead(c: Pick<ReadCell, 'value' | 'dec' | 'sign' | 'unit' | 'b
   return withUnit && c.unit ? body + c.unit : body
 }
 
+/** 같은 기준 · 단위로 다른 값(지난 값 · 컨센서스)을 적을 칸 — 범위면 하단도 그 값에 맞춰 옮긴다(상단 4.25 → 4.00~4.25). */
+export function cellAt(c: ReadCell, value: number | null | undefined): ReadCell {
+  const v = value ?? null
+  return { ...c, value: v, lo: c.b === 'range' && v != null && c.value != null && c.lo != null ? v - (c.value - c.lo) : c.lo }
+}
+
 /** 기준 기간 말: 2026-10 → 「10월분」 · 2026-Q3 → 「3분기」 · 2026-11-14 → 「11/14」. */
 export function refLabel(ref?: string | null): string {
   if (!ref) return ''
