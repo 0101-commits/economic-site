@@ -69,14 +69,14 @@
   name: 서킷브레이커
   family: A
   level: alarm
-  targets: [kospi, kosdaq]
-  default_on: [kospi, kosdaq]
-  judge: market_halt
-  params: {stages_pct: [-8, -15, -20], sidecar_pct: 2.5}
+  targets: [kospi]                # 코스닥 사이드카 · 서킷은 경보 없음(사용자 결정 2026-11-20) — 화면 이력에는 남는다
+  default_on: [kospi]
+  judge: market_halt              # 발동 = 거래소 공시만(kind_notices). 공시를 못 읽은 런만 서킷을 지수로 추정. 해제 알림 없음
+  params: {stages_pct: [-8, -15, -20]}
   run: light
-  cooldown: {per: [target, stage], days: 1}
-  title: "{name} {chg:+.1f}% {halt_kind} {stage_label}"
-  why: ["{peer} 동반 · {source}", "{source}"]
+  cooldown: {per: [target, halt_kind], days: 1}
+  title: "{name} {halt_kind} {verb}"
+  why: ["{at} · {halt_line}", "{at} {verb}"]
   next: ["다음 단계 {next_stage}%"]
   url: "#/market?a=kr"
 # ---- B 기록 · 마디 ----

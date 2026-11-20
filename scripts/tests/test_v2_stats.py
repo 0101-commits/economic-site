@@ -26,7 +26,7 @@ def test_rules_quiet_story_cap_and_morning_brief(tmp_path):
         _r(f"A5:kospi:enter:{d}.sidecar", "A5", "kospi", "alarm", f"{d}T09:21:00"),
         _r(f"A5:kospi:enter:{d}.circuit1", "A5", "kospi", "alarm", f"{d}T09:26:00"),          # 단계 오름
         _r(f"A1:kospi:down:{d}:t5", "A1", "kospi", "alarm", f"{d}T09:26:00"),                # 같은 이야기 낮은 단계
-        _r(f"A1:kosdaq:down:{d}:t5", "A1", "kosdaq", "alarm", f"{d}T09:30:00"),              # 같은 무리(국내 증시)
+        _r(f"A1:kosdaq:down:{d}:t5", "A1", "kosdaq", "alarm", f"{d}T09:30:00"),              # 코스닥 = 따로 한 이야기(D7)
         _r(f"A4:btc:down:{d}", "A4", "btc", "alert", f"{d}T10:00:00"),
         _r(f"B2:usdkrw:up:{d}", "B2", "usdkrw", "alert", f"{d}T11:00:00"),
         _r(f"E1:calendar:new:{d}", "E1", "calendar", "notice", f"{d}T12:00:00"),
@@ -36,12 +36,12 @@ def test_rules_quiet_story_cap_and_morning_brief(tmp_path):
     _day(str(tmp_path), d, rows)
     s = stats.build(dt.date(2026, 11, 6), root=str(tmp_path))
     assert s["days"] == 1 and s["from"] == d
-    # 보통: 아침 1 + 사이드카 1 + 서킷 1 + 비트코인 1 + 원·달러 1 = 5 (밤 주의 · 같은 이야기 · 안내 · 내 조건 · 꺼진 것 제외)
-    assert s["sim"]["normal:10:q"] == [5.0, 5]
-    assert s["sim"]["normal:10:n"] == [6.0, 6]                 # 조용한 시간 끔 = 밤 주의도 울림
-    assert s["sim"]["normal:1:q"] == [5.0, 5]                  # 상한 1: 비트코인 1 + 넘친 원·달러 묶음 1
-    assert s["sim"]["quiet:5:q"] == [3.0, 3]                   # 조용히 = 경보 + 아침
-    assert s["sim"]["many:15:q"] == [6.0, 6]                   # 많이 = 안내(그때 켜져 있던 E1)도 한 통
+    # 보통: 아침 1 + 사이드카 1 + 서킷 1 + 코스닥 1 + 비트코인 1 + 원·달러 1 = 6 (밤 주의 · 같은 이야기 · 안내 · 내 조건 · 꺼진 것 제외)
+    assert s["sim"]["normal:10:q"] == [6.0, 6]
+    assert s["sim"]["normal:10:n"] == [7.0, 7]                 # 조용한 시간 끔 = 밤 주의도 울림
+    assert s["sim"]["normal:1:q"] == [6.0, 6]                  # 상한 1: 비트코인 1 + 넘친 원·달러 묶음 1
+    assert s["sim"]["quiet:5:q"] == [4.0, 4]                   # 조용히 = 경보 + 아침
+    assert s["sim"]["many:15:q"] == [7.0, 7]                   # 많이 = 안내(그때 켜져 있던 E1)도 한 통
 
 
 def test_write_file_and_empty_ledger(tmp_path):

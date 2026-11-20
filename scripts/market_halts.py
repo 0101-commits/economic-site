@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 """시장중단(서킷브레이커·사이드카) 감지 — fetch_data.py 가 호출해 data.json.marketHalts 생성.
 
-감지 2겹(정직성 — 무료 실시간 공식 피드 없어 best-effort):
-  1겹(확실·무의존): 이미 수집한 KOSPI/KOSDAQ 지수 등락률(전일比 %)로 서킷브레이커 단계 추정.
-       임계 -8/-15/-20% = 1/2/3단계 (한국 CB 는 하락 전용).
-  2겹(best-effort): NAVER 뉴스에서 '서킷브레이커/사이드카 발동' 헤드라인 감지 → CB 확정 +
-       사이드카(선물 ±5/6% — 1겹으로 못 잡음) 포착. NAVER 키 없으면 건너뜀(날조 금지).
+발동은 거래소 공시만 만든다(2026-11-20, 기획 4ioDhgSA ① · 결정 D1~D3):
+  ① KRX KIND 「오늘의 공시」 시장조치 공시(kind_notices.recent) — 사이드카 · 서킷 모두. 화면 이력도 이것.
+  ② 공시를 못 읽은 런만: 지수 등락률(전일 종가 대비)로 서킷 단계를 「추정」(source=index). 사이드카는 추정하지 않는다.
+옛 뉴스 헤드라인 경로(「사이드카 발동」 검색 + 현물 ±2.5% 교차검증)는 지웠다 — 10/1~11/20 사이드카 · 서킷 경보 34건 중
+18건이 오보였고 전부 이 경로였다(실제 발동 20건은 공시와 1분 안에 맞는다).
 
 직전 data.json 의 active 를 이월: 파이프라인이 10분 주기라 짧은 발동을 놓치지 않도록
 resumeAt 전까지 active 유지, 지나면 history 로 이동.
@@ -25,10 +25,6 @@ CB_RULES = [
     (1, -8.0, 20, 10, False),
 ]
 SIDECAR_HALT_MIN = 5
-# 뉴스 사이드카를 믿는 지수 등락 하한(|전일比 %|). 사이드카 = KOSPI200 선물 ±5%(KOSDAQ: 선물 ±6% + 150지수 ±3%)
-# 라 현물 지수도 크게 움직인 날에만 가능하다. 헤드라인은 '발동'이 부정문·회고 기사에도 들어간다(2026-09-30).
-# ponytail: 현물 대리 문턱 — 선물 시세를 받게 되면 선물 ±5/6% 로 바꾼다.
-SIDECAR_CORROB_PCT = 2.5
 SRC_RANK = {"krx": 3, "naver": 2, "index": 2, "news": 1}
 # 가짜로 확정된 과거 서킷 기록 — 이력·이월에서 뺀다(2026-09-30). 근거 = Yahoo ^KS11 일봉의 그날 저가(전일 종가 대비).
 # 산식 버그가 남긴 것이고(check_halts._yahoo_quote docstring), 과거 저가 자료가 파이프라인에 없어 규칙으로 재판정하지
@@ -111,58 +107,22 @@ def cb_from_index(market, change_pct, now):
     return None
 
 
-def scrape_market_halts(now):
-    """best-effort: NAVER 뉴스에서 최근 40분 내 '발동' 헤드라인으로 CB/사이드카 감지.
-    오탐 방지: 최근성 + 키워드 동시 요구. NAVER_CLIENT_ID/SECRET 없으면 [](날조 금지).
-    뉴스원은 정확한 시각/사유 불명 → approx=True, 시각은 기사 발행시각 근사."""
-    cid = os.environ.get("NAVER_CLIENT_ID", "").strip()
-    csec = os.environ.get("NAVER_CLIENT_SECRET", "").strip()
-    if not cid or not csec:
+def fetch_notices(now):
+    """오늘 시장조치 공시(kind_notices 사건 dict 목록) — 못 읽으면 None(→ 지수 서킷 추정만).
+
+    평일 08:50~18:00 KST 밖이면 [](읽을 것 없음). KIND_OFFLINE=1 이면 None(시험 · 재생 — 네트워크 없이 지수 길만)."""
+    if os.environ.get("KIND_OFFLINE") == "1":
+        return None
+    t = now.astimezone(KST)
+    hm = t.hour * 60 + t.minute
+    if t.weekday() >= 5 or not (8 * 60 + 50 <= hm <= 18 * 60):
         return []
     try:
-        import requests
-        from urllib.parse import quote
-    except Exception:
-        return []
-    out = []
-    for typ, kw in (("circuit", "서킷브레이커 발동"), ("sidecar", "사이드카 발동")):
-        try:
-            r = requests.get(
-                "https://openapi.naver.com/v1/search/news.json"
-                f"?query={quote(kw)}&display=10&sort=date",
-                headers={"X-Naver-Client-Id": cid, "X-Naver-Client-Secret": csec},
-                timeout=12)
-            if r.status_code != 200:
-                continue
-            items = (r.json() or {}).get("items") or []
-        except Exception:
-            continue
-        for it in items:
-            text = re.sub(r"<[^>]+>", "",
-                          (it.get("title") or "") + " " + (it.get("description") or ""))
-            if "발동" not in text:
-                continue
-            try:
-                pub = datetime.datetime.strptime(it.get("pubDate", ""), "%a, %d %b %Y %H:%M:%S %z")
-            except (ValueError, TypeError):
-                continue
-            if (now - pub).total_seconds() > 2400:        # 40분 초과 = 과거 기사
-                continue
-            market = "KOSDAQ" if "코스닥" in text else "KOSPI"
-            down = any(w in text for w in ("하락", "급락", "폭락", "매도"))
-            out.append({
-                "id": _halt_id(typ, market, now.strftime("%Y%m%d")),
-                "type": typ, "market": market,
-                "stage": (1 if typ == "circuit" else None),
-                "direction": "down" if down else "up",
-                "reason": text[:60].strip(),
-                "triggeredAt": pub.isoformat(),
-                "resumeAt": (pub + datetime.timedelta(
-                    minutes=(SIDECAR_HALT_MIN if typ == "sidecar" else 30))).isoformat(),
-                "endOfDay": False, "source": "news", "approx": True,
-            })
-            break                                          # 종류별 1건이면 충분
-    return out
+        import kind_notices
+        return kind_notices.recent(now, lookback_min=10 * 60, max_pages=12)
+    except Exception as e:                                 # noqa: BLE001 — 접속 · 형식 오류 = 못 읽음
+        _log(f"[halts] 거래소 공시 읽기 실패: {type(e).__name__} {str(e)[:80]}")
+        return None
 
 
 def _merge(a, b):
@@ -234,31 +194,15 @@ def detect_market_halts(data, prev, now=None):
     # 등락률을 하나도 못 구하면 감지가 '깜깜이'로 돈 것 → stale 로 표시해
     # 소비측(check_halts)이 지수기반 신규 발동을 보류하게 한다(부분실패로 보존된 옛 값 오탐 방지).
     have_index = any(c is not None for c in changes.values())
-    for market in ("KOSPI", "KOSDAQ"):
-        ev = cb_from_index(market, changes[market], now)
-        if ev:
-            candidates.append(ev)
-    # 뉴스는 사건을 만들지 못하고 확인만 한다(2026-09-30 오발송: 「사이드카는 한 차례도 발동(되지 않았다)」
-    # 기사 하나로 19:48 에 사이드카 + 서킷 1단계가 나갔다 — 그날 KOSPI -0.48%).
-    #   서킷: 같은 id 의 지수 사건(-8%·세션 게이트 통과)이 있을 때만.
-    #   사이드카: 정규장 중 + 같은 시장 지수가 ±SIDECAR_CORROB_PCT 이상 움직였을 때만.
-    index_ids = {ev["id"] for ev in candidates}
-    try:
-        news = scrape_market_halts(now) or []
-    except Exception as e:
-        _log(f"[halts] 스크레이프 실패(무시): {e}")
-        news = []
-    for ev in news:
-        m = ev.get("market")
-        chg = changes.get(m)
-        if ev.get("type") == "circuit":
-            ok = ev["id"] in index_ids
-        else:
-            ok = _in_session(now) and chg is not None and abs(chg) >= SIDECAR_CORROB_PCT
-        if ok:
-            candidates.append(dict(ev, corroborated=True))
-        else:
-            _log(f"[halts] 뉴스 {ev.get('type')} 무시: 지수 교차검증 실패({m} {chg if chg is None else round(chg, 2)}%): {ev.get('reason', '')[:40]}")
+    notices = fetch_notices(now)
+    kind_ok = notices is not None
+    if kind_ok:
+        candidates.extend(dict(h) for h in notices)
+    else:                                              # 공시를 못 읽은 런 — 서킷만 지수로 추정(D3), 사이드카는 없음
+        for market in ("KOSPI", "KOSDAQ"):
+            ev = cb_from_index(market, changes[market], now)
+            if ev:
+                candidates.append(ev)
 
     by_id = {}
     for ev in candidates:
@@ -269,6 +213,8 @@ def detect_market_halts(data, prev, now=None):
         if hid in by_id:
             by_id[hid] = _merge(by_id[hid], h)
             continue
+        if kind_ok and h.get("source") != "krx":
+            continue                                   # 공시가 정답 — 공시에 없는 추정 사건은 끝
         if h.get("endOfDay"):
             keep = h.get("triggeredAt", "")[:10] == now.strftime("%Y-%m-%d")
         else:
@@ -279,8 +225,20 @@ def detect_market_halts(data, prev, now=None):
         if keep:
             by_id[hid] = h
 
-    active = sorted(by_id.values(), key=lambda x: x.get("triggeredAt", ""))
+    def _still(h):
+        if h.get("endOfDay"):
+            return str(h.get("triggeredAt", ""))[:10] == now.strftime("%Y-%m-%d")
+        try:
+            return bool(h.get("resumeAt")) and datetime.datetime.fromisoformat(h["resumeAt"]) > now
+        except (ValueError, TypeError):
+            return False
+
+    done = [h for h in by_id.values() if h.get("source") == "krx" and not _still(h)]
+    active = sorted((h for h in by_id.values() if h not in done), key=lambda x: x.get("triggeredAt", ""))
     active_ids = {h["id"] for h in active}
+    for h in done:                                     # 공시로 처음 본 사건이 이미 풀렸다(10분 런 사이) — 바로 이력
+        if h["id"] not in prev_active and not any(x.get("id") == h["id"] for x in history):
+            history.insert(0, dict(h, resolvedAt=h.get("resumeAt") or now.isoformat()))
 
     # 직전 active 중 사라진 것 = 해제 → history(중복 갱신, 최신순 30건)
     for hid, h in prev_active.items():

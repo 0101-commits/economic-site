@@ -119,7 +119,9 @@ def close_brief_ahead(ctx, s: dict) -> bool:
 # 나머지는 원장에 이야기 이름표(sent.story)만 달아 알림 기록 카드에 모은다. 아이폰 웹 푸시는 같은 tag 로 보내도
 # 앞 알림을 바꿔 끼우지 않아(11/6 실기기) 「조용히 고쳐 쓰기」는 쓰지 않는다.
 STORY_EVENTS = ("A1", "A2", "A3", "A4", "A5", "B2", "C3", "C4", "C7")
-STORY_GROUP = {"kospi": "kr", "kosdaq": "kr", "sp500": "us", "nasdaq": "us", "sox": "us"}
+# 코스닥은 국내 증시 이야기에서 뗀다(D7, 2026-11-20) — 11/20 09:17 코스닥 급변이 「국내 증시」 첫 단계를 차지해 09:21 코스피
+# 급락 알림이 폰에 안 갔다. 코스닥은 자기 이름(대상)으로 따로 묶인다.
+STORY_GROUP = {"kospi": "kr", "sp500": "us", "nasdaq": "us", "sox": "us"}
 
 
 def story_key(row: dict) -> str | None:
@@ -135,7 +137,7 @@ def story_rank(row: dict) -> float:
     key = str(row.get("key") or "")
     if m := re.search(r"\.circuit(\d)", key):
         return 20 + int(m.group(1))
-    if key.endswith(".sidecar"):
+    if re.search(r"\.sidecar(-up|-down)?$", key):
         return 15
     base = {"alarm": 12, "alert": 11}.get(str(row.get("level") or ""), 10)
     if m := re.search(r":t(\d+(?:\.\d+)?)$", key):    # 지수 급변 고정 단계(±3% → ±5%)도 단계 오름(P4)
