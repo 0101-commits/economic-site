@@ -11,6 +11,7 @@ import argparse
 import copy
 import datetime as dt
 import os
+os.environ.setdefault("KIND_OFFLINE", "1")             # 지난 날 재생은 거래소 공시를 실제로 부르지 않는다(지수 길만)
 import statistics
 import sys
 import tempfile

@@ -107,10 +107,11 @@ def cb_from_index(market, change_pct, now):
     return None
 
 
-def fetch_notices(now):
+def fetch_notices(now, lookback_min=10 * 60, max_pages=12, timeout=8.0):
     """오늘 시장조치 공시(kind_notices 사건 dict 목록) — 못 읽으면 None(→ 지수 서킷 추정만).
 
-    평일 08:50~18:00 KST 밖이면 [](읽을 것 없음). KIND_OFFLINE=1 이면 None(시험 · 재생 — 네트워크 없이 지수 길만)."""
+    평일 08:50~18:00 KST 밖이면 [](읽을 것 없음). KIND_OFFLINE=1 이면 None(시험 · 재생 — 네트워크 없이 지수 길만).
+    수집 런(10분)은 하루치(기본값)를 읽어 화면 이력을 채우고, 매분 판정 런은 30분 · 2쪽만 읽는다(호출 한도 모름 — 기획 부록)."""
     if os.environ.get("KIND_OFFLINE") == "1":
         LAST_READ[0] = "skip"
         return None
@@ -121,7 +122,7 @@ def fetch_notices(now):
         return []
     try:
         import kind_notices
-        out = kind_notices.recent(now, lookback_min=10 * 60, max_pages=12)
+        out = kind_notices.recent(now, lookback_min=lookback_min, max_pages=max_pages, timeout=timeout)
         LAST_READ[0] = "ok"
         return out
     except Exception as e:                                 # noqa: BLE001 — 접속 · 형식 오류 = 못 읽음
@@ -164,8 +165,9 @@ def detect_market_halts(data, prev, now=None):
     now = now or datetime.datetime.now(KST)
     prev_halts = (prev or {}).get("marketHalts") or {}
     # 교차검증 없이 들어간 옛 뉴스 사건(2026-09-30 오탐 2건)과 _FALSE_HALTS 는 이월·이력에서 뺀다 — 화면 '매매중단 이력'에 남지 않게.
-    trusted = lambda h: (isinstance(h, dict) and h.get("id") not in _FALSE_HALTS
-                         and (h.get("source") != "news" or h.get("corroborated")))
+    # 뉴스 사건은 교차검증(corroborated)이 붙었어도 뺀다 — 2026-11-20 개편 전 뉴스 경로의 오보(11/20 09:42 · 10:21 등)가
+    # 화면 이력에 남지 않게. 발동은 이제 거래소 공시(source krx)만 만든다.
+    trusted = lambda h: (isinstance(h, dict) and h.get("id") not in _FALSE_HALTS and h.get("source") != "news")
     prev_active = {h["id"]: h for h in prev_halts.get("active", []) if trusted(h) and h.get("id")}
     history = [h for h in prev_halts.get("history", []) if trusted(h)]
 

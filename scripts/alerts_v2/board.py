@@ -305,7 +305,7 @@ def build(slot: str, ctx, ledger, holiday: str = "", closed: bool = False, held:
         kq = next((r for r in kr if r["key"] == "kosdaq"), None)
         f_txt = f"외국인 {eok(inv['foreign'])}" if inv and inv.get("foreign") is not None else ""
         kacts = [a for a in acts if a["market"] == "KOSPI"]
-        a_txt = kacts[-1]["kind"] if kacts else (f"코스닥 {acts[-1]['kind']}" if acts else "")
+        a_txt = kacts[-1]["kind"] if kacts else ""          # 코스닥 조치는 폰 본문에 안 쓴다(경보에서 뺀 것 — 카드에만)
         k_txt = f"코스닥 {_pct1(kq['chg'])}" if kq and kq["chg"] is not None else ""
         body = [" · ".join(x for x in (a_txt, f_txt) if x), " · ".join(x for x in (k_txt, f_txt) if x), f_txt, k_txt]
         meta = f"{date_ko} {now:%H:%M}" if slot == "noon" else f"{date_ko} 15:30 마감"

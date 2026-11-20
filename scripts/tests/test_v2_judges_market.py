@@ -143,6 +143,15 @@ def test_market_halt_sidecar_from_kind_only_kospi():
     assert r["title"].endswith(" 매도 사이드카 발동") and r["body_push"] == "10:01 · 코스피200 선물 −5.04%", r
 
 
+def test_market_halt_old_notice_not_sent_late():
+    """원장에 없던 옛 공시(배포 직후 · 공시 읽기 회복 · 밤 런) — 발동 30분이 지났으면 경보를 만들지 않는다."""
+    c = ctx()
+    c._kind_cache = [_notice(at="2026-10-05T09:59:00+09:00")]          # 31분 전
+    assert hits(c, "A5") == []
+    c._kind_cache = [_notice(at="2026-10-05T10:01:00+09:00")]          # 29분 전
+    assert len(hits(c, "A5")) == 1
+
+
 def test_market_halt_kind_read_no_index_estimate():
     """공시를 읽었으면 지수 −8.4% 여도 서킷을 추정하지 않는다 — 공시가 정답."""
     c = ctx()
@@ -171,8 +180,8 @@ def test_market_halt_circuit_resume_line_and_no_exit():
     c.data["marketHalts"]["history"] = [dict(_notice(at="2026-10-05T09:30:00+09:00"),
                                              resolvedAt="2026-10-05T09:35:00+09:00")]
     h = {x.asOf: x for x in hits(c, "A5")}
-    assert set(h) == {"2026-10-05.circuit1", "2026-10-05.sidecar-down"}     # 풀린 사이드카도 발동 행(해제 행은 없음)
-    assert all(x.dir == "enter" for x in h.values())
+    assert set(h) == {"2026-10-05.circuit1"}                  # 1시간 전 사이드카 = 30분 넘은 공시 — 늦은 경보로 안 낸다
+    assert all(x.dir == "enter" for x in h.values())          # 해제 행은 없다
     r = compose.render(EVS["A5"], h["2026-10-05.circuit1"], c)
     assert r["title"].endswith(" 서킷브레이커 1단계 발동") and r["body_push"] == "10:12 · 10:32까지 거래 멈춤", r
 

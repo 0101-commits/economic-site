@@ -514,7 +514,7 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
             or _moves(spec, pub_title)
     public_lines = [x if x and not compose.has_relative_time(x) else "" for x in (pub_ai, pub_mid)]
     try:
-        png = cards.brief_card_png(spec)
+        png = cards.board_card_png(_board_spec(spec))   # 시간띠 없는 시세판(2026-11-20) — 저녁 · 미국 개장 · 주간도 같은 틀
     except Exception as e:                             # noqa: BLE001 — 카드가 죽어도 브리핑은 나간다(카톡은 텍스트, 경고 남음)
         print(f"[v2 brief] 카드 렌더 실패: {type(e).__name__} {str(e)[:120]}")
         png = None
@@ -524,6 +524,20 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     return {"title": title, "lines": lines, "items": items, "card_png": png, "held_rows": held,
             "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links,
             "caption": lines[0], "card_info": spec["info"], "public_title": pub_title, "public_lines": public_lines}
+
+
+def _board_spec(spec: dict) -> dict:
+    """옛 카드 재료(칸 ≤4 · 다음 일정) → B안 시세판 spec. 시간띠는 싣지 않는다(사용자: 시간띠 카드 별로, 2026-11-20)."""
+    rows = []
+    for t in spec.get("tiles") or []:
+        c = t.get("chg")
+        pct = isinstance(c, (int, float)) and not str(t.get("big") or "").endswith(("조", "억", "bp"))
+        rows.append({"name": t.get("label", ""), "sub": t.get("sub", ""), "big": t.get("big", ""), "chg": c,
+                     "bar": (c / 6) if pct else None})
+    secs = [{"head": spec.get("meta", ""), "rows": rows}]
+    if spec.get("next"):
+        secs.append({"head": "다음 일정", "rows": [{"name": spec["next"], "big": "", "plain": True}]})
+    return {"title": spec.get("title", ""), "meta": "", "sections": secs, "foot": spec.get("foot", "ecom")}
 
 
 def _personal(r: dict) -> bool:

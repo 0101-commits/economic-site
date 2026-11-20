@@ -360,6 +360,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     now = dt.datetime.fromisoformat(args.now) if args.now else dt.datetime.now(KST)
+    if args.now:                                     # 검사용 시각 = 지난 장면 재생 — 거래소 공시를 실제로 부르지 않는다
+        os.environ.setdefault("KIND_OFFLINE", "1")
     if now.tzinfo is None:
         now = now.replace(tzinfo=KST)
     if args.mode == "brief":

@@ -402,8 +402,22 @@ def _kind_today(ctx: Context):
     """이번 런의 거래소 시장조치 공시(market_halts.fetch_notices) — None = 못 읽음. 런에 한 번만 읽는다.
     시험은 ctx._kind_cache 에 목록(또는 None)을 넣어 둔다."""
     if not hasattr(ctx, "_kind_cache"):
-        ctx._kind_cache = market_halts.fetch_notices(ctx.now)
+        ctx._kind_cache = market_halts.fetch_notices(ctx.now, lookback_min=HALT_FRESH_MIN, max_pages=2, timeout=5.0)
     return ctx._kind_cache
+
+
+HALT_FRESH_MIN = 30      # 발동 뒤 이만큼 지난 공시는 경보로 내지 않는다 — 원장에 없던 옛 공시(배포 직후 · 공시 읽기 회복 · 밤 런)가
+                         # 늦은 경보로 나가지 않게. 브리핑 · 화면 이력에는 남는다.
+
+
+def _fresh_halt(ctx: Context, h: dict) -> bool:
+    try:
+        at = dt.datetime.fromisoformat(str(h.get("triggeredAt")))
+    except (TypeError, ValueError):
+        return False
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=KST)
+    return dt.timedelta(0) <= ctx.now - at <= dt.timedelta(minutes=HALT_FRESH_MIN) or at > ctx.now - dt.timedelta(minutes=1)
 
 
 def _hm(iso) -> str:
@@ -438,7 +452,7 @@ def market_halt(ctx: Context, ev: dict) -> list[Hit]:
         cands = {}
         for h in (notices or []) + list(halts.get("active") or []) + list(halts.get("history") or []):
             if (isinstance(h, dict) and h.get("source") == "krx" and h.get("market") == market
-                    and _kst_day(h.get("triggeredAt")) == today):
+                    and _kst_day(h.get("triggeredAt")) == today and _fresh_halt(ctx, h)):
                 cands[h["id"]] = market_halts._merge(cands.get(h["id"]), h)
         if not kind_ok:                                # 공시를 못 읽음 — 서킷만 지수로 추정
             live_chg = _num(ctx.change_pct(t)) if ctx.fresh(t) == "live" else None
@@ -448,7 +462,7 @@ def market_halt(ctx: Context, ev: dict) -> list[Hit]:
                     cands[h["id"]] = h
             for h in halts.get("active") or []:
                 if (isinstance(h, dict) and h.get("source") == "index" and h.get("market") == market
-                        and not halts.get("stale") and _kst_day(h.get("triggeredAt")) == today
+                        and not halts.get("stale") and _kst_day(h.get("triggeredAt")) == today and _fresh_halt(ctx, h)
                         and h.get("id") not in market_halts._FALSE_HALTS and h["id"] not in cands):
                     cands[h["id"]] = h
         for h in cands.values():
