@@ -17,6 +17,7 @@ import datetime as dt
 import re
 
 from . import cards, compose, deliver                 # deliver 가 scripts/ 를 sys.path 에 올린다 — 아래 두 줄보다 먼저
+from . import board                                    # noqa: E402  아침 · 점심 · 마감 = B안 시세판(2026-11-20)
 from .context import KST
 from .ledger import Ledger
 from .model import BRIEF_PUSH_SLOTS, DEFAULT_SETTINGS
@@ -407,6 +408,8 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     held = [r for _, r in _held(ledger)] if slot == "morning" else []
     changed = sorted((r for r in ledger.rows if r.get("level") == "notice"),
                      key=lambda r: r.get("ts", "")) if slot == "close" else []
+    if slot in board.BOARD_SLOTS:                      # 아침 · 점심 · 마감 — B안 시세판 + 규칙 글(시간띠 · AI 문장 없음)
+        return board.build(slot, ctx, ledger, holiday=holiday, closed=closed, held=held, changed=changed)
     hm = f"{_md(now)}({WD[now.weekday()]}) {now:%H:%M}"
     spec = {"foot": f"{now:%m/%d %H:%M} 기준 · ecom"}
     items, mid, ai_blocks = [], "", []
@@ -575,14 +578,15 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
             log(f"  {x}")
     if dry_run:
         return res
-    p_title, p_body = push_text(out["title"], out["lines"], slot)
+    p_title, p_body = out.get("push") or push_text(out["title"], out["lines"], slot)
     item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": p_title, "body": p_body,
             "url": deliver.abs_url("#/"), "ts": ctx.now.isoformat(timespec="seconds"),
             "level": "brief", "requireInteraction": False}
     if owner_on:
         _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, queue_path)
     if mem:                                            # 멤버 — 푸시만, 사람마다 uid 를 단 항목 · 시장 내용만(public_*)
-        m_title, m_body = push_text(out.get("public_title") or out["title"], out.get("public_lines") or out["lines"], slot)
+        m_title, m_body = out.get("public_push") or push_text(out.get("public_title") or out["title"],
+                                                              out.get("public_lines") or out["lines"], slot)
         pub = {"title": m_title, "body": m_body}
         if deliver.enqueue_push([dict(item, **pub, uid=u) for u in mem], queue_path):
             res["members"] = len(mem)

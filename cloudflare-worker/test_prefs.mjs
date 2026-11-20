@@ -48,7 +48,7 @@ console.log('GET 빈값');
 let r = await call('GET', '/prefs');
 check('200', r.status, 200);
 const V2_DEFAULTS = { package: 'normal', ringChannel: 'push', dailyCap: 10, sv: 0, quietAlarm: false,
-  briefings: { morning: true, close: true, noon: false, evening: false, us: false, weekly: true },
+  briefings: { morning: true, close: true, noon: true, evening: false, us: false, weekly: true },
   families: { A: true, B: true, C: true, D: true, E: true, F: true, G: true, H: true },
   rememberKey: false, kakaoFriends: false, kakaoRecipients: [] };
 check('빈 기본값', r.j, { v: 2, updatedAt: null, watch: [], alerts: [],

@@ -456,3 +456,80 @@ def event_card_png(row: dict, ctx) -> bytes:
 def bundle_card_png(rows: list[dict], ctx) -> bytes:
     """「알림 N건 더」 카드 1080² PNG — 제목줄 + 행 ≤6(넘치면 +N) + 꼬리."""
     return _png(_bundle_fig(rows, ctx))
+
+
+# ---------- B안 시세판(브리핑 아침 · 점심 · 마감, 2026-11-20 사용자 결정 D9=B · 기획 4ioDhgSA ④) ----------
+PXF = 72 / dc.SQ_DPI               # 1080px 카드의 1px = 0.48pt — 시안(card_proto) 의 px 치수를 그대로 쓴다
+BOARD_TOP, BOARD_FLOOR = 0.815, 0.085
+
+
+def _bt(fig, x, y, s, px, color=None, weight="normal", ha="left"):
+    return fig.text(x, y, s, fontsize=max(px * PXF, dc.SQ_MIN_FS), color=color or dc.INK, fontweight=weight,
+                    ha=ha, va="baseline")
+
+
+def _bpill(fig, x, y, s, px=26):
+    from matplotlib.patches import FancyBboxPatch
+    fs = max(px * PXF, dc.SQ_MIN_FS)
+    w = dc._text_w(fig, s, fs, "bold") + 0.03
+    fig.patches.append(FancyBboxPatch((x, y - 0.016), w, 0.05, boxstyle="round,pad=0,rounding_size=0.025",
+                                      transform=fig.transFigure, fc=dc.BG, ec="#D5DAE1", lw=1.2))
+    fig.text(x + 0.015, y, s, fontsize=fs, color=dc.MUT, fontweight="bold", va="baseline")
+
+
+def _bbar(fig, yc, frac, chg) -> None:
+    """가운데 선 기준 막대 — 오름 오른쪽(빨강) · 내림 왼쪽(파랑), 길이 = |frac|(1 = 끝)."""
+    from matplotlib.patches import Rectangle
+    cx, half = 0.885, 0.055
+    fig.patches.append(Rectangle((cx - 0.001, yc - 0.03), 0.002, 0.06, transform=fig.transFigure, fc="#C9CFD7"))
+    if not chg:
+        return
+    w = max(0.004, min(1.0, abs(frac)) * half)
+    fig.patches.append(Rectangle((cx if chg > 0 else cx - w, yc - 0.017), w, 0.034, transform=fig.transFigure,
+                                 fc=dc.UP if chg > 0 else dc.DN))
+
+
+def _draw_board(plt, fig, spec: dict) -> None:
+    """spec = {title, meta, sections:[{head, tag?, rows:[{name, sub?, big, chg?, bar?, plain?}]}], foot}.
+
+    구역 머리(회색 굵게 · 꼬리표 알약) → 행(이름 · 값 · 등락 · 막대). 행이 적으면 행 간격을 넓혀 아래 빈 띠를 줄이고,
+    많으면 좁힌다(구역 · 행이 넘치면 뒤 구역부터 뺀다 — 카드는 숫자, 나머지는 글 행이 맡는다)."""
+    _bt(fig, 0.06, 0.905, spec.get("title", ""), 52, weight="bold")
+    _bt(fig, 0.94, 0.905, spec.get("meta", ""), 30, dc.FAINT, ha="right")
+    secs = [s for s in spec.get("sections") or [] if s.get("rows")]
+    head_h, gap = 0.072, 0.012
+    while secs:
+        n = sum(len(s["rows"]) for s in secs)
+        room = BOARD_TOP - BOARD_FLOOR - len(secs) * head_h - (len(secs) - 1) * gap
+        row_h = min(0.085, room / max(n, 1))
+        if row_h >= 0.058:
+            break
+        secs = secs[:-1]
+    y = BOARD_TOP
+    for sec in secs:
+        _bt(fig, 0.06, y, sec["head"], 30, dc.MUT, "bold")
+        if sec.get("tag"):
+            _bpill(fig, 0.06 + dc._text_w(fig, sec["head"], max(30 * PXF, dc.SQ_MIN_FS), "bold") + 0.02, y, sec["tag"])
+        y -= head_h
+        for r in sec["rows"]:
+            big = str(r.get("big") or ("" if r.get("plain") else "—"))
+            fb = max((40 if r.get("plain") else 44) * PXF, dc.SQ_MIN_FS)
+            bw = dc._text_w(fig, big, fb, "normal" if r.get("plain") else "bold")
+            right = 0.42 if r.get("sub") else 0.80 - bw - 0.03
+            name = dc._clip(fig, str(r.get("name") or ""), right - 0.06, max(42 * PXF, dc.SQ_MIN_FS))
+            _bt(fig, 0.06, y, name, 42)
+            if r.get("sub"):
+                _bt(fig, 0.60, y, dc._clip(fig, str(r["sub"]), 0.17, max(40 * PXF, dc.SQ_MIN_FS)), 40, dc.FAINT,
+                    ha="right")
+            color = _chg_color(r.get("chg")) if r.get("chg") is not None else dc.INK
+            _bt(fig, 0.80, y, big, 40 if r.get("plain") else 44, color, "normal" if r.get("plain") else "bold", ha="right")
+            if r.get("bar") is not None:
+                _bbar(fig, y + 0.013, r["bar"], r.get("chg"))
+            y -= row_h
+        y -= gap
+    _bt(fig, 0.06, 0.028, spec.get("foot") or "ecom", 26, dc.FAINT)
+
+
+def board_card_png(spec: dict) -> bytes:
+    """브리핑 B안 시세판 1080² PNG."""
+    return _png(_guarded(_draw_board, spec))

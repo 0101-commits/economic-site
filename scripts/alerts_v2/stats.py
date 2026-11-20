@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 
 import sys
 
@@ -22,6 +23,7 @@ if __package__ in (None, ""):                          # python scripts/alerts_v
     sys.path[0] = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 from alerts_v2 import schema  # noqa: E402
 from alerts_v2.ledger import EVENTS_DIR, KST, Ledger  # noqa: E402
+from alerts_v2.model import BRIEF_PUSH_SLOTS  # noqa: E402
 from alerts_v2.schedule import story_key, story_rank  # noqa: E402
 
 PACKAGES = ("quiet", "normal", "many")
@@ -52,9 +54,13 @@ def _night(r: dict) -> bool:
     return t >= QUIET[0] or t < QUIET[1]
 
 
-def day_count(rows: list[dict], package: str, cap: int, quiet: bool, morning: bool) -> int:
-    """하루 행(시각순) → 폰 알림 통수."""
-    n = 1 if morning else 0
+def day_count(rows: list[dict], package: str, cap: int, quiet: bool, morning) -> int:
+    """하루 행(시각순) → 폰 알림 통수. morning = 그날 나간 폰 알림 브리핑 슬롯 집합(옛 호출은 참/거짓 = 아침만)."""
+    if isinstance(morning, (set, frozenset, list, tuple)):
+        want = ("morning",) if package == "quiet" else BRIEF_PUSH_SLOTS      # 조용히 = 아침만(PACKAGE_BRIEFINGS)
+        n = sum(1 for x in morning if x in want)
+    else:
+        n = 1 if morning else 0
     rung, stories, bundles = 0, {}, set()
     for r in rows:
         lv = r.get("level")
@@ -85,14 +91,15 @@ def build(end: dt.date, root: str | None = None, days: int = DAYS) -> dict:
     """end(포함하지 않음 — 오늘은 아직 덜 찼다) 앞 days 일."""
     default_on = {e["id"]: set(e.get("default_on") or []) for e in schema.load_events()}
     by_day: dict[str, list[dict]] = {}
-    mornings: set[str] = set()
+    mornings: dict[str, set] = {}
     span = [(end - dt.timedelta(days=i)).isoformat() for i in range(days, 0, -1)]
     for r in Ledger.load_days(days, end=end - dt.timedelta(days=1), root=root):
         day = str(r.get("ts") or "")[:10]
         if day not in span:
             continue
-        if str(r.get("key") or "").startswith("BRIEF:morning:"):
-            mornings.add(day)
+        m = re.match(r"BRIEF:(\w+):", str(r.get("key") or ""))
+        if m and m.group(1) in BRIEF_PUSH_SLOTS:
+            mornings.setdefault(day, set()).add(m.group(1))
         if not _personal(r) and _on(r, default_on):
             by_day.setdefault(day, []).append(r)
     root = root or EVENTS_DIR
@@ -102,7 +109,7 @@ def build(end: dt.date, root: str | None = None, days: int = DAYS) -> dict:
     for pkg in PACKAGES:
         for cap in CAPS:
             for q in (True, False):
-                v = [day_count(sorted(by_day.get(d, []), key=lambda r: r.get("ts", "")), pkg, cap, q, d in mornings)
+                v = [day_count(sorted(by_day.get(d, []), key=lambda r: r.get("ts", "")), pkg, cap, q, mornings.get(d, set()))
                      for d in seen]
                 sim[f"{pkg}:{cap}:{'q' if q else 'n'}"] = [round(sum(v) / len(v), 1), max(v)] if v else [0, 0]
     return {"v": 1, "asOf": end.isoformat(), "from": seen[0] if seen else None, "to": seen[-1] if seen else None,
