@@ -33,7 +33,7 @@ COMMON = {
     "reason": "20일 평균의 1.5배", "realized": "18.2", "chg_bp": 12, "flip_ko": "역전 해소", "streak": 5, "dir_ko": "순매도",
     "cum5": "−3.21조", "support_ko": "기관이 받음", "prev_dir_ko": "순매수", "cum": "−2.40조", "inst": "+1,230억",
     "retail": "+2,100억", "prev_days": 4, "count": 3, "first": "미국 CPI", "list": "미국 CPI · 일본은행", "related": "미 국채 10년",
-    "event_name": "한국 소비자물가동향", "act": "+2.8%", "vs_fore": "예상 밑돎", "vs_big": "예상과 큰 차이", "fore": "+2.9%", "why_line": "평소 어긋나는 폭의 3.1배",
+    "event_name": "한국 소비자물가동향", "act": "+2.8%", "vs_fore": "예상 밑돎", "vs_big": "예상과 큰 차이", "fore": "+2.9%", "prev_txt": "+2.9%(수정)", "why_line": "평소 어긋나는 폭의 3.1배",
     "verb_ko": "인상", "prev_n": 3, "next_meeting": "12/10", "from_md": "12/31", "to_md": "1/1", "next_md": "1/2",
     "us_status": "정상 개장", "kind_ko": "유상증자", "doc_title": "주요사항보고서(유상증자결정)", "label": "투자경고", "prev_labels": "투자주의",
     "counts": "경계 4일 · 안정 2일", "prev_ko": "중립", "post_title": "환율은 어디까지 오를까", "post_date": "11/5", "month_count": 12,

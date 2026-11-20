@@ -112,17 +112,25 @@ def fetch_notices(now):
 
     평일 08:50~18:00 KST 밖이면 [](읽을 것 없음). KIND_OFFLINE=1 이면 None(시험 · 재생 — 네트워크 없이 지수 길만)."""
     if os.environ.get("KIND_OFFLINE") == "1":
+        LAST_READ[0] = "skip"
         return None
     t = now.astimezone(KST)
     hm = t.hour * 60 + t.minute
     if t.weekday() >= 5 or not (8 * 60 + 50 <= hm <= 18 * 60):
+        LAST_READ[0] = "skip"
         return []
     try:
         import kind_notices
-        return kind_notices.recent(now, lookback_min=10 * 60, max_pages=12)
+        out = kind_notices.recent(now, lookback_min=10 * 60, max_pages=12)
+        LAST_READ[0] = "ok"
+        return out
     except Exception as e:                                 # noqa: BLE001 — 접속 · 형식 오류 = 못 읽음
         _log(f"[halts] 거래소 공시 읽기 실패: {type(e).__name__} {str(e)[:80]}")
+        LAST_READ[0] = "fail"
         return None
+
+
+LAST_READ = ["skip"]      # 마지막 fetch_notices 결과 — ok · fail · skip(장 밖 · 시험). 수집 런의 #시스템 감시(fetch_data)가 읽는다
 
 
 def _merge(a, b):
@@ -250,4 +258,4 @@ def detect_market_halts(data, prev, now=None):
     history = history[:30]
 
     return {"active": active, "history": history, "asOf": now.isoformat(),
-            "stale": not have_index}
+            "stale": not have_index, "kindRead": LAST_READ[0]}

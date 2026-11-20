@@ -160,7 +160,8 @@ def releases(ctx, hours: int = 14) -> list[dict]:
 def release_rows(rels: list[dict]) -> list[dict]:
     rows = []
     for r in rels[-2:]:
-        rows.append({"name": r["name"], "sub": f"예상 {r['fore']}" if r["fore"] else "",
+        cells = " · ".join(x for x in (f"예상 {r['fore']}" if r["fore"] else "", f"이전 {r['prev']}" if r["prev"] else "") if x)
+        rows.append({"name": r["name"], "sub": compose._tidy(cells), "wide": True,      # 세 칸: 실제(큰 글자) · 예상 · 이전
                      "big": compose._tidy(r["act"]), "chg": None, "plain": False})
     return rows
 

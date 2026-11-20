@@ -414,6 +414,15 @@ def _released_today(ctx: Context, ev: dict) -> list[tuple[dict, int]]:
     return out
 
 
+def _prev_revised(ctx: Context, e: dict) -> bool:
+    """「이전」 값이 지난 발표 때 실제 값과 다르면 참(수정됨, 결정 D12) — consensusHistory.series[이름] 의 이 발표 앞 회차 a.
+    기록이 없거나 숫자가 아니면 거짓(모르면 표시하지 않는다)."""
+    series = ((((ctx.data or {}).get("economicCalendar") or {}).get("consensusHistory") or {}).get("series") or {})
+    rows = [r for r in (series.get(e.get("name") or "") or []) if isinstance(r, dict) and str(r.get("q") or "") <= str(e.get("iso") or "")]
+    prev, last = _num(e.get("prev")), (_num(rows[-1].get("a")) if rows else None)
+    return prev is not None and last is not None and abs(prev - last) > 1e-6
+
+
 @judge("release_result")
 def release_result(ctx: Context, ev: dict) -> list[Hit]:
     """E2 — 발표 결과(그날 · 발표 시각 뒤). key 가 일정마다 갈리게 asOf = 「날짜:이름」."""
@@ -429,7 +438,9 @@ def release_result(ctx: Context, ev: dict) -> list[Hit]:
                   # 제목 한 줄 — 컨센서스 값은 본문. 판정어는 한 벌(웃돎 · 밑돎 · 예상대로) — 「예상보다 낮음」은 미국 소매판매 같은
                   # 일정에서 18칸을 넘어 이름이 「미국 소매…」로 잘렸다(P5 글자 수 검사, 2026-11-06)
                   "vs_fore": {"높음": "예상 웃돎", "낮음": "예상 밑돎", "같음": "예상대로"}.get(verdict, ""),
-                  "prev": e.get("prev") or "", "verdict_ko": verdict, "stars": stars, "next_event": nxt}
+                  "prev": e.get("prev") or "", "verdict_ko": verdict, "stars": stars, "next_event": nxt,
+                  # 세 칸 「실제 · 예상 · 이전」(2026-11-20, 기획 4ioDhgSA ⑥) — 이전이 고쳐졌으면 「(수정)」(D12)
+                  "prev_txt": (f"{e.get('prev')}(수정)" if _prev_revised(ctx, e) else e.get("prev")) if e.get("prev") else ""}
         if lvl := _escalate(ev, stars):
             fields["level"] = lvl
         hits.append(Hit(target=_target(ev, "calendar"), dir="new", value=e.get("act"), unit="",
@@ -461,7 +472,7 @@ def surprise(ctx: Context, ev: dict) -> list[Hit]:
             continue
         suffix = "%p" if "%" in str(e.get("act")) else "K" if "K" in str(e.get("act")) else ""
         why = (f"평소 어긋나는 폭 ±{band:.{max(dec, 2) if suffix == '%p' else dec}f}{suffix}의 {ratio:.1f}배" if band > 0
-               else f"지난 1년 {s.get('n')}회 모두 컨센서스대로였다")
+               else f"지난 1년 {s.get('n')}회 모두 예상대로였다")          # 알림 말은 「예상」(D13)
         hits.append(Hit(target=_target(ev, "calendar"), dir="new", value=e.get("act"), unit="",
                         asOf=f"{e['iso']}:{e.get('name')}", fresh="live", fields={
                             "event_name": e.get("name"), "act": e.get("act"), "fore": e.get("fore"),

@@ -515,11 +515,15 @@ def _draw_board(plt, fig, spec: dict) -> None:
             big = str(r.get("big") or ("" if r.get("plain") else "—"))
             fb = max((40 if r.get("plain") else 44) * PXF, dc.SQ_MIN_FS)
             bw = dc._text_w(fig, big, fb, "normal" if r.get("plain") else "bold")
-            right = 0.42 if r.get("sub") else 0.80 - bw - 0.03
+            wide = bool(r.get("wide") and r.get("sub"))      # 발표 결과 — 이름 위 · 예상 · 이전 아래 작은 줄(세 칸)
+            right = 0.42 if (r.get("sub") and not wide) else 0.80 - bw - 0.03
             name = dc._clip(fig, str(r.get("name") or ""), right - 0.06, max(42 * PXF, dc.SQ_MIN_FS))
-            _bt(fig, 0.06, y, name, 42)
-            if r.get("sub"):
-                _bt(fig, 0.60, y, dc._clip(fig, str(r["sub"]), 0.17, max(40 * PXF, dc.SQ_MIN_FS)), 40, dc.FAINT,
+            _bt(fig, 0.06, y + (0.012 if wide else 0), name, 42)
+            if wide:
+                _bt(fig, 0.06, y - 0.03, dc._clip(fig, str(r["sub"]), right - 0.06, max(28 * PXF, dc.SQ_MIN_FS)), 28,
+                    dc.FAINT)
+            elif r.get("sub"):
+                _bt(fig, 0.60, y, dc._clip(fig, str(r["sub"]), 0.19, max(40 * PXF, dc.SQ_MIN_FS)), 40, dc.FAINT,
                     ha="right")
             color = _chg_color(r.get("chg")) if r.get("chg") is not None else dc.INK
             _bt(fig, 0.80, y, big, 40 if r.get("plain") else 44, color, "normal" if r.get("plain") else "bold", ha="right")

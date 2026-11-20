@@ -321,7 +321,8 @@
   run: full
   cooldown: {per: [target, date], days: 1}
   title: "{event_name} {act} · {vs_fore}"
-  why: ["컨센서스 {fore} · 직전 {prev}", "직전 {prev}"]
+  # 세 칸(2026-11-20): 알림 · 브리핑 말은 「예상 · 이전」(화면은 11/15 결정대로 「컨센서스」, D13). 예상이 없는 지표는 두 칸.
+  why: ["실제 {act} 예상 {fore} 이전 {prev_txt}", "실제 {act} 예상 {fore} 이전 {prev}", "실제 {act} · 이전 {prev_txt}", "실제 {act} · 이전 {prev}", "실제 {act}"]
   next: ["다음 주요 일정 {next_event}"]
   url: "#/market?a=macro&v=calendar"
 - id: E3
