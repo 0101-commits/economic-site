@@ -453,15 +453,25 @@ def test_member_morning_briefing_has_no_owner_personal_rows_ai_fallback(monkeypa
     assert _no_secret(items[MEMBER]), items[MEMBER]
 
 
-@pytest.mark.parametrize("slot,hm", [("close", (15, 40)), ("weekly", (18, 0))])
-def test_member_gets_no_non_morning_briefing(monkeypatch, tmp_path, slot, hm):
-    """마감 · 주간 등 아침이 아닌 브리핑 — 폰 알림은 아침만이라 마스터 · 멤버 모두 큐에 아무것도 안 들어간다(카톡은 마스터만)."""
-    day = 10 if slot == "weekly" else 6
-    now = dt.datetime(2026, 10, day, *hm, tzinfo=KST)
+def test_member_gets_no_weekly_push_briefing(monkeypatch, tmp_path):
+    """주간 등 폰 알림 브리핑(아침 · 점심 · 마감) 밖 — 마스터 · 멤버 모두 큐에 아무것도 안 들어간다(카톡은 마스터만)."""
+    now = dt.datetime(2026, 10, 10, 18, 0, tzinfo=KST)
     led, run_slot = _brief_env(monkeypatch, tmp_path, now)
-    _owner_rows(led, f"2026-10-{day:02d}")
+    _owner_rows(led, "2026-10-10")
     led.save()
-    assert run_slot(slot) == {}
+    assert run_slot("weekly") == {}
+
+
+@pytest.mark.parametrize("slot,hm", [("noon", (12, 0)), ("close", (16, 30))])
+def test_member_noon_close_push_has_no_owner_personal_rows(monkeypatch, tmp_path, slot, hm):
+    """점심 · 마감도 폰 알림(설정 판 4, 2026-11-20) — 멤버 몫은 시장 내용만(마스터 내 조건 · 묶음 제목 없음)."""
+    now = dt.datetime(2026, 10, 6, *hm, tzinfo=KST)
+    led, run_slot = _brief_env(monkeypatch, tmp_path, now)
+    _owner_rows(led, "2026-10-06")
+    led.save()
+    items = run_slot(slot)
+    assert items[OWNER]["title"].startswith(("점심 브리핑", "마감 브리핑")), items[OWNER]
+    assert _no_secret(items[MEMBER]), items[MEMBER]
 
 
 def test_member_stock_lookup_logs_no_code(monkeypatch, capsys):

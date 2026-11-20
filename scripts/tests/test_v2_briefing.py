@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import investor_flows  # noqa: E402
 import send_kakao_digest as k  # noqa: E402
-from alerts_v2 import briefing, compose, deliver  # noqa: E402
+from alerts_v2 import board, briefing, compose, deliver  # noqa: E402
 from alerts_v2.context import KST, Context  # noqa: E402
 from alerts_v2.ledger import Ledger  # noqa: E402
 
@@ -81,9 +81,9 @@ def test_holiday_morning(real_ctx, tmp_path, monkeypatch):
     now = dt.datetime(2026, 10, 3, 7, 30, tzinfo=KST)
     ctx = _holiday_ctx(real_ctx, now)
     out = briefing.build("morning", ctx, Ledger(day=now.date(), root=str(tmp_path)), ALL_ON)
-    assert out["title"].startswith("10/3(토) 휴장일 아침"), out["title"]
+    assert out["title"].startswith("휴장일 아침"), out["title"]           # B안(2026-11-20): 제목 = 결론 한 줄, 날짜는 카톡이 말한다
     assert "휴장" in out["title"] and not _no_relative(out)
-    assert out["lines"][1] == out["holiday"] == "10/3 한국 휴장 · 다음 개장 10/6"
+    assert out["holiday"] == "10/3 한국 휴장 · 다음 개장 10/6" and ("휴장", out["holiday"]) in out["items"]
     assert "코스피" not in out["title"] and "코스닥" not in out["title"]       # 한국 장 칸 없음
     assert not any(lab in ("국내증시", "수급") for lab, _ in out["items"])
     # 한국 장 슬롯은 휴장일에 아무것도 안 보낸다
@@ -122,12 +122,12 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     led.append(_row("A1:sp500:up:2026-10-06", ts="2026-10-06T01:00:00+09:00", held=True))
     led.append(_row("C7:us10y:up:2026-10-06", level="notice", ts="2026-10-06T02:00:00+09:00"))   # 보류 아님
     out = briefing.build("morning", ctx, led, ALL_ON)
-    # 피드 = 시간띠 구간(전날 23:00~07:00)의 알림 행 — 주의 둘(시각순) 다음 안내, 한 이야기 한 줄
-    assert [lab.split(" ")[0] for lab, _ in out["items"][:3]] == ["23:30", "01:00", "02:00"], out["items"]
+    # 행 「알림」 = 앞 브리핑(전날 16:30) 뒤 경보 · 주의 ≤2(시각순), 안내는 싣지 않는다 — 이름 6자 · 값 25자 안
+    assert [lab for lab, _ in out["items"][:2]] == ["알림", "알림"], out["items"]
+    assert out["items"][0][1].startswith("23:30 ") and out["items"][1][1].startswith("01:00 "), out["items"]
+    assert all(board.row_ok(lab, v) for lab, v in out["items"])
     assert [r["key"] for r in out["held_rows"]] == ["A2:usdkrw:down:2026-10-05", "A1:sp500:up:2026-10-06"]
-    assert out["lines"][0] == "엔화 동반 약세"               # AI 실패 → 원장 첫 행 「왜」
-    monkeypatch.setattr(k, "slot_ai_line", lambda *a, **kw: "내일 발표가 남아 있다")   # 상대 시점어 → 사전 문장
-    assert briefing.build("morning", ctx, led, ALL_ON)["lines"][0] == "엔화 동반 약세"
+    assert out["push"][0].startswith("아침 브리핑") and compose.width(out["push"][1]) <= compose.BODY_W
 
     briefing.send("morning", ctx, led, ALL_ON, dry_run=True, log=lambda *a: None)
     assert len(deliver.held_rows(led)) == 1                 # 드라이런은 원장을 건드리지 않는다
@@ -135,7 +135,7 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     q = str(tmp_path / "push_queue.json")
     res = briefing.send("morning", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)
     assert res == {"push": 1, "kakao": False, "memo": False}
-    assert briefing.send("us", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)["push"] == 0   # 폰 알림은 아침 브리핑만(2026-11-06 P1)
+    assert briefing.send("us", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)["push"] == 0   # 폰 알림 = 아침 · 점심 · 마감만(판 4)
     assert deliver.held_rows(led) == []
     sent = led.get("A1:sp500:up:2026-10-06")["sent"]
     assert sent["held"] is False and sent["joined"] is True and not sent.get("push")   # 합류 = 따로 울리지 않음
@@ -145,10 +145,10 @@ def test_held_rows_join_morning(real_ctx, tmp_path, monkeypatch):
     assert briefing.build("morning", ctx, led, ALL_ON)["held_rows"] == []          # 다음 아침엔 다시 안 실린다
 
 
-def test_non_morning_slot_no_push_but_kakao_for_owner_and_members_get_nothing(real_ctx, tmp_path, monkeypatch):
-    """폰 알림은 아침 브리핑만 — 마감 등은 카톡(마스터)만 나가고 큐는 비며, 멤버는 아침 아니면 아무것도 못 받는다."""
+def test_brief_push_slots_three_and_others_kakao_only(real_ctx, tmp_path, monkeypatch):
+    """폰 알림 = 아침 · 점심 · 마감(설정 판 4, 2026-11-20) — 저녁 · 미국 개장 등은 카톡(마스터)만, 멤버는 세 슬롯만 받는다."""
     _no_cards(monkeypatch)
-    now = dt.datetime(2026, 10, 6, 15, 40, tzinfo=KST)
+    now = dt.datetime(2026, 10, 6, 18, 40, tzinfo=KST)
     ctx = copy.copy(real_ctx)
     ctx.now = now
     led = Ledger(day=now.date(), root=str(tmp_path))
@@ -156,19 +156,21 @@ def test_non_morning_slot_no_push_but_kakao_for_owner_and_members_get_nothing(re
     monkeypatch.setattr(briefing, "_kakao", lambda *a, **kw: calls.append(a[1]) or True)
     monkeypatch.setattr(deliver, "memo_mode", lambda log=print: False)
     q = str(tmp_path / "push_queue.json")
-    res = briefing.send("close", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q, uid="own",
+    res = briefing.send("evening", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q, uid="own",
                         members=[("mem", ALL_ON)])
-    assert res["push"] == 0 and res["kakao"] is True and res["members"] == 0 and calls == ["close"]
+    assert res["push"] == 0 and res["kakao"] is True and res["members"] == 0 and calls == ["evening"]
     assert not os.path.exists(q)                                     # 큐에 마스터 · 멤버 몫 모두 없음
-    # 메모 모드면 kakao 가 아니라 memo 로 나간다(그래도 푸시는 없음)
     monkeypatch.setattr(deliver, "memo_mode", lambda log=print: True)
     res = briefing.send("us", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q)
     assert res["push"] == 0 and res["memo"] is True and res["kakao"] is False
-    # 아침은 마스터 · 멤버 모두 폰 알림
-    res = briefing.send("morning", ctx, led, ALL_ON, log=lambda *a: None, queue_path=q, uid="own",
-                        members=[("mem", ALL_ON)])
-    assert res["push"] == 1 and res["members"] == 1
-    assert sorted(i["uid"] for i in json.load(open(q, encoding="utf-8"))) == ["mem", "own"]
+    for slot in ("morning", "noon", "close"):                        # 세 슬롯은 마스터 · 멤버 모두 폰 알림
+        ctx.now = now.replace(hour={"morning": 7, "noon": 12, "close": 16}[slot], minute=30)
+        res = briefing.send(slot, ctx, led, ALL_ON, log=lambda *a: None, queue_path=q, uid="own",
+                            members=[("mem", ALL_ON)])
+        assert res["push"] == 1 and res["members"] == 1, slot
+    items = json.load(open(q, encoding="utf-8"))
+    assert sorted(i["uid"] for i in items) == ["mem", "mem", "mem", "own", "own", "own"]
+    assert all(compose.width(i["title"]) <= compose.TITLE_W and compose.width(i["body"]) <= compose.BODY_W for i in items)
 
 
 def test_ai_fallback_skips_user_condition_why(real_ctx, tmp_path, monkeypatch):
@@ -193,23 +195,25 @@ def test_ai_fallback_skips_user_condition_why(real_ctx, tmp_path, monkeypatch):
     assert briefing.build("evening", ctx, only_mine, ALL_ON)["caption"] == "카드의 큰 움직임"
 
 
-def test_close_changed_is_notice_rows_max_four_lines(real_ctx, tmp_path, monkeypatch):
+def test_close_notice_row_and_board_card(real_ctx, tmp_path, monkeypatch):
+    """마감(B안): 오늘 안내 행은 「안내 N건 · 첫 제목」 한 행(합침 사건 G3 · E5 가 카톡에 닿는 길), 카드는 시세판."""
     _no_cards(monkeypatch)
-    # 카드가 그려진 경우의 분담을 본다 — 폰트 없는 경량 수집 런의 테스트 단계에선 카드가 None 이라 행 폴백이 돈다(10/12 실패)
-    monkeypatch.setattr(briefing.cards, "brief_card_png", lambda spec: b"\x89PNG")
+    monkeypatch.setattr(briefing.cards, "board_card_png", lambda spec: b"PNG")
     now = dt.datetime(2026, 10, 6, 16, 30, tzinfo=KST)
     ctx = copy.copy(real_ctx)
     ctx.now = now
     led = Ledger(day=now.date(), root=str(tmp_path))
     for i in range(5):
         led.append(_row(f"B2:k{i}:up:2026-10-06", level="notice", ts=f"2026-10-06T1{i}:00:00+09:00"))
-    led.append(_row("A1:kospi:up:2026-10-06", level="alert"))
+    led.append(_row("A1:kospi:up:2026-10-06", level="alert", ts="2026-10-06T13:00:00+09:00"))
     out = briefing.build("close", ctx, led, ALL_ON)
     assert len(out["changed_rows"]) == 5 and all(r["level"] == "notice" for r in out["changed_rows"])
-    # 새 카드(P3)는 글 줄이 없고 시간띠는 09:00~15:30 창만 그린다 — 합침 사건(G3 · E5)이 빠지지 않게 「오늘 바뀐 것」은 늘 카톡 행에
-    assert out["card_info"] == []
-    assert dict(out["items"])["오늘 바뀐 것"].startswith("안내 5건 · ") and out["caption"] == out["lines"][0]
-    assert briefing.changed_lines(out["changed_rows"][:4]) == [r["title"] for r in out["changed_rows"][:4]]
+    assert dict(out["items"])["안내"].startswith("5건 · ") and out["caption"] == out["lines"][0]
+    assert ("알림", "13:00 제목 A1:kospi:up:202…") in out["items"]          # 값 25자 넘으면 「…」
+    assert out["title"].startswith("마감") and out["card_png"] == b"PNG"
+    heads = [sec["head"] for sec in out["spec"]["sections"]]
+    assert heads[0] == "국내 지수 · 마감" and "수급" in heads
+    assert all(board.row_ok(lab, v) for lab, v in out["items"]) and len(out["items"]) <= briefing.ITEMS_MAX
     assert not _no_relative(out)
 
 
@@ -219,7 +223,7 @@ def test_off_slot_sends_nothing(real_ctx, tmp_path, monkeypatch):
     monkeypatch.setattr(deliver, "enqueue_push", lambda *a, **kw: calls.append("push"))
     monkeypatch.setattr(briefing, "_kakao", lambda *a, **kw: calls.append("kakao"))
     led = Ledger(day=real_ctx.now.date(), root=str(tmp_path))
-    for slot in ("noon", "evening", "us"):                   # 기본 꺼짐
+    for slot in ("evening", "us"):                          # 기본 꺼짐(점심은 판 4 부터 기본 켬)
         assert briefing.send(slot, real_ctx, led, None, log=lambda *a: None) == {"push": 0, "kakao": False, "memo": False}
     off = {"briefings": {"morning": False}}
     assert briefing.send("morning", real_ctx, led, off, log=lambda *a: None) == {"push": 0, "kakao": False, "memo": False}
@@ -264,6 +268,7 @@ def test_card_failure_keeps_briefing(real_ctx, tmp_path, monkeypatch):
     def boom(spec):
         raise RuntimeError("렌더 실패")
     monkeypatch.setattr(briefing.cards, "brief_card_png", boom)
+    monkeypatch.setattr(briefing.cards, "board_card_png", boom)
     out = briefing.build("close", real_ctx, Ledger(day=real_ctx.now.date(), root=str(tmp_path)), ALL_ON)
     assert out["card_png"] is None and out["title"]
 

@@ -167,6 +167,37 @@ class Context:
             if isinstance(b, dict) and name != "meta":
                 walk(b.get("views"))
 
+    def apply_live_kr(self, quote=None) -> list[str]:
+        """코스피 · 코스닥 띠를 네이버 실시간 값으로 바꾼다(결정 D8, 2026-11-20) — 판정 · 브리핑이 매분 같은 값을 본다.
+
+        번들은 10분 묶음이라 급변 경보가 중간값 20분 늦었고(11/13~11/20 7건), 등락이 다른 기준값으로 계산돼 있었다
+        (11/20 11:56 코스피 −3.71% vs 실제 −4.70%). 등락률 = 공식 전날 종가 대비. 오늘 09:00 전 값은 state=prev(개장 가드).
+        quote(target, now) 를 주입하면 그것을 쓴다(시험). 바꾼 대상 목록을 돌려준다."""
+        if quote is None:
+            scripts = os.path.join(ROOT, "scripts")
+            if scripts not in sys.path:
+                sys.path.append(scripts)
+            import naver_realtime
+            quote = naver_realtime.quote
+        done = []
+        for t in ("kospi", "kosdaq"):
+            try:
+                q = quote(t, self.now)
+            except Exception:                              # noqa: BLE001 — 실패하면 번들 값 그대로
+                q = None
+            if not q:
+                continue
+            s = dict(self.strip(t) or {"id": self.rid(t)})
+            s.update(value=q["value"], change=q.get("change"), changePct=q["changePct"], asOf=q["asOf"],
+                     state="live" if q.get("live") else "prev", src="naver")
+            s.pop("fresh", None)
+            self._strip[self.rid(t)] = s
+            node = (self.data.get("indices") or {}).get(t.upper())
+            if isinstance(node, dict) and q.get("live"):    # data.json 을 읽는 곳(옛 카드 · 휴장 판정)도 같은 값
+                node.update(price=q["value"], change=q["changePct"])
+            done.append(t)
+        return done
+
     def rid(self, target: str) -> str:
         return ALIASES.get(target, target)
 

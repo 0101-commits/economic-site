@@ -1132,7 +1132,7 @@ const PREFS_STRENGTHS = ['normal', 'big', 'huge', 'value'];
 const PREFS_PACKAGES = ['quiet', 'normal', 'many'];
 const PREFS_RING_CH = ['kakao', 'push', 'both'];
 const PREFS_BRIEFS = ['morning', 'close', 'noon', 'evening', 'us', 'weekly'];
-const PREFS_BRIEF_ON = ['morning', 'close', 'weekly'];
+const PREFS_BRIEF_ON = ['morning', 'noon', 'close', 'weekly'];   // 설정 판 4(2026-11-20) — model.DEFAULT_SETTINGS · prefsV2 PACKAGE_PRESET.normal 과 같다
 // 2층 필드 이름 — NFKC 로 정규화(전각 ｑｔｙ → qty)하고 소문자로 바꾼 뒤 공백·_·-·보이지 않는 글자를 빼고 비교한다.
 // 현행 보유 항목이 실제로 쓰는 이름(avg·qty·fxBuy, js/app2.js)과 흔한 다른 이름을 담는다.
 // 단독 amount·금액·balance 는 넣지 않는다 — 수급 알림 cond 의 금액 기준이나 시나리오 입력이 정당하게 쓴다.

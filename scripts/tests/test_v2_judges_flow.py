@@ -140,6 +140,26 @@ def test_e2_release_time_guard(tmp_path):
     assert h.fields["level"] == "alarm" and h.fields["next_event"] == "10/2 08:00 한국 소비자물가동향"
 
 
+def test_e2_three_cells_and_revised_prev(tmp_path):
+    """본문 = 「실제 · 예상 · 이전」 세 칸(2026-11-20). 예상이 없으면 두 칸, 이전이 지난 발표 실제와 다르면 「(수정)」(D12)."""
+    ev = schema.by_id(schema.load_events())["E2"]
+    ctx = _ctx(tmp_path, "2026-10-01T21:30:00+09:00")
+    h = next(h for h in _run("E2", ctx) if h.fields["event_name"] == "미국 PCE 물가지수")
+    f = h.fields
+    r = compose.render(ev, h, None)
+    assert r["body_push"] == f"실제 {f['act']} 예상 {f['fore']} 이전 {f['prev']}".replace("-", compose.MINUS), r
+    assert compose.width(r["body_push"]) <= compose.BODY_W
+    h.fields.update(fore="", vs_fore="")
+    assert compose.render(ev, h, None)["body_push"].startswith(f"실제 {f['act']} · 이전")
+    e = {"name": "미국 소매판매", "iso": "2026-11-17", "prev": "+0.8%"}
+    hist = {"series": {"미국 소매판매": [{"q": "2026-10-16", "a": 0.6}, {"q": "2026-11-18", "a": 0.2}]}}
+    c2 = _ctx(tmp_path, "2026-11-17T23:00:00+09:00")
+    c2.data.setdefault("economicCalendar", {})["consensusHistory"] = hist
+    assert J._prev_revised(c2, e) is True                      # 지난 발표 실제 +0.6% → 이번 「이전」 +0.8% = 수정
+    hist["series"]["미국 소매판매"][0]["a"] = 0.8
+    assert J._prev_revised(c2, e) is False
+
+
 def test_e3_surprise(tmp_path):
     """E3 = 컨센서스 대비 차이가 평소 폭의 2.5배 이상(「매우 큼」). 픽스처 PCE = 발표 +0.3% · 컨센서스 +0.1% → 차이 +0.2%p."""
     def hist(meanAbs, n=12):
@@ -154,7 +174,7 @@ def test_e3_surprise(tmp_path):
     assert _run("E3", _ctx(tmp_path, at, edit=hist(0.05, n=3))) == []          # 기록 6회 미만
     assert _run("E3", _ctx(tmp_path, at)) == []                                # 기록 없음
     z = _run("E3", _ctx(tmp_path, at, edit=hist(0.0)))                        # 늘 컨센서스대로였던 지표가 어긋남
-    assert len(z) == 1 and z[0].fields["why_line"] == "지난 1년 12회 모두 컨센서스대로였다"
+    assert len(z) == 1 and z[0].fields["why_line"] == "지난 1년 12회 모두 예상대로였다"
 
 
 def test_e4_policy_rate(tmp_path):

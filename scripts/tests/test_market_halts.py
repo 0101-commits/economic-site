@@ -7,9 +7,8 @@ import sys
 import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-# 스크레이프(네트워크) 비활성 — 1겹(지수) 로직만 결정적으로 테스트
-os.environ.pop("NAVER_CLIENT_ID", None)
-os.environ.pop("NAVER_CLIENT_SECRET", None)
+# 거래소 공시 읽기(네트워크) 끔 = 「공시를 못 읽은 런」 — 지수 서킷 추정 길을 결정적으로 시험한다. 공시 길은 _with_kind 로 주입.
+os.environ["KIND_OFFLINE"] = "1"
 import market_halts as mh
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
@@ -124,57 +123,77 @@ def test_merge_endofday_or():
     assert merged["triggeredAt"] == ev1["triggeredAt"]                  # 시작시각은 이른 값 유지
 
 
-# ── 회귀: 뉴스 오탐 (2026-09-30 실사건) ──
-# 19:44 기사 「사이드카도 멈춘 9월 코스피 … 이달 매수·매도 사이드카는 한 차례도 발동(되지 않았다)」가
-# '발동' 부분일치로 사이드카 + 서킷 1단계 둘 다 발송됐다. 그날 KOSPI 는 -0.48%.
-def _news(typ, market="KOSPI", t=None):
+# ── 거래소 공시가 발동을 만든다 (2026-11-20 개편 — 뉴스 경로 삭제) ──
+def _kind(typ, market="KOSPI", t=None, direction="down", stage=None):
+    import kind_notices
     t = t or NOW
-    return {"id": mh._halt_id(typ, market, t.strftime("%Y%m%d")), "type": typ, "market": market,
-            "stage": 1 if typ == "circuit" else None, "direction": "down",
-            "reason": "이달 매수·매도 사이드카는 한 차례도 발동", "triggeredAt": t.isoformat(),
-            "resumeAt": (t + datetime.timedelta(minutes=5)).isoformat(),
-            "endOfDay": False, "source": "news", "approx": True}
+    title = {("sidecar", "KOSPI"): f"유가증권시장 {'매도' if direction == 'down' else '매수'} 사이드카(Side car) 발동",
+             ("sidecar", "KOSDAQ"): f"코스닥시장 프로그램{'매도' if direction == 'down' else '매수'}호가 일시효력정지(Sidecar 발동)",
+             ("circuit", "KOSPI"): f"유가증권시장 매매거래 일시중단({stage or 1}단계 CB 발동)"}[(typ, market)]
+    row = {"time": t.strftime("%H:%M"), "title": title, "by": "유가증권시장본부" if market == "KOSPI" else "코스닥시장본부",
+           "acptno": "1"}
+    return kind_notices.to_halt(row, t.date().isoformat(), {"at": t, "pct": -5.04, "kind": "fut"})
 
 
-def _with_news(events, fn):
-    orig = mh.scrape_market_halts
-    mh.scrape_market_halts = lambda now: [dict(e) for e in events]
+def _with_kind(events, fn):
+    orig = mh.fetch_notices
+    mh.fetch_notices = lambda now: None if events is None else [dict(e) for e in events]
     try:
         return fn()
     finally:
-        mh.scrape_market_halts = orig
+        mh.fetch_notices = orig
 
 
-def test_news_ignored_after_close_quiet_day():
-    now = datetime.datetime(2026, 9, 30, 19, 48, tzinfo=KST)
-    d = _d(pd="2026-09-29", KOSPI=(3400, -0.48), KOSDAQ=(900, 0.72))
-    out = _with_news([_news("sidecar", t=now), _news("circuit", t=now)],
-                     lambda: mh.detect_market_halts(d, {}, now=now))
+def test_kind_sidecar_active_without_index_move():
+    """공시가 있으면 지수가 조용해도 사이드카 — 지수 ±2.5% 교차검증 같은 대리 문턱이 없다."""
+    d = _d(KOSPI=(3400, -0.5))
+    out = _with_kind([_kind("sidecar", t=NOW - datetime.timedelta(minutes=2))],
+                     lambda: mh.detect_market_halts(d, {}, now=NOW))
+    assert [(h["type"], h["market"], h["source"]) for h in out["active"]] == [("sidecar", "KOSPI", "krx")], out
+
+
+def test_kind_read_ok_no_notice_means_no_halt_even_on_big_index_move():
+    """공시를 읽었는데 발동 공시가 없으면 −8% 지수여도 서킷을 만들지 않는다(공시가 정답)."""
+    d = _d(KOSPI=(6992, -8.1))
+    out = _with_kind([], lambda: mh.detect_market_halts(d, {}, now=NOW))
     assert out["active"] == [], out
 
 
-def test_news_ignored_in_session_quiet_day():
-    d = _d(KOSPI=(3400, -0.48))
-    out = _with_news([_news("sidecar"), _news("circuit")],
+def test_kind_unreadable_falls_back_to_index_circuit_only():
+    d = _d(KOSPI=(6992, -8.1))
+    out = _with_kind(None, lambda: mh.detect_market_halts(d, {}, now=NOW))
+    assert [(h["type"], h["source"]) for h in out["active"]] == [("circuit", "index")], out
+
+
+def test_kind_expired_sidecar_goes_to_history():
+    """10분 런 사이에 시작 · 끝난 사이드카(5분) — active 가 아니라 바로 이력."""
+    d = _d(KOSPI=(3400, -3.0))
+    out = _with_kind([_kind("sidecar", t=NOW - datetime.timedelta(minutes=8))],
                      lambda: mh.detect_market_halts(d, {}, now=NOW))
     assert out["active"] == [], out
+    assert [h["type"] for h in out["history"]] == ["sidecar"], out
 
 
-def test_news_sidecar_accepted_on_big_move():
-    d = _d(KOSPI=(3400, 4.2))
-    out = _with_news([_news("sidecar")], lambda: mh.detect_market_halts(d, {}, now=NOW))
-    assert [h["type"] for h in out["active"]] == ["sidecar"], out
+def test_kind_buy_and_sell_sidecar_same_day_distinct():
+    t = NOW - datetime.timedelta(minutes=1)
+    out = _with_kind([_kind("sidecar", t=t), _kind("sidecar", t=t, direction="up")],
+                     lambda: mh.detect_market_halts(_d(KOSPI=(3400, 0.1)), {}, now=NOW))
+    assert len({h["id"] for h in out["active"]}) == 2, out
 
 
-def test_news_circuit_needs_index_cb():
-    d = _d(KOSPI=(3400, -5.0))           # -8% 미달
-    out = _with_news([_news("circuit")], lambda: mh.detect_market_halts(d, {}, now=NOW))
+def test_index_estimate_dropped_once_kind_reads():
+    """공시를 못 읽어 지수로 추정한 서킷이 다음 런(공시 읽힘)에 공시가 없으면 이월되지 않는다."""
+    prev = {"marketHalts": {"active": [{"id": "circuit-KOSPI-20260623", "type": "circuit", "market": "KOSPI",
+                                        "stage": 1, "source": "index", "triggeredAt": NOW.isoformat(),
+                                        "resumeAt": (NOW + datetime.timedelta(minutes=20)).isoformat()}],
+                            "history": []}}
+    out = _with_kind([], lambda: mh.detect_market_halts(_d(KOSPI=(3400, -1.0)), prev, now=NOW))
     assert out["active"] == [], out
 
 
 def test_uncorroborated_news_dropped_from_history():
     prev = {"marketHalts": {"active": [], "history": [
-        dict(_news("sidecar"), resolvedAt=NOW.isoformat()),
+        {"id": "sidecar-KOSPI-20260623", "source": "news", "resolvedAt": NOW.isoformat()},
         {"id": "circuit-KOSPI-20260626", "source": "index", "reason": "KOSPI 지수 전일比 -8.52%"}]}}
     out = mh.detect_market_halts({"indices": {}}, prev, now=NOW)
     assert [h["id"] for h in out["history"]] == ["circuit-KOSPI-20260626"], out

@@ -326,6 +326,8 @@ def _brief(slot: str, now, dry_run: bool) -> int:
             return 0
     ctx = Context.load(now=now)
     briefing.roll_calendar(ctx.data, now.astimezone(KST).date())   # 휴장 판정(kr_closed)이 보는 달력을 오늘로
+    live_kr = getattr(ctx, "apply_live_kr", None)     # 코스피 · 코스닥 = 네이버 실시간(D8)
+    print(f"[v2 brief] 국내 지수 실시간: {', '.join(live_kr() if live_kr else []) or '못 받음(묶음 값)'}")
     for fix in (kakao.apply_live_quotes, kakao.load_mri):   # 현행 다이제스트와 같은 발송 직전 보정(시세 · 리스크 지수)
         try:
             fix(ctx.data)
@@ -358,6 +360,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     now = dt.datetime.fromisoformat(args.now) if args.now else dt.datetime.now(KST)
+    if args.now:                                     # 검사용 시각 = 지난 장면 재생 — 거래소 공시를 실제로 부르지 않는다
+        os.environ.setdefault("KIND_OFFLINE", "1")
     if now.tzinfo is None:
         now = now.replace(tzinfo=KST)
     if args.mode == "brief":
@@ -374,6 +378,8 @@ def main(argv=None) -> int:
         print(f"[v2] 판정 함수 미구현(건너뜀): {', '.join(missing)}")
     todo = [ev for ev in todo if ev["judge"] in JUDGES]      # 사용자 조건(U1 · U2)도 여기서 빠진다 — subscribe 가 판정
     ctx = Context.load(now=now)
+    if args.now is None:                             # 코스피 · 코스닥 = 네이버 실시간(D8) — 검사용 시각 재생은 묶음 값 그대로
+        print(f"[v2] 국내 지수 실시간: {', '.join(ctx.apply_live_kr()) or '못 받음(묶음 값)'}")
     ledger = Ledger(day=now.astimezone(KST).date())
     new_rows = extract(ctx, todo, ledger, render=_render(ctx))
     print(f"[v2] {args.mode}: 사전 {len(todo)} 판정, 새 행 {len(new_rows)}")

@@ -96,7 +96,7 @@ def test_upgrade_prefs_v1_to_v2():
     assert byid["p2"]["event"] == "U2" and byid["p2"]["value"] == 3 and byid["p2"]["dir"] == "down" and byid["p2"]["repeat"] == "each"
     assert byid["p3"]["event"] == "D2" and byid["p4"]["event"] == "D5" and byid["p5"]["event"] == "C1"
     assert v2["settings"]["package"] == "normal" and v2["settings"]["dailyCap"] == 10 and v2["v"] == 2
-    assert v2["settings"]["sv"] == 3 and v2["settings"]["quiet"] == {"from": "23:00", "to": "07:00"}   # v1 quiet:null = 미설정 → 기본
+    assert v2["settings"]["sv"] == 4 and v2["settings"]["quiet"] == {"from": "23:00", "to": "07:00"}   # v1 quiet:null = 미설정 → 기본
 
 
 def test_migrate_v3_many_old_cap_quiet_off():
@@ -107,19 +107,22 @@ def test_migrate_v3_many_old_cap_quiet_off():
     st = subscribe.upgrade_prefs(old)["settings"]
     assert st["package"] == "normal" and st["dailyCap"] == 10
     assert st["quiet"] == {"from": "23:00", "to": "07:00"} and st["quietAlarm"] is True and st["ringChannel"] == "push"
-    assert st["sv"] == 3
-    assert [k for k, v in st["briefings"].items() if v] == ["morning", "close", "weekly"]
+    assert st["sv"] == 4
+    assert [k for k, v in st["briefings"].items() if v] == ["morning", "close", "noon", "weekly"]   # 판 4 꾸러미(점심 포함)
 
 
 def test_migrate_v3_keeps_custom_cap_and_skips_sv3():
     custom = subscribe.upgrade_prefs({"v": 2, "settings": {"package": "quiet", "dailyCap": 8}})["settings"]
     assert custom["dailyCap"] == 8 and custom["package"] == "quiet"            # 사용자가 고친 상한(직접 값)은 둔다
     assert [k for k, v in custom["briefings"].items() if v] == ["morning"]      # 조용히 = 아침만
-    done = {"v": 2, "settings": {"sv": 3, "package": "many", "dailyCap": 12, "quiet": None, "quietAlarm": False,
+    done = {"v": 2, "settings": {"sv": 4, "package": "many", "dailyCap": 12, "quiet": None, "quietAlarm": False,
                                  "ringChannel": "kakao", "briefings": {"morning": False, "noon": True}}}
-    st = subscribe.upgrade_prefs(done)["settings"]                              # 이미 판 3 — 다시 옮기지 않는다
+    st = subscribe.upgrade_prefs(done)["settings"]                              # 이미 판 4 — 다시 옮기지 않는다
     assert st["package"] == "many" and st["dailyCap"] == 12 and st["quiet"] is None and st["quietAlarm"] is False
     assert st["ringChannel"] == "kakao" and st["briefings"]["morning"] is False and st["briefings"]["noon"] is True
+    v3 = subscribe.upgrade_prefs(dict(done, settings=dict(done["settings"], sv=3)))["settings"]   # 판 3 → 4: 세 브리핑만 켠다
+    assert v3["sv"] == 4 and v3["dailyCap"] == 12 and v3["quiet"] is None and v3["ringChannel"] == "kakao"
+    assert all(v3["briefings"][x] for x in ("morning", "noon", "close"))
 
 
 def test_strength_filters_swing_rows_by_user_sigma():

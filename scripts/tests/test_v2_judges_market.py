@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import check_swings as cs  # noqa: E402
 import volatility as vol  # noqa: E402
 from alerts_v2 import judges_market  # noqa: E402,F401  판정 함수 등록
-from alerts_v2 import schema  # noqa: E402
+from alerts_v2 import compose, schema  # noqa: E402
 from alerts_v2.context import KST, Context  # noqa: E402
 from alerts_v2.events import JUDGES, extract, run_event  # noqa: E402
 from alerts_v2.ledger import Ledger, Row  # noqa: E402
@@ -112,42 +112,78 @@ def test_swing_sigma_daily_bitcoin():
     assert hits(c, "A4") == []
 
 
-# ---- A5 서킷브레이커 · 사이드카 ----
+# ---- A5 서킷브레이커 · 사이드카(거래소 공시, 2026-11-20) ----
+def _notice(typ="sidecar", market="KOSPI", direction="down", stage=None, at="2026-10-05T10:01:05+09:00", pct=-5.04):
+    import kind_notices
+    t = dt.datetime.fromisoformat(at)
+    title = {"sidecar": f"유가증권시장 {'매도' if direction == 'down' else '매수'} 사이드카(Side car) 발동",
+             "circuit": f"유가증권시장 매매거래 일시중단({stage or 1}단계 CB 발동)"}[typ]
+    by = "유가증권시장본부" if market == "KOSPI" else "코스닥시장본부"
+    if market == "KOSDAQ":
+        title = f"코스닥시장 프로그램{'매도' if direction == 'down' else '매수'}호가 일시효력정지(Sidecar 발동)"
+    return kind_notices.to_halt({"time": t.strftime("%H:%M"), "title": title, "by": by, "acptno": "9"},
+                                t.date().isoformat(), {"at": t, "pct": pct, "kind": "fut"})
+
+
 def test_market_halt_quiet_without_halt():
-    assert hits(ctx(), "A5") == []                           # 코스피 −4% · 활성 사건 없음
-
-
-def test_market_halt_index_stage_and_merge():
     c = ctx()
+    c._kind_cache = []                                       # 공시 읽음 · 시장조치 없음
+    assert hits(c, "A5") == []
+
+
+def test_market_halt_sidecar_from_kind_only_kospi():
+    c = ctx()
+    c._kind_cache = [_notice(), _notice(market="KOSDAQ", at="2026-10-05T10:03:00+09:00")]
+    h = hits(c, "A5")
+    assert [(x.target, x.dir, x.asOf) for x in h] == [("kospi", "enter", "2026-10-05.sidecar-down")]
+    f = h[0].fields
+    assert (f["halt_kind"], f["at"], f["approx"], f["source"]) == ("매도 사이드카", "10:01", "", "거래소 공시")
+    assert f["halt_line"] == "코스피200 선물 -5.04%"
+    r = compose.render(EVS["A5"], h[0], c)
+    assert r["title"].endswith(" 매도 사이드카 발동") and r["body_push"] == "10:01 · 코스피200 선물 −5.04%", r
+
+
+def test_market_halt_old_notice_not_sent_late():
+    """원장에 없던 옛 공시(배포 직후 · 공시 읽기 회복 · 밤 런) — 발동 30분이 지났으면 경보를 만들지 않는다."""
+    c = ctx()
+    c._kind_cache = [_notice(at="2026-10-05T09:59:00+09:00")]          # 31분 전
+    assert hits(c, "A5") == []
+    c._kind_cache = [_notice(at="2026-10-05T10:01:00+09:00")]          # 29분 전
+    assert len(hits(c, "A5")) == 1
+
+
+def test_market_halt_kind_read_no_index_estimate():
+    """공시를 읽었으면 지수 −8.4% 여도 서킷을 추정하지 않는다 — 공시가 정답."""
+    c = ctx()
+    c._kind_cache = []
+    c.strip("kospi")["changePct"] = -8.4
+    assert hits(c, "A5") == []
+
+
+def test_market_halt_index_estimate_when_kind_unreadable():
+    c = ctx()
+    c._kind_cache = None                                     # 공시를 못 읽음(D3)
     c.strip("kospi")["changePct"] = -8.4
     h = hits(c, "A5")
-    assert [(x.target, x.dir, x.asOf) for x in h] == [("kospi", "enter", "2026-10-05.circuit1")]
+    assert [(x.target, x.asOf) for x in h] == [("kospi", "2026-10-05.circuit1")]
     f = h[0].fields
-    assert (f["stage"], f["next_stage"], f["approx"], f["halt_kind"]) == (1, -15, "(추정)", "서킷브레이커")
-    # 수집 런이 이미 2단계로 올린 같은 사건 → 합쳐서 2단계(다른 원장 key)
-    c.data["marketHalts"]["active"] = [{
-        "id": "circuit-KOSPI-20261005", "type": "circuit", "market": "KOSPI", "stage": 2, "direction": "down",
-        "source": "index", "triggeredAt": "2026-10-05T10:05:00+09:00", "resumeAt": "2026-10-05T10:35:00+09:00",
-        "endOfDay": False}]
-    h = hits(c, "A5")
-    assert [(x.asOf, x.fields["stage"], x.fields["next_stage"]) for x in h] == [("2026-10-05.circuit2", 2, -20)]
+    assert (f["stage"], f["next_stage"], f["approx"], f["halt_kind"]) == (1, -15, "(추정)", "서킷브레이커 1단계")
+    c.data["marketHalts"]["active"] = [{"id": "sidecar-KOSPI-20261005", "type": "sidecar", "market": "KOSPI",
+                                        "source": "news", "corroborated": True,
+                                        "triggeredAt": "2026-10-05T10:01:00+09:00"}]
+    assert [x.asOf for x in hits(c, "A5")] == ["2026-10-05.circuit1"]   # 뉴스 사이드카는 어떤 길로도 안 만든다
 
 
-def test_market_halt_sidecar_needs_corroboration_and_exit():
+def test_market_halt_circuit_resume_line_and_no_exit():
     c = ctx()
-    side = {"id": "sidecar-KOSDAQ-20261005", "type": "sidecar", "market": "KOSDAQ", "stage": None,
-            "source": "news", "approx": True, "triggeredAt": "2026-10-05T10:01:00+09:00"}
-    c.data["marketHalts"]["active"] = [dict(side)]           # 지수 교차검증 없는 뉴스 = 무시
-    assert hits(c, "A5") == []
-    c.data["marketHalts"]["active"] = [dict(side, corroborated=True)]
-    c.data["marketHalts"]["history"] = [{"id": "circuit-KOSPI-20261005", "type": "circuit", "market": "KOSPI",
-                                         "stage": 1, "source": "index", "triggeredAt": "2026-10-05T09:40:00+09:00",
-                                         "resolvedAt": "2026-10-05T10:10:00+09:00"}]
-    h = {(x.target, x.dir): x for x in hits(c, "A5")}
-    s = h[("kosdaq", "enter")]
-    assert s.asOf == "2026-10-05.sidecar" and s.fields["stage"] is None and s.fields["halt_kind"] == "사이드카"
-    assert s.fields["next_stage"] == -8
-    assert h[("kospi", "exit")].asOf == "2026-10-05.circuit1"
+    c._kind_cache = [_notice("circuit", stage=1, at="2026-10-05T10:12:30+09:00")]
+    c.data["marketHalts"]["history"] = [dict(_notice(at="2026-10-05T09:30:00+09:00"),
+                                             resolvedAt="2026-10-05T09:35:00+09:00")]
+    h = {x.asOf: x for x in hits(c, "A5")}
+    assert set(h) == {"2026-10-05.circuit1"}                  # 1시간 전 사이드카 = 30분 넘은 공시 — 늦은 경보로 안 낸다
+    assert all(x.dir == "enter" for x in h.values())          # 해제 행은 없다
+    r = compose.render(EVS["A5"], h["2026-10-05.circuit1"], c)
+    assert r["title"].endswith(" 서킷브레이커 1단계 발동") and r["body_push"] == "10:12 · 10:32까지 거래 멈춤", r
 
 
 # ---- B1 52주 · B2 마디 ----
@@ -295,3 +331,28 @@ def test_same_observation_not_relogged_next_day(tmp_path):
     assert nxt.append(Row(key="C8:t10y2y:down:2026-10-06", event="C8", target="t10y2y", dir="down", level="alert",
                           value=-0.1, unit="%p", asOf="2026-10-06", fresh="prev", title="t", why="", next="",
                           url="#", ts="2026-10-06T10:00:00+09:00")) is True
+
+
+# ---- 국내 지수 실시간 · 개장 가드(2026-11-20, 기획 4ioDhgSA ②) ----
+def test_kr_open_guard_blocks_value_stamped_before_open():
+    c = ctx()
+    c.strip("kospi").update(asOf="2026-10-05T08:59:00+09:00", state="live")
+    assert "kospi" not in by_target(hits(c, "A1"))          # 09:00 전 시각 = 전날 종가
+
+
+def test_kr_bundle_change_recounted_from_prior_close():
+    """번들 등락이 다른 기준값이어도 일봉 직전 종가로 다시 센다 — 값이 어제 종가면 등락 0, 울림 없음."""
+    c = ctx()
+    prior = [b for b in c.series("kospi") if b["date"] < "2026-10-05"][-1]["close"]
+    c.strip("kospi").update(value=prior, changePct=-4.0, state="live", asOf="2026-10-05T09:05:00+09:00")
+    assert "kospi" not in by_target(hits(c, "A1"))
+
+
+def test_apply_live_kr_patches_strip_and_marks_preopen_prev():
+    c = ctx()
+    q = {"kospi": {"value": 100.0, "change": -5.0, "changePct": -4.76, "asOf": "2026-10-05T10:29:00+09:00", "live": True},
+         "kosdaq": {"value": 50.0, "change": 0.0, "changePct": 0.0, "asOf": "2026-10-02T15:30:00+09:00", "live": False}}
+    assert c.apply_live_kr(lambda t, now: q[t]) == ["kospi", "kosdaq"]
+    assert (c.value("kospi"), c.change_pct("kospi"), c.fresh("kospi")) == (100.0, -4.76, "live")
+    assert c.fresh("kosdaq") == "prev"                      # 전날 값 — 급변 판정에서 빠진다
+    assert c.apply_live_kr(lambda t, now: None) == []      # 실패하면 그대로

@@ -17,6 +17,7 @@ import datetime as dt
 import re
 
 from . import cards, compose, deliver                 # deliver 가 scripts/ 를 sys.path 에 올린다 — 아래 두 줄보다 먼저
+from . import board                                    # noqa: E402  아침 · 점심 · 마감 = B안 시세판(2026-11-20)
 from .context import KST
 from .ledger import Ledger
 from .model import BRIEF_PUSH_SLOTS, DEFAULT_SETTINGS
@@ -407,6 +408,8 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     held = [r for _, r in _held(ledger)] if slot == "morning" else []
     changed = sorted((r for r in ledger.rows if r.get("level") == "notice"),
                      key=lambda r: r.get("ts", "")) if slot == "close" else []
+    if slot in board.BOARD_SLOTS:                      # 아침 · 점심 · 마감 — B안 시세판 + 규칙 글(시간띠 · AI 문장 없음)
+        return board.build(slot, ctx, ledger, holiday=holiday, closed=closed, held=held, changed=changed)
     hm = f"{_md(now)}({WD[now.weekday()]}) {now:%H:%M}"
     spec = {"foot": f"{now:%m/%d %H:%M} 기준 · ecom"}
     items, mid, ai_blocks = [], "", []
@@ -511,7 +514,7 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
             or _moves(spec, pub_title)
     public_lines = [x if x and not compose.has_relative_time(x) else "" for x in (pub_ai, pub_mid)]
     try:
-        png = cards.brief_card_png(spec)
+        png = cards.board_card_png(_board_spec(spec))   # 시간띠 없는 시세판(2026-11-20) — 저녁 · 미국 개장 · 주간도 같은 틀
     except Exception as e:                             # noqa: BLE001 — 카드가 죽어도 브리핑은 나간다(카톡은 텍스트, 경고 남음)
         print(f"[v2 brief] 카드 렌더 실패: {type(e).__name__} {str(e)[:120]}")
         png = None
@@ -521,6 +524,20 @@ def build(slot: str, ctx, ledger, settings: dict | None = None) -> dict:
     return {"title": title, "lines": lines, "items": items, "card_png": png, "held_rows": held,
             "changed_rows": changed, "calendar_lines": cal, "holiday": holiday, "links": links,
             "caption": lines[0], "card_info": spec["info"], "public_title": pub_title, "public_lines": public_lines}
+
+
+def _board_spec(spec: dict) -> dict:
+    """옛 카드 재료(칸 ≤4 · 다음 일정) → B안 시세판 spec. 시간띠는 싣지 않는다(사용자: 시간띠 카드 별로, 2026-11-20)."""
+    rows = []
+    for t in spec.get("tiles") or []:
+        c = t.get("chg")
+        pct = isinstance(c, (int, float)) and not str(t.get("big") or "").endswith(("조", "억", "bp"))
+        rows.append({"name": t.get("label", ""), "sub": t.get("sub", ""), "big": t.get("big", ""), "chg": c,
+                     "bar": (c / 6) if pct else None})
+    secs = [{"head": spec.get("meta", ""), "rows": rows}]
+    if spec.get("next"):
+        secs.append({"head": "다음 일정", "rows": [{"name": spec["next"], "big": "", "plain": True}]})
+    return {"title": spec.get("title", ""), "meta": "", "sections": secs, "foot": spec.get("foot", "ecom")}
 
 
 def _personal(r: dict) -> bool:
@@ -575,14 +592,15 @@ def send(slot: str, ctx, ledger, settings: dict | None = None, dry_run: bool = F
             log(f"  {x}")
     if dry_run:
         return res
-    p_title, p_body = push_text(out["title"], out["lines"], slot)
+    p_title, p_body = out.get("push") or push_text(out["title"], out["lines"], slot)
     item = {"id": f"brief:{slot}:{ctx.now.date().isoformat()}", "title": p_title, "body": p_body,
             "url": deliver.abs_url("#/"), "ts": ctx.now.isoformat(timespec="seconds"),
             "level": "brief", "requireInteraction": False}
     if owner_on:
         _send_owner(slot, out, item, ledger, ctx, settings, uid, pairs, res, log, queue_path)
     if mem:                                            # 멤버 — 푸시만, 사람마다 uid 를 단 항목 · 시장 내용만(public_*)
-        m_title, m_body = push_text(out.get("public_title") or out["title"], out.get("public_lines") or out["lines"], slot)
+        m_title, m_body = out.get("public_push") or push_text(out.get("public_title") or out["title"],
+                                                              out.get("public_lines") or out["lines"], slot)
         pub = {"title": m_title, "body": m_body}
         if deliver.enqueue_push([dict(item, **pub, uid=u) for u in mem], queue_path):
             res["members"] = len(mem)

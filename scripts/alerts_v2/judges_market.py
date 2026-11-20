@@ -52,7 +52,7 @@ SANE_PCT = 50.0                              # check_swings 와 같은 오염 �
 SANE_PCT_STOCK = 400.0                       # 종목 B1 — 옛 check_alerts(미국 무제한, 글리치만). 국내 50% 는 Context.stock 이 거른다
 ASIA = ("kr", "jp", "cn", "hk")              # 거래일 = KST 날짜. 그 밖(미국 지수 · 환율 · 원자재)은 UTC 날짜
 PEERS = {"vix": "sp500", "move": "us10y"}    # C3 · C4 「왜」 줄의 짝 — 사전 문구(S&P500 · 미 10년)와 같은 대상
-_HALT_SRC = {"index": "지수로 추정", "news": "뉴스로 확인", "krx": "거래소 발표"}   # 폰 알림 본문 한 줄(2026-11-06)
+_HALT_SRC = {"index": "지수로 추정", "krx": "거래소 공시"}   # 폰 알림 본문 한 줄(2026-11-06)
 _COND = re.compile(r"^\s*([A-Za-z_]\w*)\s*(>=|<=|==|>|<)\s*(-?\d+(?:\.\d+)?)\s*$")
 
 
@@ -294,11 +294,45 @@ def _history_file(ctx: Context, key: str):
 
 
 # ───────────────────────── A 급변 ─────────────────────────
+KR_LIVE = ("kospi", "kosdaq")                   # 장중 값 = 네이버 실시간(context.apply_live_kr) — 개장 가드 · 공식 전날 종가 기준
+
+
+def _kr_guard(ctx: Context, target: str, v: float, day: str, prior, chg):
+    """국내 지수의 (등락%) 또는 None(울리면 안 됨) — 개장 가드 + 공식 전날 종가 기준(기획 4ioDhgSA ②).
+
+    ① 값의 시각이 오늘 09:00 전이면 None(09:00 토스 스냅샷은 지수 기준일이 전날 — 어제 값 경보 11/11 · 11/12 · 11/17 · 11/20).
+    ② 네이버 값이 아니면(번들 폴백) 등락을 일봉의 직전 종가로 다시 센다 — 번들 등락은 다른 기준값이었다(−3.71 vs −4.70%).
+       직전 종가가 4일보다 오래면 번들 등락 그대로. 다시 센 등락이 0(= 값이 어제 종가)이면 울릴 일이 없다."""
+    a = str(ctx.as_of(target) or "")
+    try:
+        at = dt.datetime.fromisoformat(a)
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=KST)
+        at = at.astimezone(KST)
+        if at.date().isoformat() == day and (at.hour, at.minute) < (9, 0):
+            return None
+    except ValueError:
+        pass
+    if (ctx.strip(target) or {}).get("src") == "naver" or not prior or not prior[-1][1]:
+        return chg
+    try:
+        gap = (dt.date.fromisoformat(day) - dt.date.fromisoformat(prior[-1][0][:10])).days
+    except ValueError:
+        return chg
+    if gap > 4:
+        return chg
+    return (v / prior[-1][1] - 1) * 100
+
+
 def _swing_state(ctx: Context, target: str, daily: bool):
     t = _today(ctx, target, daily)
     if not t:
         return None
     v, day, prior, chg, fresh = t
+    if not daily and target in KR_LIVE:
+        chg = _kr_guard(ctx, target, v, day, prior, chg)
+        if chg is None:
+            return None
     if chg is None or abs(chg) > SANE_PCT:
         return None
     if not daily and fresh != "live":
@@ -364,66 +398,107 @@ def swing_sigma(ctx: Context, ev: dict) -> list[Hit]:
     return hits
 
 
+def _kind_today(ctx: Context):
+    """이번 런의 거래소 시장조치 공시(market_halts.fetch_notices) — None = 못 읽음. 런에 한 번만 읽는다.
+    시험은 ctx._kind_cache 에 목록(또는 None)을 넣어 둔다."""
+    if not hasattr(ctx, "_kind_cache"):
+        ctx._kind_cache = market_halts.fetch_notices(ctx.now, lookback_min=HALT_FRESH_MIN, max_pages=2, timeout=5.0)
+    return ctx._kind_cache
+
+
+HALT_FRESH_MIN = 30      # 발동 뒤 이만큼 지난 공시는 경보로 내지 않는다 — 원장에 없던 옛 공시(배포 직후 · 공시 읽기 회복 · 밤 런)가
+                         # 늦은 경보로 나가지 않게. 브리핑 · 화면 이력에는 남는다.
+
+
+def _fresh_halt(ctx: Context, h: dict) -> bool:
+    try:
+        at = dt.datetime.fromisoformat(str(h.get("triggeredAt")))
+    except (TypeError, ValueError):
+        return False
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=KST)
+    return dt.timedelta(0) <= ctx.now - at <= dt.timedelta(minutes=HALT_FRESH_MIN) or at > ctx.now - dt.timedelta(minutes=1)
+
+
+def _hm(iso) -> str:
+    try:
+        return dt.datetime.fromisoformat(str(iso)).astimezone(KST).strftime("%H:%M")
+    except (TypeError, ValueError):
+        return ""
+
+
 @_market_judge("market_halt")
 def market_halt(ctx: Context, ev: dict) -> list[Hit]:
-    """A5 — 서킷브레이커 · 사이드카 발동(enter) · 해제(exit).
+    """A5 — 사이드카 · 서킷브레이커 발동(거래소 공시, 2026-11-20 개편 · 기획 4ioDhgSA ①).
 
-    발동 후보 둘: ① 실시간 지수 등락률 → market_halts.cb_from_index(−8/−15/−20%, 정규장 · 14:50 게이트 그대로)
-    ② data.json marketHalts.active(수집 런의 detect_market_halts — 사이드카 = ±2.5% + 뉴스 대조). 같은 id 는
-    market_halts._merge 로 합친다(더 심한 단계 · 이른 시각). 해제 = marketHalts.history 에서 오늘 풀린 것."""
+    발동 = 거래소 공시(kind_notices)만. 이 런에서 공시를 읽고(매분) + 수집 런이 data.json marketHalts 에 남긴 공시 사건을 합친다.
+    공시를 못 읽은 런만 서킷을 실시간 지수(−8/−15/−20%, 정규장 · 14:50 게이트)로 「추정」한다(D3) — 사이드카는 추정하지 않는다.
+    해제(exit)는 만들지 않는다(D2) — 사이드카는 5분 뒤 저절로 풀리고, 서킷 재개 시각은 발동 알림 본문에 적는다.
+    대상 시장은 사전 targets(코스피만 — 코스닥 사이드카 · 서킷은 경보로 보내지 않는다, 사용자 결정 11/20)."""
     from check_halts import TYPE_KO                    # 서킷브레이커 · 사이드카 이름의 현행 단일 원천
     stages = [x for x in (_num(s) for s in ((ev.get("params") or {}).get("stages_pct") or [-8, -15, -20]))
               if x is not None]
     stages.sort(reverse=True)                          # −8 → −15 → −20
     halts = ctx.data.get("marketHalts") or {}
     today = ctx.now.astimezone(KST).date().isoformat()
+    notices = _kind_today(ctx)
+    kind_ok = notices is not None
 
-    def trusted(h):
-        return (isinstance(h, dict) and h.get("id") and h.get("id") not in market_halts._FALSE_HALTS
-                and (h.get("source") != "news" or h.get("corroborated")))
-
-    per = {}
+    hits = []
     for t in ev.get("targets") or []:
         market = str((ctx.row(t) or {}).get("dataPath") or "").split(".")[-1].upper()
         if market not in ("KOSPI", "KOSDAQ"):
             continue
-        live_chg = _num(ctx.change_pct(t)) if ctx.fresh(t) == "live" else None
         cands = {}
-        if live_chg is not None and abs(live_chg) <= SANE_PCT:
-            h = market_halts.cb_from_index(market, live_chg, ctx.now)
-            if h:
-                cands[h["id"]] = h
-        for h in halts.get("active") or []:
-            if not trusted(h) or h.get("market") != market:
-                continue
-            if h.get("source") == "index" and halts.get("stale"):
-                continue                               # 지수가 깜깜이였던 빌드의 지수 사건은 믿지 않는다(check_halts 가드)
-            if _kst_day(h.get("triggeredAt")) != today:
-                continue
-            cands[h["id"]] = market_halts._merge(cands.get(h["id"]), h)
-        exits = [h for h in (halts.get("history") or [])
-                 if trusted(h) and h.get("market") == market and h["id"] not in cands
-                 and _kst_day(h.get("resolvedAt")) == today]
-        per[t] = (list(cands.values()), exits)
-
-    hits = []
-    for t, (actives, exits) in per.items():
-        others = [x for x in per if x != t and per[x][0]]
-        peer = _name(ctx, others[0]) if others else ""
-        for h, d in [(h, "enter") for h in actives] + [(h, "exit") for h in exits]:
+        for h in (notices or []) + list(halts.get("active") or []) + list(halts.get("history") or []):
+            if (isinstance(h, dict) and h.get("source") == "krx" and h.get("market") == market
+                    and _kst_day(h.get("triggeredAt")) == today and _fresh_halt(ctx, h)):
+                cands[h["id"]] = market_halts._merge(cands.get(h["id"]), h)
+        if not kind_ok:                                # 공시를 못 읽음 — 서킷만 지수로 추정
+            live_chg = _num(ctx.change_pct(t)) if ctx.fresh(t) == "live" else None
+            if live_chg is not None and abs(live_chg) <= SANE_PCT:
+                h = market_halts.cb_from_index(market, live_chg, ctx.now)
+                if h and h["id"] not in cands:
+                    cands[h["id"]] = h
+            for h in halts.get("active") or []:
+                if (isinstance(h, dict) and h.get("source") == "index" and h.get("market") == market
+                        and not halts.get("stale") and _kst_day(h.get("triggeredAt")) == today and _fresh_halt(ctx, h)
+                        and h.get("id") not in market_halts._FALSE_HALTS and h["id"] not in cands):
+                    cands[h["id"]] = h
+        for h in cands.values():
             typ = str(h.get("type") or "circuit")
             stage = h.get("stage") if typ == "circuit" else None
-            nxt = stages[stage] if (stage and stage < len(stages)) else (stages[0] if typ != "circuit" and stages
-                                                                        else None)
-            day = _kst_day(h.get("resolvedAt") if d == "exit" else h.get("triggeredAt")) or today
+            down = h.get("direction") != "up"
+            krx = h.get("source") == "krx"
+            if typ == "sidecar":
+                kind = f"{'매도' if down else '매수'} {TYPE_KO.get(typ, '사이드카')}"
+                pct = _num(h.get("basePct"))
+                line = f"{ctx_name_200(market)} 선물 {pct:+.2f}%" if pct is not None else ""
+            else:
+                kind = f"{TYPE_KO.get(typ, '서킷브레이커')} {stage or 1}단계"
+                if not krx:
+                    chg = _num(ctx.change_pct(t))
+                    line = f"지수 {chg:+.1f}% · 공시 전" if chg is not None else "공시 전"
+                elif h.get("endOfDay"):
+                    line = "오늘 거래 끝"
+                else:
+                    line = f"{_hm(h.get('resumeAt'))}까지 거래 멈춤" if h.get("resumeAt") else ""
+            nxt = stages[stage] if (stage and stage < len(stages)) else (stages[0] if typ != "circuit" and stages else None)
+            day = _kst_day(h.get("triggeredAt")) or today
+            tag = f"{typ}{stage or ''}" + ("" if typ == "circuit" else f"-{'down' if down else 'up'}")
             hits.append(Hit(
-                target=t, dir=d, value=_num(ctx.value(t)), unit=_unit(ctx, t),
-                asOf=f"{day}.{typ}{stage or ''}", fresh=ctx.fresh(t), chg=_r(_num(ctx.change_pct(t)), 2),
-                fields={"stage": stage, "halt_kind": TYPE_KO.get(typ, typ),
-                        "approx": "" if h.get("source") == "krx" else "(추정)",
+                target=t, dir="enter", value=_num(ctx.value(t)), unit=_unit(ctx, t),
+                asOf=f"{day}.{tag}", fresh=ctx.fresh(t), chg=_r(_num(ctx.change_pct(t)), 2),
+                fields={"stage": stage, "halt_kind": kind, "at": _hm(h.get("triggeredAt")), "halt_line": line,
+                        "approx": "" if krx else "(추정)", "verb": "발동" if krx else "추정",
                         "source": _HALT_SRC.get(h.get("source"), str(h.get("source") or "")),
-                        "next_stage": _tidy(nxt), "peer": peer, "halt_id": h.get("id")}))
+                        "next_stage": _tidy(nxt), "halt_id": h.get("id")}))
     return hits
+
+
+def ctx_name_200(market: str) -> str:
+    """사이드카 기준 선물의 이름 — 코스피200 · 코스닥150."""
+    return "코스피200" if market == "KOSPI" else "코스닥150"
 
 
 # ───────────────────────── B 기록 · 마디 ─────────────────────────

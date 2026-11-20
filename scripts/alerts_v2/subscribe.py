@@ -127,8 +127,11 @@ def upgrade_prefs(doc: dict) -> dict:
         s["package"] = "normal"
     if not isinstance(raw.get("dailyCap"), int):
         s["dailyCap"] = PACKAGE_CAP[s["package"]]      # 상한이 없는 문서 = 그 꾸러미 상한(화면 normSettings 와 같다)
-    if int(raw.get("sv") or 0) < SETTINGS_V:
-        s = migrate_v3(s)
+    sv = int(raw.get("sv") or 0)
+    if sv < 3:
+        s = migrate_v3(s)                              # 판 3 규칙(꾸러미 브리핑 묶음은 이미 판 4 묶음 — 점심 포함)
+    elif sv < SETTINGS_V:
+        s = migrate_v4(s)
     out["settings"] = s
     out["v"] = 2
     return out
@@ -148,6 +151,16 @@ def migrate_v3(s: dict) -> dict:
     s["quietAlarm"] = True
     s["briefings"] = {k: k in PACKAGE_BRIEFINGS[s["package"]] for k in DEFAULT_SETTINGS["briefings"]}
     s["ringChannel"] = "push"
+    s["sv"] = SETTINGS_V
+    return s
+
+
+def migrate_v4(s: dict) -> dict:
+    """설정 판 4(2026-11-20 알림 개편 2차) — 판 3 문서를 한 번. 화면 prefsV2.migrateV4 와 같은 규칙.
+    「보통 · 많이」면 브리핑 아침 · 점심 · 마감을 켠다(사용자 결정: 세 번 모두 폰 알림). 「조용히」와 다른 칸은 그대로."""
+    s = dict(s)
+    if s.get("package") in ("normal", "many"):
+        s["briefings"] = {**(s.get("briefings") or {}), "morning": True, "noon": True, "close": True}
     s["sv"] = SETTINGS_V
     return s
 

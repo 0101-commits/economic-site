@@ -111,7 +111,8 @@ def test_in_quiet_wraps_midnight():
 
 
 def test_story_pushes_only_when_step_rises():
-    """이어진 알림(P3): 11/6 국내 증시 — 사이드카(코스닥) 폰 알림 → 서킷 1단계(코스피) 다시 알림 → 같은 단계 사이드카 · 급변은 기록만."""
+    """이어진 알림(P3): 국내 증시 — 사이드카 폰 알림 → 서킷 1단계 다시 알림 → 같은 단계 사이드카 · 급변은 기록만.
+    코스닥은 국내 증시 이야기에서 뺐다(D7, 2026-11-20) — 코스닥 행은 자기 이야기."""
     from alerts_v2 import schedule as S
     from alerts_v2.model import Decision
 
@@ -130,20 +131,22 @@ def test_story_pushes_only_when_step_rises():
         return r
     ctx = type("C", (), {"now": __import__("datetime").datetime(2026, 11, 6, 9, 21, tzinfo=__import__("datetime").timezone(__import__("datetime").timedelta(hours=9))), "data": {}})()
     sets = {"quiet": None}
-    a = row("A5:kosdaq:enter:2026-11-06.sidecar", "A5", "kosdaq", "alarm", "09:21")
+    a = row("A5:kospi:enter:2026-11-06.sidecar-down", "A5", "kospi", "alarm", "09:21")
     out = S.plan([Decision(a, "alarm", True)], led, ctx, sets)
     assert [o.row["key"] for o in out] == [a["key"]] and led.rows[0]["sent"]["story"] == "2026-11-06:kr"
     led.rows[0]["sent"]["push"] = 1                                     # 발송됨
     b = row("A5:kospi:enter:2026-11-06.circuit1", "A5", "kospi", "alarm", "09:26")
     c = row("A1:kospi:down:2026-11-06:2s", "A1", "kospi", "alert", "09:26")
-    d = row("A5:kospi:enter:2026-11-06.sidecar", "A5", "kospi", "alarm", "09:37")
+    d = row("A5:kospi:enter:2026-11-06.sidecar-up", "A5", "kospi", "alarm", "09:37")
     out = S.plan([Decision(b, "alarm", True), Decision(c, "alert", True), Decision(d, "alarm", True)], led, ctx, sets)
     assert [o.row["key"] for o in out] == [b["key"]]                    # 단계 오름만 폰 알림
     assert c["sent"].get("folded") and d["sent"].get("folded")          # 나머지는 이야기 카드로
     assert S.story_key({"event": "A1", "target": "sp500", "ts": "2026-11-06T00:12"}) == "2026-11-06:us"
     assert S.story_key({"event": "E2", "target": "calendar", "ts": "2026-11-06T00:12"}) is None
+    assert S.story_key({"event": "A1", "target": "kosdaq", "ts": "2026-11-06T09:17"}) == "2026-11-06:kosdaq"
+    assert S.story_rank({"key": "A5:kospi:enter:2026-11-06.sidecar-up"}) == S.story_rank({"key": "x.sidecar"})
 
-    e = dict(row("A5:kosdaq:exit:2026-11-06.sidecar", "A5", "kosdaq", "alarm", "09:26"), dir="exit")
+    e = dict(row("A5:kospi:exit:2026-11-06.sidecar-down", "A5", "kospi", "alarm", "09:26"), dir="exit")
     led.rows[-1] = e
     out = S.plan([Decision(e, "alarm", True)], led, ctx, sets)
     assert [o.row["key"] for o in out] == [e["key"]] and not e["sent"].get("folded")   # 해제는 단계가 아니다 — 늘 나간다

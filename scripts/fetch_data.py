@@ -10467,6 +10467,67 @@ def build_light_data():
     return data, updated[0]
 
 
+def _apply_naver_kr_indices(d):
+    """코스피 · 코스닥 값 · 등락을 네이버 실시간(공식 전날 종가 대비)으로 맞춘다 — 오늘 09:00 뒤 값일 때만.
+
+    왜(2026-11-20, 기획 4ioDhgSA ② · 결정 D8): 11:56 화면 코스피가 다른 기준값(5,084.76)으로 −3.71% 였다(실제 전날 5,137.89
+    대비 −4.70%). 네이버 등락률은 거래소 공시 기준가와 같은 공식 전날 종가 기준이다. 09:00 전 · 휴장일 값(= 전날 종가)은
+    건드리지 않는다(개장 가드). 실패하면 그대로 둔다."""
+    try:
+        import naver_realtime
+    except Exception as e:                                 # noqa: BLE001
+        log(f"[naver-rt] 모듈 없음: {e}")
+        return
+    ind = d.setdefault("indices", {})
+    for t, name in (("kospi", "KOSPI"), ("kosdaq", "KOSDAQ")):
+        q = naver_realtime.quote(t)
+        if not q or not q.get("live"):
+            continue
+        node = ind.get(name) if isinstance(ind.get(name), dict) else {}
+        old = node.get("change")
+        node.update({"price": round(q["value"], 2), "change": round(q["changePct"], 2)})
+        ind[name] = node
+        d.setdefault("sources", {})["indices_kr_live"] = "네이버 증권 실시간(공식 전날 종가 대비)"
+        if old is not None and abs(float(old) - q["changePct"]) > 0.3:
+            log(f"[naver-rt] {name} 등락 {old:+.2f}% → {q['changePct']:+.2f}% (전날 종가 {q.get('prevClose')})")
+
+
+def _kind_watch(d, prev, now=None):
+    """거래소 공시 읽기 실패 · 회복을 #시스템에 한 줄씩(2026-11-20, 기획 4ioDhgSA ⑦).
+
+    장중(평일 08:50~18:00)에 marketHalts.kindRead 가 15분 넘게 fail 이면 한 번 알리고(사이드카 경보가 멈춘 상태 — 서킷은 지수
+    추정으로 간다), 다시 ok 가 되면 「회복」 한 줄. 상태는 data.json diagnostics.kindRead 가 잇는다(런마다 같은 경고 반복 금지)."""
+    now = now or datetime.now(KST)
+    read = (d.get("marketHalts") or {}).get("kindRead")
+    st = dict((((prev or {}).get("diagnostics") or {}).get("kindRead")) or {})
+    if read == "ok":
+        if st.get("alerted"):
+            try:
+                import notify_discord
+                notify_discord.system("거래소 공시(사이드카 · 서킷) 다시 읽힘 — 경보 정상", title="✅ 회복")
+            except Exception:                                  # noqa: BLE001
+                pass
+        st = {"ok": True, "lastOkAt": now.isoformat(timespec="seconds")}
+    elif read == "fail":
+        st["ok"] = False
+        st.setdefault("failSince", now.isoformat(timespec="seconds"))
+        try:
+            since = datetime.fromisoformat(st["failSince"])
+        except ValueError:
+            since = now
+        if not st.get("alerted") and (now - since).total_seconds() >= 15 * 60:
+            try:
+                import notify_discord
+                notify_discord.system(f"거래소 공시 목록을 {since.astimezone(KST):%H:%M}부터 못 읽음 — 사이드카 경보 멈춤, "
+                                      "서킷은 실시간 지수로 「추정」 경보", title="⚙️ 거래소 공시 읽기 실패")
+            except Exception:                                  # noqa: BLE001
+                pass
+            st["alerted"] = True
+    else:
+        return
+    d.setdefault("diagnostics", {})["kindRead"] = st
+
+
 def run_light_build():
     """FETCH_LIGHT=1 진입점 — 경량 빌드 + 서킷브레이커 감지 + 파일 쓰기. 항상 exit 0.
 
@@ -10482,10 +10543,12 @@ def run_light_build():
         return
     # 서킷브레이커·사이드카 감지 — 경량 런이 장중 최빈 경로이므로 프론트 배너 신선도도 여기서 확보.
     # (카카오 발송 소유권은 stock-alerts.yml/check_halts.py — 여기서는 data.json 갱신만.)
+    _apply_naver_kr_indices(d)
     try:
         import market_halts
         d["marketHalts"] = market_halts.detect_market_halts(d, _load_prev_data("data.json"))
         _mh = d["marketHalts"]
+        _kind_watch(d, _load_prev_data("data.json"))
         log(f"[light-halts] active={len(_mh.get('active', []))} history={len(_mh.get('history', []))}")
     except Exception as _e:
         print(f"[light-halts] 감지 skipped: {_e}")
@@ -10550,10 +10613,12 @@ if __name__ == "__main__":
         print(f"[climate] skipped: {_e}")
     # 🚨 시장중단(서킷브레이커·사이드카) 감지 — data.json.marketHalts 생성.
     # 디스크의 직전 data.json(아직 미갱신)을 읽어 active 를 이월. 실패해도 직전 블록 보존(날조 금지).
+    _apply_naver_kr_indices(d)
     try:
         import market_halts
         d["marketHalts"] = market_halts.detect_market_halts(d, _load_prev_data("data.json"))
         _mh = d["marketHalts"]
+        _kind_watch(d, _load_prev_data("data.json"))
         log(f"[halts] active={len(_mh.get('active', []))} history={len(_mh.get('history', []))}")
     except Exception as _e:
         print(f"[halts] 감지 skipped: {_e}")

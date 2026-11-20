@@ -20,10 +20,10 @@ const brief = (on: string[]) => Object.fromEntries(BRIEF_KEYS.map(k => [k, on.in
  *  하루 최대는 경보 · 아침 브리핑을 빼고 센다(2026-11-06 사용자 결정 보통 10). 서버 model.PACKAGE_CAP · PACKAGE_BRIEFINGS 와 짝. */
 export const PACKAGE_PRESET: Record<Pkg, { cap: number; briefings: Settings['briefings'] }> = {
   quiet: { cap: 5, briefings: brief(['morning']) },
-  normal: { cap: 10, briefings: brief(['morning', 'close', 'weekly']) },
+  normal: { cap: 10, briefings: brief(['morning', 'noon', 'close', 'weekly']) },
   many: { cap: 15, briefings: brief([...BRIEF_KEYS]) },
 }
-export const SETTINGS_V = 3
+export const SETTINGS_V = 4                      // 판 4(2026-11-20): 브리핑 아침 · 점심 · 마감 세 번 모두 폰 알림
 const OLD_CAPS = [3, 6, 12]                      // 판 2 꾸러미 상한 — 그대로 둔 값은 새 상한으로 옮긴다
 
 export function defaultSettings(): Settings {
@@ -47,6 +47,13 @@ export function migrateV3(s: Settings): Settings {
     quiet: s.quiet ?? { from: '23:00', to: '07:00' },
     quietAlarm: true, briefings: { ...PACKAGE_PRESET[pkg].briefings }, ringChannel: 'push', sv: SETTINGS_V,
   }
+}
+
+/** 설정 판 4(2026-11-20 알림 개편 2차) — 판 3 문서를 한 번. 서버 subscribe.migrate_v4 와 같은 규칙:
+ *  보통 · 많이면 브리핑 아침 · 점심 · 마감을 켠다(세 번 모두 폰 알림). 조용히 · 다른 칸은 그대로. */
+export function migrateV4(s: Settings): Settings {
+  const on = s.package === 'normal' || s.package === 'many'
+  return { ...s, briefings: on ? { ...s.briefings, morning: true, noon: true, close: true } : { ...s.briefings }, sv: SETTINGS_V }
 }
 
 const isObj = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -76,7 +83,7 @@ export function normSettings(raw: unknown): Settings {
     autoQuiet: s.autoQuiet !== false,
     sv: Number.isInteger(s.sv) ? s.sv : 0,
   }
-  return out.sv < SETTINGS_V ? migrateV3(out) : out
+  return out.sv < 3 ? migrateV3(out) : out.sv < SETTINGS_V ? migrateV4(out) : out
 }
 
 /** 조건 한 건: v2(event 있음)는 그대로, v1(type)은 사전 사건으로. 바꿀 수 없으면 null. */

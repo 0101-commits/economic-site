@@ -635,19 +635,19 @@ function NewCondition({ rows, labelOf, sync, full, onAdd }: { rows: RegRow[]; la
 // ── 채널 ───────────────────────────────────────────
 
 const BRIEFS: { key: keyof Settings['briefings']; label: string }[] = [
-  { key: 'morning', label: '아침 07:30' }, { key: 'close', label: '마감 16:30' }, { key: 'noon', label: '점심 12:00' },
+  { key: 'morning', label: '아침 07:30' }, { key: 'noon', label: '점심 12:00' }, { key: 'close', label: '마감 16:30' },
   { key: 'evening', label: '저녁 확정 18:30' }, { key: 'us', label: '미국 개장 22:40' }, { key: 'weekly', label: '주간 토 09:00' },
 ]
 const CAP_OPTS = [{ key: '5', label: '5' }, { key: '10', label: '10' }, { key: '15', label: '15' }] as const
 
-/** 받는 곳: 받는 곳 표 · 하루 최대 · 조용한 시간 · 브리핑. 받는 곳 나누기(2026-11-06): 폰 알림 = 경보 · 주의 · 아침 브리핑,
+/** 받는 곳: 받는 곳 표 · 하루 최대 · 조용한 시간 · 브리핑. 받는 곳 나누기(2026-11-06): 폰 알림 = 경보 · 주의 · 브리핑(아침 · 점심 · 마감, 판 4),
  *  알림 기록 = 전부, 카톡 = 브리핑만(마스터만 — 멤버 화면엔 카톡 칸 · 낱말이 없다). 앱키 · 받는 기기는 설정 「내 계정」. */
 function Channels({ prefs, setS, member }: { prefs: Prefs; setS: (k: Partial<Settings>) => void; member: boolean }) {
   const s = prefs.settings
   const quiet = s.quiet
   const setQuiet = (q: Settings['quiet']) => setS({ quiet: q })
   const routes: [string, string][] = [
-    ['폰 알림', `${LV.alarm} · ${s.package === 'quiet' ? '' : `${LV.alert} · `}${s.package === 'many' ? `${LV.notice} · ` : ''}내 조건 · 아침 브리핑`],
+    ['폰 알림', `${LV.alarm} · ${s.package === 'quiet' ? '' : `${LV.alert} · `}${s.package === 'many' ? `${LV.notice} · ` : ''}내 조건 · 브리핑(아침 · 점심 · 마감)`],
     ['알림 기록', '모든 알림'],
     ...(member ? [] : [['카톡', '브리핑만. 「나와의 채팅」에 소리 없이'] as [string, string]]),
   ]
@@ -664,7 +664,7 @@ function Channels({ prefs, setS, member }: { prefs: Prefs; setS: (k: Partial<Set
             <Field label="직접" className="w-20"><input type="number" min={1} max={50} className={INPUT} value={s.dailyCap}
               onChange={e => { const n = Math.round(Number(e.target.value)); if (n >= 1 && n <= 50) setS({ dailyCap: n }) }} /></Field>
           </div>
-          <p className="mt-1 mb-0 text-12 text-ink-3">{LV.alarm} · 아침 브리핑은 세지 않습니다. 넘으면 남은 알림을 한 통으로 묶습니다.</p>
+          <p className="mt-1 mb-0 text-12 text-ink-3">{LV.alarm} · 브리핑은 세지 않습니다. 넘으면 남은 알림을 한 통으로 묶습니다.</p>
         </Panel>
         <Panel title="조용한 시간">
           <Switch on={!!quiet} onChange={on => setQuiet(on ? { from: '23:00', to: '07:00' } : null)} label="조용한 시간 쓰기" />
@@ -679,7 +679,11 @@ function Channels({ prefs, setS, member }: { prefs: Prefs; setS: (k: Partial<Set
         </Panel>
         {member ? (
           <Panel title="브리핑">
-            <Switch on={s.briefings.morning} onChange={v => setS({ briefings: { ...s.briefings, morning: v } })} label="아침 07:30 브리핑 받기" />
+            <ul className="m-0 p-0 list-none flex flex-col gap-2">
+              {BRIEFS.slice(0, 3).map(b => (
+                <li key={b.key}><Switch on={s.briefings[b.key]} onChange={v => setS({ briefings: { ...s.briefings, [b.key]: v } })} label={`${b.label} 브리핑 받기`} /></li>
+              ))}
+            </ul>
           </Panel>
         ) : (
           <Panel title="카톡 브리핑">
@@ -688,7 +692,7 @@ function Channels({ prefs, setS, member }: { prefs: Prefs; setS: (k: Partial<Set
                 <li key={b.key}><Switch on={s.briefings[b.key]} onChange={v => setS({ briefings: { ...s.briefings, [b.key]: v } })} label={b.label} /></li>
               ))}
             </ul>
-            <p className="mt-2 mb-0 text-12 text-ink-3">폰 알림으로는 아침 브리핑만 갑니다.</p>
+            <p className="mt-2 mb-0 text-12 text-ink-3">아침 · 점심 · 마감 브리핑은 폰 알림으로도 갑니다.</p>
           </Panel>
         )}
       </div>
